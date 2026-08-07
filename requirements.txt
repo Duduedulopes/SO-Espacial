@@ -1,0 +1,14 @@
+# --- núcleo: captura e manipulação de imagem ---
+# É só disto que o degrau 0 precisa. Instalação rápida, sem GPU.
+opencv-python>=4.10
+numpy>=1.26
+pyyaml>=6.0
+
+# --- detecção e rastreamento (degraus 1 e 2) ---
+# Descomente quando chegar lá. Puxa o PyTorch junto: ~2,5 GB de download.
+# Licença AGPL-3.0 — ótima para pesquisa, exige atenção se virar produto fechado.
+# ultralytics>=8.3
+
+# --- análise e gráficos (quando começar a medir) ---
+# matplotlib>=3.9
+# pandas>=2.2

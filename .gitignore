@@ -1,0 +1,25 @@
+# ambiente
+.venv/
+__pycache__/
+*.py[cod]
+
+# dados — nunca versionar vídeo
+dados/
+*.mp4
+*.avi
+*.mkv
+
+# modelos baixados ou treinados
+*.pt
+*.onnx
+*.engine
+
+# notebooks
+.ipynb_checkpoints/
+
+# editor
+.vscode/
+.idea/
+
+# configuração local (câmera, caminhos, credenciais)
+config.local.yaml
