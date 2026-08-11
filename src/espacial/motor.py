@@ -59,8 +59,24 @@ from percepcao.pose3d import (                              # noqa: E402
 )
 from src.acao.classificador import Descritor                 # noqa: E402
 from src.acao.corpo import AnalisadorDeCorpo                 # noqa: E402
+from src.acao.escala import EscalaVertical                   # noqa: E402
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
+
+
+def _altura_da_camera():
+    """Le `config/escala.json`. Ausente significa nao calibrado, e tudo bem:
+    a altura da mao sai estimada pelo tronco e marcada como tal."""
+    import json
+
+    caminho = RAIZ / "config" / "escala.json"
+    if not caminho.exists():
+        return None
+    try:
+        return float(json.loads(caminho.read_text(encoding="utf-8"))
+                     ["altura_camera_m"])
+    except Exception:
+        return None
 
 
 class SpatialEngine:
@@ -122,6 +138,18 @@ class SpatialEngine:
         # jogados fora depois da fusao.
         self.corpo = AnalisadorDeCorpo()
         self.leituras = {}             # id -> LeituraDoCorpo, para o painel
+
+        # A CAMERA DO ALTO E A UNICA QUE VE OS PES, E E ELA QUE DA A ESCALA.
+        #
+        # Ideia do Eduardo, 11/08: as tres cameras existem para se
+        # complementar, e nenhuma precisa ver tudo. A frontal e a lateral
+        # ficam sobre a mesa e nunca verao um tornozelo — medido: 0% nas duas.
+        # A do alto ve, e o `FiltroDePlausibilidade` ja calculava a razao
+        # geometrica que, multiplicada pela altura da camera, E a estatura.
+        #
+        #     O dado que faltava ja estava sendo calculado para outra
+        #     finalidade: recusar movel.
+        self.escala = EscalaVertical(altura_camera_m=_altura_da_camera())
 
         self.log = Log("espacial")
         self._rumos = {}
@@ -389,6 +417,7 @@ class SpatialEngine:
                     razoes[e.id] = self.plausibilidade.razao(
                         self._caixas[ext[-1]])
 
+        self._medir_estaturas(estados, rastros)
         self.leituras = self._ler_corpos(estados)
 
         resultado = self.descritor.atualizar(
@@ -402,6 +431,30 @@ class SpatialEngine:
             self.acoes[e.id] = (acao, mudancas)
 
         self.corpo.esquecer({e.id for e in estados})
+
+    def _medir_estaturas(self, estados, rastros):
+        """Estatura em metros, da camera do alto, para quem esta EM PE.
+
+        `em_pe` vem do classificador do quadro ANTERIOR, que decidiu a postura
+        pela coxa — um caminho independente da caixa. Sem esse cuidado, quem
+        agacha alimentaria a escala com uma caixa menor e seria registrado como
+        uma pessoa de 1,10 m; a mediana por pessoa levaria minutos para se
+        recuperar.
+        """
+        from src.acao.vocabulario import Postura
+
+        for e in estados:
+            r = rastros.get(e.id)
+            ext = [x for x in (r.ids_externos if r else ()) if x in self._caixas]
+            if not ext:
+                continue
+            anterior = self.acoes.get(e.id)
+            em_pe = (anterior is None
+                     or anterior[0].postura != Postura.AGACHADO)
+            self.escala.observar(
+                e.id, self.plausibilidade.razao(self._caixas[ext[-1]]),
+                em_pe=em_pe)
+        self.escala.esquecer({e.id for e in estados})
 
     def _ler_corpos(self, estados, validade_s=0.5):
         """Le o CORPO de cada pessoa a partir de UMA vista de pose.
@@ -474,7 +527,8 @@ class SpatialEngine:
             pessoa.id, vistas,
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=pessoa.rumo,
-            velocidade=pessoa.velocidade)}
+            velocidade=pessoa.velocidade,
+            quadril_do_alto=self.escala.altura_do_quadril(pessoa.id))}
 
     def _vistas_ativas(self):
         v = {self.papel_chao}
@@ -502,4 +556,5 @@ class SpatialEngine:
                            f"({len(self.inclinacao.amostras)} amostras"
                            f"{'' if self.inclinacao.confiavel else ', aprendendo'})"),
             "corpo": self.corpo.diagnostico,
+            "escala": self.escala.diagnostico,
         }

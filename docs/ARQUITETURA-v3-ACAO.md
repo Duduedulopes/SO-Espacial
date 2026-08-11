@@ -6,6 +6,23 @@
 (A: locomoção e postura) e `caderno/2026-08-11.md` (B: rumo do corpo, braços e
 altura da mão em metros). Etapas C, D e E continuam sendo proposta.
 
+**A decisão de arquitetura mais importante veio do Eduardo, em 11/08:**
+
+> nenhuma delas vai captar 100% de tudo, as 3 já existem ao mesmo tempo para
+> uma complementar a outra
+
+Cada câmera responde o que enxerga; nenhuma precisa enxergar tudo:
+
+```
+alto      ve os pes e o chao        -> ONDE, e QUANTO A PESSOA MEDE
+frontal   ombros e pulsos           -> geometria relativa ao quadril
+lateral   ombros e quadris          -> reserva quando a frontal perde
+```
+
+Isso substitui a preferência fixa por vista, que escolhia a câmera antes de
+saber qual junta se queria ver. Também tornou possível a altura da mão em
+metros num espaço de 1,4 m, onde nenhuma câmera de mesa vê um pé.
+
 ---
 
 ## 1. O problema, dito com precisão

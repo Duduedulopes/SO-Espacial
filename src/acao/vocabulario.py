@@ -106,6 +106,13 @@ class Acao:
     altura_mao_esq: float | None = None
     altura_mao_dir: float | None = None
 
+    # A altura veio de tornozelo VISTO, ou da proporcao do tronco?
+    #
+    # Sem este campo, um numero estimado com +-8 cm de erro chega a quem decide
+    # com a mesma cara de um medido com +-2 cm. Quem consome tem que poder
+    # escolher se aquele erro cabe na decisao dele.
+    altura_medida: bool = False
+
     # 0 a 1. Confianca do eixo de locomocao, que e o mais usado pelo desenho.
     confianca: float = 0.0
 
@@ -134,6 +141,8 @@ class Acao:
             d["altura_mao_esq"] = round(self.altura_mao_esq, 3)
         if self.altura_mao_dir is not None:
             d["altura_mao_dir"] = round(self.altura_mao_dir, 3)
+        if self.altura_mao_esq is not None or self.altura_mao_dir is not None:
+            d["altura_medida"] = self.altura_medida
         return d
 
     def __repr__(self):
@@ -145,7 +154,7 @@ class Acao:
                 continue
             b += f" {lado}:{estado}"
             if altura is not None:
-                b += f"@{altura:.2f}m"
+                b += f"@{altura:.2f}m" + ("" if self.altura_medida else "~")
         return f"{self.locomocao}/{self.postura}{b} ({self.confianca:.0%})"
 
 

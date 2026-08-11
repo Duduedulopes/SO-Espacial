@@ -409,8 +409,12 @@ class Orquestrador:
                 for lado, estado, altura in (
                         ("E", a.braco_esquerdo, a.altura_mao_esq),
                         ("D", a.braco_direito, a.altura_mao_dir)):
+                    # `~` = ESTIMADA pela proporcao do tronco, sem tornozelo
+                    # visivel. Um caractere, e ele evita que +-8 cm de erro
+                    # cheguem a uma decisao com cara de +-2 cm.
                     metros = ("     --" if altura is None
-                              else f"{altura:6.2f}m")
+                              else f"{altura:6.2f}m"
+                                   + ("" if a.altura_medida else "~"))
                     linhas.append(f"      braco {lado}  {estado:14} {metros}")
 
                 leitura = self.espacial.leituras.get(pid)

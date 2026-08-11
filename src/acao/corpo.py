@@ -140,6 +140,26 @@ class LeituraDoCorpo:
     #     a suavizacao de um no outro apaga justamente o sinal procurado.
     altura_quadril_agora: float | None = None
 
+    # A ALTURA DA MAO FOI MEDIDA, OU ESTIMADA?
+    #
+    # MEDIDO EM 11/08: com a area de 1,4 m, NENHUMA camera enxerga os pes —
+    # frontal 0%, lateral 0%. E nao e ajuste de enquadramento: uma webcam de
+    # ~60 graus a 1,4 m cobre cerca de 1,6 m de altura, e uma pessoa em pe tem
+    # 1,75 m. Nao cabe. So da para escolher entre ver os ombros ou ver os pes.
+    #
+    # Sem tornozelo nao ha chao no referencial do corpo, e a altura da mao —
+    # o numero que decide qual prateleira — ficaria sem resposta para sempre
+    # naquela sala.
+    #
+    # A saida NAO e inventar um chao. E usar outra medida que existe: o
+    # MediaPipe entrega o tronco em METROS, e a proporcao quadril/tronco do
+    # corpo humano e estavel. Isso e um MODELO, nao uma medicao — e a diferenca
+    # tem que viajar junto com o numero.
+    #
+    #     Responder por modelo e legitimo. Responder por modelo sem dizer que
+    #     e modelo e o defeito que este projeto inteiro combate.
+    altura_medida: bool = False
+
     motivo: str = ""
 
     # VERTICALIDADE DA COXA: quanto o vetor quadril->joelho aponta para baixo.
@@ -390,6 +410,7 @@ class AnalisadorDeCorpo:
                  levantado_acima=0.10,
                  estendido_alem=0.25,
                  tronco_minimo=0.15, coxa_minima=0.15,
+                 quadril_por_tronco=1.83, tronco_vertical_minimo=0.25,
                  quadril_min=0.40, quadril_max=1.30,
                  altura_maxima=2.50,
                  memoria_quadril=120,
@@ -398,6 +419,8 @@ class AnalisadorDeCorpo:
         self.estendido_alem = estendido_alem
         self.tronco_minimo = tronco_minimo
         self.coxa_minima = coxa_minima
+        self.quadril_por_tronco = quadril_por_tronco
+        self.tronco_vertical_minimo = tronco_vertical_minimo
         self.quadril_min = quadril_min
         self.quadril_max = quadril_max
         self.altura_maxima = altura_maxima
@@ -433,12 +456,14 @@ class AnalisadorDeCorpo:
 
         altura_quadril, quadril_agora = self._altura_do_quadril(
             pessoa_id, j, visivel)
+        medida = bool(self._quadris.get(pessoa_id))
 
         leitura = LeituraDoCorpo(
             rumo_corpo=self.azimute.para_o_mundo(rumo_cam),
             rumo_corpo_camera=rumo_cam,
             altura_quadril=altura_quadril,
             altura_quadril_agora=quadril_agora,
+            altura_medida=medida,
             verticalidade_coxa=self._verticalidade_da_coxa(j, visivel),
         )
 
@@ -541,7 +566,8 @@ class AnalisadorDeCorpo:
                 historico.append(z)
 
         if not historico:
-            return None, agora
+            # SEM PE NENHUM: estima pelo tronco, e diz que estimou.
+            return self._quadril_pelo_tronco(j, visivel), agora
 
         # A MEDIANA E O PADRAO EM PE, E A MEMORIA E LONGA DE PROPOSITO.
         #
@@ -551,6 +577,51 @@ class AnalisadorDeCorpo:
         # classificador dissesse "em pe", e ai o estimador dependeria do
         # resultado que ele mesmo alimenta.
         return float(np.median(historico)), agora
+
+    def _quadril_pelo_tronco(self, j, visivel):
+        """Altura do quadril a partir do comprimento do TRONCO, em metros.
+
+        A CONTA, E DE ONDE ELA VEM
+
+        Antropometria de adultos, medidas classicas em fracao da estatura:
+
+            quadril (trocanter)   0,53
+            ombro (acromio)       0,82
+            tronco = 0,82 - 0,53 = 0,29
+
+        Logo `altura_do_quadril = (0,53 / 0,29) x tronco = 1,83 x tronco`.
+
+        O ERRO QUE ISTO CARREGA, DITO ANTES DE ALGUEM PERGUNTAR
+
+        A razao varia cerca de 8% entre adultos — pernas mais longas ou mais
+        curtas para o mesmo tronco. Num quadril de 0,95 m isso da +-8 cm.
+
+        Para separar prateleiras de 25 cm, serve. Para dizer que a mao estava a
+        1,18 e nao a 1,26, nao serve. E por isso que o resultado sai marcado:
+        quem consumir decide se aquele erro cabe na decisao dele.
+
+        A MEDICAO CONTINUA GANHANDO SEMPRE QUE EXISTE
+
+        Isto so entra quando NENHUM quadro teve tornozelo visivel. Um unico
+        quadro com pe a vista ja produz a mediana medida, e ela e melhor.
+        """
+        if not _visivel(visivel, OMBRO_ESQ, OMBRO_DIR,
+                        QUADRIL_ESQ, QUADRIL_DIR):
+            return None
+
+        ombros = (j[OMBRO_ESQ] + j[OMBRO_DIR]) / 2
+        quadris = (j[QUADRIL_ESQ] + j[QUADRIL_DIR]) / 2
+        tronco = float(ombros[2] - quadris[2])
+
+        # Tronco encurtado e pessoa curvada ou reconstrucao ruim, e nos dois
+        # casos a proporcao nao vale. Melhor nao responder.
+        if tronco < self.tronco_vertical_minimo:
+            return None
+
+        altura = self.quadril_por_tronco * tronco
+        if not self.quadril_min <= altura <= self.quadril_max:
+            return None
+        return altura
 
     # ------------------------------------------------------------ coxa
     def _verticalidade_da_coxa(self, j, visivel):
@@ -650,7 +721,7 @@ class AnalisadorDeCorpo:
 
     # ------------------------------------------------------------ varias vistas
     def ler_varias(self, pessoa_id, vistas, inclinacao_rad=0.0,
-                   rumo_mundo=None, velocidade=0.0):
+                   rumo_mundo=None, velocidade=0.0, quadril_do_alto=None):
         """Le TODAS as vistas e combina cada resposta com quem conseguiu da-la.
 
         O PROBLEMA MEDIDO EM 11/08
@@ -694,9 +765,40 @@ class AnalisadorDeCorpo:
         leituras = [x for x in leituras if x is not None]
         if not leituras:
             return LeituraDoCorpo(motivo="sem pose")
-        if len(leituras) == 1:
-            return leituras[0]
-        return self._combinar(leituras)
+        final = leituras[0] if len(leituras) == 1 else self._combinar(leituras)
+        return self._aplicar_escala(final, quadril_do_alto)
+
+    def _aplicar_escala(self, leitura, quadril_do_alto):
+        """A camera do ALTO manda no quadril quando nenhuma pose viu o pe.
+
+        TRES FONTES, E A ORDEM E POR QUALIDADE DA EVIDENCIA:
+
+            1. tornozelo VISTO numa vista de pose   medido, ~2 cm
+            2. estatura medida pela camera do alto  proporcao sobre MEDIDA, ~3 cm
+            3. proporcao sobre o tronco             proporcao sobre proporcao, ~8 cm
+
+        A 2 so entra quando a 1 falha, e a 3 so quando as duas falham. Nenhuma
+        substitui uma melhor que exista — e so a 1 sai sem o aviso de estimada.
+
+            Cada camera responde o que enxerga. Nenhuma precisa enxergar tudo.
+                                                        — Eduardo, 11/08
+        """
+        if leitura.altura_medida or quadril_do_alto is None:
+            return leitura
+
+        antes = leitura.altura_quadril
+        leitura.altura_quadril = quadril_do_alto
+
+        # As alturas de mao ja calculadas usaram a referencia pior. Refaz o
+        # deslocamento em vez de recalcular do zero: o que muda e so o ponto
+        # de apoio, e a distancia pulso-quadril continua medida.
+        if antes:
+            desvio = quadril_do_alto - antes
+            for campo in ("altura_mao_esq", "altura_mao_dir"):
+                v = getattr(leitura, campo)
+                if v is not None:
+                    setattr(leitura, campo, v + desvio)
+        return leitura
 
     @staticmethod
     def _combinar(leituras):

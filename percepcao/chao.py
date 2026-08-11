@@ -230,7 +230,19 @@ class FiltroDePlausibilidade:
         return -(self.h31 * u + self.h33) / self.h32
 
     def razao(self, caixa):
-        """altura_px / distancia_ao_horizonte. Constante para pessoas reais."""
+        """altura_px / distancia_ao_horizonte. Constante para pessoas reais.
+
+        SEM HORIZONTE, SEM RAZAO — e a guarda mora aqui, nao em quem chama.
+        A versao anterior dependia de `plausivel()` checar `utilizavel` antes;
+        quando a escala vertical passou a chamar `razao()` direto, a divisao
+        por `h32 = 0` levantou ZeroDivisionError numa camera perpendicular.
+
+            Invariante do objeto se defende dentro do objeto. Guarda que vive
+            em quem chama protege so o primeiro chamador.
+        """
+        if not self.utilizavel:
+            return None
+
         x1, y1, x2, y2 = caixa
         u = (x1 + x2) / 2.0
         d = y2 - self.v_horizonte(u)

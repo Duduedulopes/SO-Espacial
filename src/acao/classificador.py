@@ -166,6 +166,7 @@ class ClassificadorDeAcao:
             braco_direito=self.braco_direito.valor,
             altura_mao_esq=leitura.altura_mao_esq,
             altura_mao_dir=leitura.altura_mao_dir,
+            altura_medida=leitura.altura_medida,
             confianca=round(confianca, 3),
             velocidade_ms=v,
             giro_graus_s=math.degrees(giro),

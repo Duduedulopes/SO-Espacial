@@ -178,10 +178,14 @@ def faixa_de_leitura(largura, passo, acao, certo, acumulado, confirmar_s,
     escrever(f"esperado: {esperado}", 46, CINZA)
     escrever(f"lendo:    {atual}", 66, VERDE if certo else VERMELHO, 0.55)
 
-    braços = (f"braco E {acao.braco_esquerdo:12} "
-              f"{'--' if acao.altura_mao_esq is None else f'{acao.altura_mao_esq:.2f}m'}"
+    til = "" if acao.altura_medida else "~"
+
+    def metros(v):
+        return "--" if v is None else f"{v:.2f}m{til}"
+
+    braços = (f"braco E {acao.braco_esquerdo:12} {metros(acao.altura_mao_esq)}"
               f"   |   braco D {acao.braco_direito:12} "
-              f"{'--' if acao.altura_mao_dir is None else f'{acao.altura_mao_dir:.2f}m'}")
+              f"{metros(acao.altura_mao_dir)}")
     escrever(braços, 88, CINZA, 0.45)
 
     extra = f"{acao.locomocao} / {acao.postura}   {acao.velocidade_ms:.2f} m/s"

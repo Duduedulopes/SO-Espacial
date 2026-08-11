@@ -328,24 +328,71 @@ def test_altura_sobrevive_a_perna_sair_do_quadro():
     assert abs(leitura.altura_mao_dir - 1.20) < 0.02, leitura.altura_mao_dir
 
 
-def test_sem_nunca_ter_visto_tornozelo_nao_ha_altura():
-    """Sem base, nao se responde. `None` nao e falta de implementacao."""
+def test_sem_tornozelo_a_altura_e_ESTIMADA_e_marcada():
+    """MEDIDO EM 11/08: nenhuma das duas cameras enxerga os pes — frontal 0%,
+    lateral 0%. E nao e ajuste de enquadramento: uma webcam de ~60 graus a
+    1,4 m cobre 1,6 m de altura, e uma pessoa em pe tem 1,75. Nao cabe.
+
+    Recusar-se a responder deixaria a altura da mao — o numero que decide qual
+    prateleira — sem resposta para sempre naquela sala. A saida nao e inventar
+    um chao: e usar o TRONCO, que o MediaPipe mede em metros, com a proporcao
+    antropometrica.
+
+        Responder por modelo e legitimo. Responder por modelo sem dizer que e
+        modelo e o defeito que este projeto inteiro combate.
+    """
     a = AnalisadorDeCorpo()
     leitura = a.ler(1, corpo(mao_dir=(1.20, 0.30)),
                     tudo_visivel(exceto=(15, 16)))
 
+    assert not leitura.altura_medida, "sem pe, nao pode dizer que mediu"
+    assert leitura.altura_quadril is not None, "mas tem que responder"
+    assert abs(leitura.altura_quadril - QUADRIL) < 0.08, (
+        f"estimou {leitura.altura_quadril:.2f}, verdade {QUADRIL}")
+    assert abs(leitura.altura_mao_dir - 1.20) < 0.10
+
+
+def test_a_medicao_ganha_da_estimativa_sempre_que_existe():
+    """Um unico quadro com pe a vista ja produz a mediana medida, e ela e
+    melhor. A estimativa so entra quando NENHUM quadro teve tornozelo."""
+    a = AnalisadorDeCorpo()
+
+    estimada = a.ler(1, corpo(), tudo_visivel(exceto=(15, 16)))
+    assert not estimada.altura_medida
+
+    for _ in range(5):
+        medida = a.ler(1, corpo(), tudo_visivel())
+    assert medida.altura_medida
+    assert abs(medida.altura_quadril - QUADRIL) < 0.01
+
+
+def test_tronco_encurtado_nao_vira_estimativa():
+    """Tronco curto e pessoa curvada ou reconstrucao ruim, e nos dois casos a
+    proporcao nao vale."""
+    a = AnalisadorDeCorpo()
+    j = corpo()
+    j[5][2] = j[6][2] = 0.10          # ombros quase na altura do quadril
+
+    leitura = a.ler(1, j, tudo_visivel(exceto=(15, 16)))
+
     assert leitura.altura_quadril is None
     assert leitura.altura_mao_dir is None
-    assert leitura.braco_direito != Braco.DESCONHECIDO, (
-        "o ESTADO do braco nao depende do tornozelo; so a altura depende")
 
 
 def test_quadril_de_proporcao_impossivel_e_recusado():
-    """Quadril a 2,4 m do chao nao e pessoa alta: e reconstrucao ruim."""
-    a = AnalisadorDeCorpo()
-    a.ler(1, corpo(quadril=2.40), tudo_visivel())
+    """Quadril a 2,4 m do chao nao e pessoa alta: e reconstrucao ruim.
 
-    assert a.ler(1, corpo(quadril=2.40), tudo_visivel()).altura_quadril is None
+    Vale para a medida E para a estimativa — um tronco absurdo produziria uma
+    altura absurda, e a guarda tem que pegar as duas.
+    """
+    a = AnalisadorDeCorpo()
+    gigante = corpo(quadril=2.40)
+    gigante[5][2] = gigante[6][2] = 1.40      # tronco de 1,4 m
+
+    leitura = a.ler(1, gigante, tudo_visivel())
+
+    assert leitura.altura_quadril is None
+    assert not leitura.altura_medida
 
 
 def test_altura_impossivel_da_mao_e_recusada():
