@@ -37,14 +37,19 @@ e o que deixa o sistema lento, e tira-la nao o deixaria rapido.
 
 import math
 
+from src.acao.angulos import diferenca_angular as _diferenca_angular
+from src.acao.corpo import LeituraDoCorpo
 from src.acao.vocabulario import Acao, Braco, Estavel, Locomocao, Postura
 
+_LEITURA_VAZIA = LeituraDoCorpo()
 
-def _diferenca_angular(a, b):
-    """Menor angulo entre dois rumos, com sinal, em radianos.
 
-    Sem isto, passar de +179 para -179 graus vira um giro de 358 graus em vez
-    de 2 — e o sistema anunciaria uma meia-volta que nunca aconteceu.
+def _sem_uso(a, b):
+    """Mantido so para leitura do historico; a implementacao vive em angulos.py.
+
+    A funcao original estava escrita aqui dentro. A camada de corpo precisa
+    exatamente da mesma aritmetica, e reimplementar seria o defeito de
+    `para_o_mundo` vs `ancorar_no_chao` outra vez.
     """
     d = a - b
     while d > math.pi:
@@ -57,26 +62,26 @@ def _diferenca_angular(a, b):
 class ClassificadorDeAcao:
     """Um por pessoa. Guarda historia, porque virar so existe no tempo.
 
-    LIMITE DECLARADO — LOCOMOCAO RELATIVA AO CORPO
+    LOCOMOCAO RELATIVA AO CORPO — RESOLVIDO NA ETAPA B
 
-    O rumo que o sistema conhece hoje vem da DIRECAO DO MOVIMENTO: ele e
-    calculado como `arctan2(vy, vx)`. Ou seja, por construcao, rumo e direcao
-    de deslocamento sao a mesma coisa — e com isso "andar de lado" e
-    indistinguivel de "andar para frente".
+    O rumo do Kalman vem de `arctan2(vy, vx)`: a direcao do DESLOCAMENTO. Por
+    construcao, rumo e deslocamento eram a mesma coisa, e "andar de lado"
+    ficava indistinguivel de "andar para frente".
 
-    Para separar os dois e preciso saber para onde o CORPO aponta,
-    independentemente de para onde ele anda. Isso vem da linha dos ombros, que
-    e material da etapa B.
+    `AnalisadorDeCorpo` agora fornece o rumo do CORPO, tirado da linha dos
+    ombros, que independe de para onde a pessoa anda. Com ele chegando,
+    frente/tras/esquerda/direita passam a ser respondidos.
 
-    Enquanto nao houver, a resposta honesta e `ANDANDO`: sabemos que anda, nao
-    sabemos em que direcao relativa ao proprio corpo. Quando `rumo_corpo` for
-    fornecido, frente/tras/esquerda/direita passam a ser respondidos.
+    O caminho antigo continua vivo e nao por acaso: quando o azimute da camera
+    ainda nao convergiu, ou os ombros nao foram vistos, `rumo_corpo` chega
+    `None` e a resposta volta a ser `ANDANDO`. Degradar para a resposta mais
+    pobre e melhor que responder com base que nao existe.
     """
 
     def __init__(self, parar_abaixo_de=0.15, andar_acima_de=0.25,
                  girar_acima_de=45.0, meia_volta_graus=150.0,
                  janela_giro_s=1.2, agachado_abaixo_de=0.78,
-                 estabilidade_s=0.35):
+                 estabilidade_s=0.35, estabilidade_braco_s=0.20):
         # HISTERESE: dois limiares, nao um.
         #
         # Com limiar unico, alguem parado com 0,20 m/s de ruido no Kalman
@@ -93,20 +98,41 @@ class ClassificadorDeAcao:
                                  minimo_s=estabilidade_s)
         self.postura = Estavel(Postura.DESCONHECIDA, minimo_s=estabilidade_s)
 
+        # BRACO TAMBEM PRECISA DE ESTABILIDADE, E POR UM MOTIVO PROPRIO.
+        #
+        # Locomocao muda devagar; braco muda rapido. A tentacao e deixar o
+        # braco responder na hora — e seria errado pelo mesmo motivo de sempre:
+        # o pulso fica exatamente NA altura do ombro durante a subida, e nesse
+        # instante a classificacao alterna entre `ao_lado` e `levantado` a cada
+        # quadro. Sem histerese temporal, um unico gesto de pegar um produto
+        # geraria uma dezena de BRACO_MUDOU.
+        #
+        # O limiar e menor que o da locomocao porque o gesto e mais curto:
+        # esperar 0,35 s para reconhecer um braco que subiu perderia o proprio
+        # gesto que interessa medir.
+        self.braco_esquerdo = Estavel(Braco.DESCONHECIDO,
+                                      minimo_s=estabilidade_braco_s)
+        self.braco_direito = Estavel(Braco.DESCONHECIDO,
+                                     minimo_s=estabilidade_braco_s)
+
         self._rumo_anterior = None
         self._giro_acumulado = 0.0
         self._tempo_na_janela = 0.0
         self._andando = False           # lado "quente" da histerese
 
     # ------------------------------------------------------------ principal
-    def classificar(self, pessoa, dt, rumo_corpo=None, razao_altura=None,
+    def classificar(self, pessoa, dt, leitura=None, razao_altura=None,
                     k_referencia=None):
-        """Devolve (Acao, mudou_locomocao, mudou_postura).
+        """Devolve (Acao, mudancas) — `mudancas` e um dict de eixo -> bool.
 
-        `pessoa`      EstadoDePessoa, com vx, vy e rumo ja calculados
-        `rumo_corpo`  para onde o CORPO aponta, se souber (etapa B)
+        `pessoa`   EstadoDePessoa, com vx, vy e rumo ja calculados
+        `leitura`  LeituraDoCorpo do AnalisadorDeCorpo: rumo do corpo, bracos
+                   e altura das maos. `None` = nenhuma vista respondeu, e a
+                   classificacao degrada para o que a velocidade sozinha diz.
         `razao_altura`, `k_referencia`  do FiltroDePlausibilidade
         """
+        leitura = leitura or _LEITURA_VAZIA
+        rumo_corpo = leitura.rumo_corpo
         v = math.hypot(pessoa.vx, pessoa.vy)
         giro = self._medir_giro(pessoa, dt, v)
 
@@ -124,6 +150,9 @@ class ClassificadorDeAcao:
         prop_postura, razao = self._propor_postura(razao_altura, k_referencia)
         mudou_pos = self.postura.propor(prop_postura, dt)
 
+        mudou_bre = self.braco_esquerdo.propor(leitura.braco_esquerdo, dt)
+        mudou_brd = self.braco_direito.propor(leitura.braco_direito, dt)
+
         # A confianca cai quando a posicao e previsao do Kalman e nao medida.
         # Prever onde alguem deveria estar nao e o mesmo que ve-lo ali.
         if pessoa.prevendo:
@@ -132,15 +161,18 @@ class ClassificadorDeAcao:
         acao = Acao(
             locomocao=self.locomocao.valor,
             postura=self.postura.valor,
-            braco_esquerdo=Braco.DESCONHECIDO,     # etapa B
-            braco_direito=Braco.DESCONHECIDO,
+            braco_esquerdo=self.braco_esquerdo.valor,
+            braco_direito=self.braco_direito.valor,
+            altura_mao_esq=leitura.altura_mao_esq,
+            altura_mao_dir=leitura.altura_mao_dir,
             confianca=round(confianca, 3),
             velocidade_ms=v,
             giro_graus_s=math.degrees(giro),
             razao_altura=razao,
             motivo=motivo,
         )
-        return acao, mudou_loc, mudou_pos
+        return acao, {"locomocao": mudou_loc, "postura": mudou_pos,
+                      "braco_esquerdo": mudou_bre, "braco_direito": mudou_brd}
 
     # ------------------------------------------------------------ giro
     def _medir_giro(self, pessoa, dt, velocidade):
@@ -247,10 +279,13 @@ class Descritor:
         self._por_pessoa = {}
         self._kw = kw
 
-    def atualizar(self, pessoas, dt, rumos_do_corpo=None,
+    def atualizar(self, pessoas, dt, leituras=None,
                   razoes=None, k_referencia=None):
-        """Devolve {id: (Acao, mudou_locomocao, mudou_postura)}."""
-        rumos_do_corpo = rumos_do_corpo or {}
+        """Devolve {id: (Acao, mudancas)}.
+
+        `leituras` = {id: LeituraDoCorpo}, do AnalisadorDeCorpo.
+        """
+        leituras = leituras or {}
         razoes = razoes or {}
         vivos = set()
         saida = {}
@@ -262,7 +297,7 @@ class Descritor:
                 c = self._por_pessoa[p.id] = ClassificadorDeAcao(**self._kw)
             saida[p.id] = c.classificar(
                 p, dt,
-                rumo_corpo=rumos_do_corpo.get(p.id),
+                leitura=leituras.get(p.id),
                 razao_altura=razoes.get(p.id),
                 k_referencia=k_referencia)
 

@@ -387,16 +387,35 @@ class Orquestrador:
                    "",
                    f"  rastros {e['rastros']}  recosturas {e['recosturas']}",
                    f"  altura[{e['altura']}]  vistas[{e['vistas']}]",
-                   f"  inclinacao {e['inclinacao']}"]
+                   f"  inclinacao {e['inclinacao']}",
+                   f"  {e['corpo']}"]
 
         acoes = self.espacial.acoes
         if acoes:
             linhas += ["", "ACAO  (vocabulario fechado, v3)"]
-            for pid, (a, _, _) in sorted(acoes.items()):
+            for pid, (a, _) in sorted(acoes.items()):
                 linhas.append(
                     f"  #{pid}  {a.locomocao:18} {a.postura:12} "
                     f"conf {a.confianca:4.0%}   {a.velocidade_ms:.2f} m/s  "
                     f"{a.giro_graus_s:+5.0f} graus/s   [{a.motivo}]")
+
+                # BRACOS EM LINHA PROPRIA, COM A ALTURA AO LADO DO ESTADO.
+                #
+                # O rotulo sozinho nao serve para decidir nada: `levantado`
+                # pode ser a mao no cabelo ou a mao na prateleira de cima. E a
+                # altura que separa os dois, e ela precisa estar visivel na
+                # mesma linha para o numero poder ser conferido contra a
+                # realidade enquanto a execucao acontece.
+                for lado, estado, altura in (
+                        ("E", a.braco_esquerdo, a.altura_mao_esq),
+                        ("D", a.braco_direito, a.altura_mao_dir)):
+                    metros = ("     --" if altura is None
+                              else f"{altura:6.2f}m")
+                    linhas.append(f"      braco {lado}  {estado:14} {metros}")
+
+                leitura = self.espacial.leituras.get(pid)
+                if leitura is not None and leitura.motivo:
+                    linhas.append(f"      corpo: {leitura.motivo}")
 
         g = self.gemeo.resumo()
         linhas += ["", "GEMEO",

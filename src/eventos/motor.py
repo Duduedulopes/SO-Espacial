@@ -51,6 +51,11 @@ class Tipo:
     LOCOMOCAO_MUDOU = "LOCOMOCAO_MUDOU"
     POSTURA_MUDOU = "POSTURA_MUDOU"
 
+    # Etapa B. Carrega a ALTURA DA MAO em metros quando ela foi medida — e
+    # esse campo que, na etapa D, vira "a mao entrou na prateleira do produto
+    # X". Sem ele o evento diria que o braco subiu e nao para onde.
+    BRACO_MUDOU = "BRACO_MUDOU"
+
     OBJECT_DETECTED = "OBJECT_DETECTED"
     OBJECT_MOVED = "OBJECT_MOVED"
 

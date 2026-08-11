@@ -144,18 +144,33 @@ class DigitalTwin:
         a mesma coisa. O `Estavel` do classificador ja segurou o ruido; aqui
         so passa quem de fato mudou de estado.
         """
-        for pid, (acao, mudou_loc, mudou_pos) in acoes.items():
+        for pid, (acao, mudancas) in acoes.items():
             if pid not in agora:
                 continue
-            if mudou_loc:
+            if mudancas.get("locomocao"):
                 self._emitir(Tipo.LOCOMOCAO_MUDOU, {
                     "pessoa": pid, "estado": acao.locomocao,
                     "confianca": round(acao.confianca, 2),
                     "motivo": acao.motivo})
-            if mudou_pos:
+            if mudancas.get("postura"):
                 self._emitir(Tipo.POSTURA_MUDOU, {
                     "pessoa": pid, "estado": acao.postura,
                     "proporcao": round(acao.razao_altura, 2)})
+
+            for lado, chave, estado, altura in (
+                    ("esquerdo", "braco_esquerdo", acao.braco_esquerdo,
+                     acao.altura_mao_esq),
+                    ("direito", "braco_direito", acao.braco_direito,
+                     acao.altura_mao_dir)):
+                if not mudancas.get(chave):
+                    continue
+                dados = {"pessoa": pid, "lado": lado, "estado": estado}
+                # A altura so entra quando existe. Publicar `null` convida
+                # quem le a tratar ausencia como zero — e zero metro do chao
+                # e uma afirmacao, nao uma falta de resposta.
+                if altura is not None:
+                    dados["altura_m"] = round(altura, 3)
+                self._emitir(Tipo.BRACO_MUDOU, dados)
 
     def _emitir(self, tipo, dados):
         if self.eventos is not None:

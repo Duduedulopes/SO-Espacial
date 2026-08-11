@@ -271,6 +271,40 @@ class EstimadorDeInclinacao:
         return float(np.percentile(a, 75) - np.percentile(a, 25))
 
 
+def desfazer_inclinacao(juntas_relativas, inclinacao_rad):
+    """Gira o esqueleto para desfazer a inclinacao da lente. Fonte UNICA.
+
+    POR QUE ESTA FUNCAO EXISTE SEPARADA
+
+    Esta rotacao morava dentro de `ancorar_no_chao`. Em 10/08 o sistema passou
+    uma sessao inteira desenhando o boneco deitado porque existiam DUAS
+    funcoes quase iguais — `para_o_mundo` e `ancorar_no_chao` — e a diferenca
+    entre elas era exatamente esta rotacao. Peguei a incompleta sem perceber,
+    e nada acusou, porque as duas rodavam.
+
+        Codigo duplicado nao e so feio: ele deixa escolher a versao
+        incompleta sem perceber.
+
+    A camada de acao precisa da mesma correcao para ler bracos e ombros. Se
+    ela reimplementasse a rotacao, o defeito de 10/08 voltaria com outra
+    roupa: duas copias que podem divergir em silencio. Uma funcao so, chamada
+    pelos dois.
+
+    GEOMETRIA
+
+    Giro em torno do eixo x (direita). O MediaPipe entrega coordenadas
+    alinhadas com a CAMERA; o "para baixo" dele e o para baixo da IMAGEM.
+    Com a lente inclinada, esse eixo esta girado em relacao a gravidade.
+    """
+    if not inclinacao_rad:
+        return np.asarray(juntas_relativas, dtype=float).copy()
+
+    j = np.asarray(juntas_relativas, dtype=float)
+    c, s = np.cos(inclinacao_rad), np.sin(inclinacao_rad)
+    Rx = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+    return (Rx @ j.T).T
+
+
 def ancorar_no_chao(juntas_relativas, x_m, y_m, rumo_rad=0.0, inclinacao_rad=0.0):
     """Poe o esqueleto relativo em pe, no ponto do chao.
 
@@ -296,13 +330,8 @@ def ancorar_no_chao(juntas_relativas, x_m, y_m, rumo_rad=0.0, inclinacao_rad=0.0
     tornozelo mais baixo. Nao chutamos "pessoa tem 1,75 m" — se ela agachar,
     o quadril desce sozinho.
     """
-    j = np.asarray(juntas_relativas, dtype=float).copy()
-
-    # 1) desfaz a inclinacao da camera (giro em torno do eixo x = direita)
-    if inclinacao_rad:
-        c, s = np.cos(inclinacao_rad), np.sin(inclinacao_rad)
-        Rx = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-        j = (Rx @ j.T).T
+    # 1) desfaz a inclinacao da camera — MESMA funcao que a camada de acao usa
+    j = desfazer_inclinacao(juntas_relativas, inclinacao_rad)
 
     # 2) vira a pessoa para a direcao em que ela anda
     c, s = np.cos(rumo_rad), np.sin(rumo_rad)

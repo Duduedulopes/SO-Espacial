@@ -1,6 +1,10 @@
 # Arquitetura v3 — Descrição da ação
 
-*Proposta de 10/08. Muda o eixo do projeto. Nenhuma implementação ainda.*
+*Proposta de 10/08. Muda o eixo do projeto.*
+
+**Estado: etapas A e B implementadas e medidas.** Ver `caderno/2026-08-10.md`
+(A: locomoção e postura) e `caderno/2026-08-11.md` (B: rumo do corpo, braços e
+altura da mão em metros). Etapas C, D e E continuam sendo proposta.
 
 ---
 
@@ -182,9 +186,21 @@ Sem modelo novo, sem inferência, sem hardware para testar. Velocidade do
 Kalman no referencial do corpo, variação de rumo, altura do quadril.
 *Prova: testes com trajetórias sintéticas conhecidas.*
 
-**B. Braços a partir de landmarks 2D de uma câmera.**
+**B. Braços a partir de uma câmera.** — FEITO em 11/08, `src/acao/corpo.py`.
 Pulso acima do ombro, pulso distante do tronco. Classificação, não coordenada.
-*Prova: sequências gravadas com o gesto anotado à mão.*
+
+Duas coisas saíram diferentes do previsto aqui, e as duas para melhor:
+
+- **Não foram landmarks 2D, foram os world landmarks.** O MediaPipe já entrega
+  metros com origem no quadril, então a altura da mão acima do chão é
+  `z_pulso − z_tornozelo`. Uma subtração, uma câmera, sem homografia.
+- **O rumo do corpo veio junto.** A linha dos ombros dá para onde o corpo aponta,
+  e um estimador de azimute aprende sozinho o giro da câmera comparando esse
+  rumo com o do Kalman de quem anda. Isso destravou frente/trás/esquerda/direita,
+  que estava listado como pendência da etapa A.
+
+*Prova: 29 testes com corpo articulado sintético de medidas conhecidas.*
+*Falta provar em hardware, contra fita métrica.*
 
 **C. Renderizador dirigido por estado.**
 Esqueleto de proporções conhecidas, interpolando entre estados. Nunca deita.
@@ -192,6 +208,12 @@ Esqueleto de proporções conhecidas, interpolando entre estados. Nunca deita.
 
 **D. Prateleiras como volumes e o par mão-entrou/mão-saiu.**
 Zonas ganham altura. Eventos de interação.
+
+A etapa B já entrega a metade difícil: `altura_mao_esq` e `altura_mao_dir` em
+metros, publicadas no `Acao` e no evento `BRACO_MUDOU`. O que falta é declarar
+as faixas na planta e comparar — a zona 2D já existe e responde *onde*; a altura
+responde *qual prateleira*.
+
 *Prova: pegar um objeto conhecido N vezes e contar acertos e erros.*
 
 **E. Camada narrativa assíncrona.**

@@ -58,6 +58,7 @@ from percepcao.pose3d import (                              # noqa: E402
     EstimadorDeInclinacao, SuavizadorDeEsqueleto, ancorar_no_chao,
 )
 from src.acao.classificador import Descritor                 # noqa: E402
+from src.acao.corpo import AnalisadorDeCorpo                 # noqa: E402
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
@@ -113,9 +114,22 @@ class SpatialEngine:
         self.descritor = Descritor()
         self.acoes = {}                # id -> Acao, para o painel e o desenho
 
+        # ETAPA B: a camada que le o CORPO, e nao so o deslocamento.
+        #
+        # Ela consome o mesmo esqueleto relativo que ja chega das vistas de
+        # pose — nao pede quadro novo, nao roda modelo novo, nao abre camera.
+        # E aritmetica sobre numeros que ja estavam sendo calculados e
+        # jogados fora depois da fusao.
+        self.corpo = AnalisadorDeCorpo()
+        self.leituras = {}             # id -> LeituraDoCorpo, para o painel
+
         self.log = Log("espacial")
         self._rumos = {}
         self._caixas = {}
+        # Ultima pose relativa de cada papel, guardada CRUA. O fusor guarda a
+        # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
+        # justamente para nao herdar o erro da combinacao.
+        self._poses_cruas = {}
         # FUNIL, nao so rejeicoes.
         #
         # Em 10/08 o painel disse `rejeitadas plausibilidade 358`. Numero solto
@@ -245,6 +259,7 @@ class SpatialEngine:
         exige re-identificacao por aparencia — bloco 5 do plano de estudo.
         """
         for o in poses:
+            self._poses_cruas[o.papel] = o
             if o.papel == "frontal":
                 self.fusor.ver_frontal(o.juntas_3d, o.t_mono, o.conf_2d)
             elif o.papel == "lateral":
@@ -318,14 +333,80 @@ class SpatialEngine:
                     razoes[e.id] = self.plausibilidade.razao(
                         self._caixas[ext[-1]])
 
+        self.leituras = self._ler_corpos(estados)
+
         resultado = self.descritor.atualizar(
-            estados, self._dt_atual, razoes=razoes, k_referencia=k)
+            estados, self._dt_atual, leituras=self.leituras,
+            razoes=razoes, k_referencia=k)
 
         self.acoes = {}
         for e in estados:
-            acao, mudou_loc, mudou_pos = resultado[e.id]
+            acao, mudancas = resultado[e.id]
             e.acao = acao
-            self.acoes[e.id] = (acao, mudou_loc, mudou_pos)
+            self.acoes[e.id] = (acao, mudancas)
+
+        self.corpo.esquecer({e.id for e in estados})
+
+    def _ler_corpos(self, estados, validade_s=0.5):
+        """Le o CORPO de cada pessoa a partir de UMA vista de pose.
+
+        POR QUE UMA VISTA E NAO A FUSAO
+
+        A fusao existe e funciona — testada com entrada limpa, acertou a
+        largura e a altura ao centimetro. Mas em 10/08 ela produziu um
+        amontoado de meio metro, porque cada vista entregava juntas
+        extrapoladas de partes do corpo que estavam fora do quadro, e somar
+        duas invencoes diferentes da uma terceira invencao.
+
+        A leitura do corpo nao precisa de profundidade: rumo dos ombros,
+        pulso contra ombro e pulso contra tornozelo sao todos medidas que UMA
+        camera responde. Pedir menos e o que a torna confiavel.
+
+        PREFERENCIA PELA FRONTAL, E POR QUE ELA E EXPLICITA
+
+        O MediaPipe foi treinado com imagens frontais. A lateral funciona, mas
+        e vista mais dificil: ombros quase alinhados com a profundidade fazem
+        a projecao horizontal encolher, e o rumo passa a ser definido por
+        ruido. Ordem declarada em vez de "a que chegou por ultimo".
+
+        JANELA DE VALIDADE
+
+        Uma pose de 3 segundos atras descreve um corpo que ja nao esta ali. Se
+        a frontal cair, o dicionario segue com o ultimo valor dela para
+        sempre — e o sistema passaria a descrever um braco levantado que
+        baixou faz tempo. Pose velha e descartada, e a resposta vira
+        DESCONHECIDO, que e o que ela de fato e.
+        """
+        if not estados:
+            return {}
+
+        agora = self._agora()
+        obs = None
+        for papel in ("frontal", "lateral"):
+            candidata = self._poses_cruas.get(papel)
+            if candidata is None or candidata.juntas_3d is None:
+                continue
+            if agora - candidata.t_mono > validade_s:
+                continue
+            obs = candidata
+            break
+
+        if obs is None:
+            return {}
+
+        # LIMITE HERDADO, E DECLARADO OUTRA VEZ AQUI: com mais de uma pessoa
+        # em cena, nao se sabe qual pose pertence a qual corpo. Atribuir a
+        # leitura a alguem seria escolher no chute — e a acao escolhida no
+        # chute chegaria ao desenho com a mesma aparencia de medida.
+        if len(estados) > 1:
+            return {}
+
+        pessoa = estados[0]
+        return {pessoa.id: self.corpo.ler(
+            pessoa.id, obs.juntas_3d, obs.conf_2d,
+            inclinacao_rad=self.inclinacao.valor,
+            rumo_mundo=pessoa.rumo,
+            velocidade=pessoa.velocidade)}
 
     def _vistas_ativas(self):
         v = {self.papel_chao}
@@ -352,4 +433,5 @@ class SpatialEngine:
             "inclinacao": (f"{np.degrees(self.inclinacao.valor):+.0f}deg "
                            f"({len(self.inclinacao.amostras)} amostras"
                            f"{'' if self.inclinacao.confiavel else ', aprendendo'})"),
+            "corpo": self.corpo.diagnostico,
         }

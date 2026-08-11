@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.acao.classificador import ClassificadorDeAcao, Descritor  # noqa: E402
+from src.acao.corpo import LeituraDoCorpo                          # noqa: E402
 from src.acao.vocabulario import (                                 # noqa: E402
     Acao, Braco, Estavel, Locomocao, Postura,
 )
@@ -34,7 +35,7 @@ def girar(c, passos, graus_por_passo, dt=0.1, v=0.6):
     acao = None
     for _ in range(passos):
         rumo += math.radians(graus_por_passo)
-        acao, _, _ = c.classificar(
+        acao, _ = c.classificar(
             pessoa(vx=v * math.cos(rumo), vy=v * math.sin(rumo), rumo=rumo), dt)
     return acao
 
@@ -89,20 +90,20 @@ def test_parado_e_andando_com_histerese():
                             estabilidade_s=0.2)
 
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.02), 0.1)
+        a, _ = c.classificar(pessoa(vx=0.02), 0.1)
     assert a.locomocao == Locomocao.PARADO
 
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.80), 0.1)
+        a, _ = c.classificar(pessoa(vx=0.80), 0.1)
     assert a.locomocao == Locomocao.ANDANDO
 
     # 0,20 m/s esta na zona morta: quem ja anda continua andando
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.20), 0.1)
+        a, _ = c.classificar(pessoa(vx=0.20), 0.1)
     assert a.locomocao == Locomocao.ANDANDO, "histerese nao segurou"
 
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.05), 0.1)
+        a, _ = c.classificar(pessoa(vx=0.05), 0.1)
     assert a.locomocao == Locomocao.PARADO
 
 
@@ -112,7 +113,7 @@ def test_sem_rumo_do_corpo_a_resposta_e_apenas_andando():
     nao um chute entre frente e lado."""
     c = ClassificadorDeAcao(estabilidade_s=0.2)
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.8, rumo=0.0), 0.1)
+        a, _ = c.classificar(pessoa(vx=0.8, rumo=0.0), 0.1)
 
     assert a.locomocao == Locomocao.ANDANDO
     assert a.locomocao not in (Locomocao.FRENTE, Locomocao.ESQUERDA)
@@ -123,19 +124,19 @@ def test_com_rumo_do_corpo_separa_frente_de_lado():
     c = ClassificadorDeAcao(estabilidade_s=0.2)
 
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(vx=0.8, rumo=0.0), 0.1, rumo_corpo=0.0)
+        a, _ = c.classificar(pessoa(vx=0.8, rumo=0.0), 0.1, leitura=LeituraDoCorpo(rumo_corpo=0.0))
     assert a.locomocao == Locomocao.FRENTE
 
     c2 = ClassificadorDeAcao(estabilidade_s=0.2)
     for _ in range(6):     # anda para o norte com o corpo apontando para leste
-        a2, _, _ = c2.classificar(
-            pessoa(vy=0.8, rumo=math.pi / 2), 0.1, rumo_corpo=0.0)
+        a2, _ = c2.classificar(
+            pessoa(vy=0.8, rumo=math.pi / 2), 0.1, leitura=LeituraDoCorpo(rumo_corpo=0.0))
     assert a2.locomocao == Locomocao.ESQUERDA, a2.locomocao
 
     c3 = ClassificadorDeAcao(estabilidade_s=0.2)
     for _ in range(6):     # anda para tras
-        a3, _, _ = c3.classificar(
-            pessoa(vx=-0.8, rumo=math.pi), 0.1, rumo_corpo=0.0)
+        a3, _ = c3.classificar(
+            pessoa(vx=-0.8, rumo=math.pi), 0.1, leitura=LeituraDoCorpo(rumo_corpo=0.0))
     assert a3.locomocao == Locomocao.TRAS
 
 
@@ -165,7 +166,7 @@ def test_cruzar_o_meridiano_nao_inventa_meia_volta():
         rumo += math.radians(1)
         if rumo > math.pi:
             rumo -= 2 * math.pi
-        a, _, _ = c.classificar(
+        a, _ = c.classificar(
             pessoa(vx=0.6 * math.cos(rumo), vy=0.6 * math.sin(rumo),
                    rumo=rumo), 0.1)
     assert a.locomocao != Locomocao.MEIA_VOLTA
@@ -176,8 +177,8 @@ def test_posicao_prevista_derruba_a_confianca():
     """Prever onde alguem deveria estar nao e o mesmo que ve-lo ali."""
     c = ClassificadorDeAcao(estabilidade_s=0.2)
     for _ in range(6):
-        medida, _, _ = c.classificar(pessoa(vx=0.02), 0.1)
-    prevista, _, _ = c.classificar(pessoa(vx=0.02, prevendo=4), 0.1)
+        medida, _ = c.classificar(pessoa(vx=0.02), 0.1)
+    prevista, _ = c.classificar(pessoa(vx=0.02, prevendo=4), 0.1)
     assert prevista.confianca < medida.confianca
 
 
@@ -186,12 +187,12 @@ def test_postura_reaproveita_o_k_do_filtro_de_altura():
     c = ClassificadorDeAcao(estabilidade_s=0.2, agachado_abaixo_de=0.78)
 
     for _ in range(4):
-        a, _, _ = c.classificar(pessoa(), 0.1, razao_altura=0.25,
+        a, _ = c.classificar(pessoa(), 0.1, razao_altura=0.25,
                                 k_referencia=0.25)
     assert a.postura == Postura.EM_PE
 
     for _ in range(4):
-        a, _, _ = c.classificar(pessoa(), 0.1, razao_altura=0.15,
+        a, _ = c.classificar(pessoa(), 0.1, razao_altura=0.15,
                                 k_referencia=0.25)
     assert a.postura == Postura.AGACHADO, a.razao_altura
 
@@ -201,7 +202,7 @@ def test_sem_k_confiavel_a_postura_e_desconhecida():
     se opina — a mesma regra que o proprio filtro passou a seguir em 10/08."""
     c = ClassificadorDeAcao(estabilidade_s=0.2)
     for _ in range(6):
-        a, _, _ = c.classificar(pessoa(), 0.1, razao_altura=0.20,
+        a, _ = c.classificar(pessoa(), 0.1, razao_altura=0.20,
                                 k_referencia=None)
     assert a.postura == Postura.DESCONHECIDA
 
@@ -231,8 +232,8 @@ def test_mudanca_e_anunciada_uma_vez_so():
     c = ClassificadorDeAcao(estabilidade_s=0.2)
     mudancas = 0
     for _ in range(12):
-        _, mudou, _ = c.classificar(pessoa(vx=0.8), 0.1)
-        mudancas += int(mudou)
+        _, _mud = c.classificar(pessoa(vx=0.8), 0.1)
+        mudancas += int(_mud["locomocao"])
     assert mudancas == 1, f"anunciou {mudancas} vezes a mesma mudanca"
 
 
@@ -252,7 +253,7 @@ def test_ruido_em_velocidade_baixa_nao_vira_giro():
     for _ in range(40):
         # 0,20 m/s: acima de parar, abaixo de andar. Rumo totalmente aleatorio.
         rumo = random.uniform(-math.pi, math.pi)
-        a, _, _ = c.classificar(
+        a, _ = c.classificar(
             pessoa(vx=0.20 * math.cos(rumo), vy=0.20 * math.sin(rumo),
                    rumo=rumo), 0.08)
         estados.add(a.locomocao)

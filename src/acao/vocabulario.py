@@ -89,6 +89,23 @@ class Acao:
     braco_esquerdo: str = Braco.DESCONHECIDO
     braco_direito: str = Braco.DESCONHECIDO
 
+    # ALTURA DA MAO ACIMA DO CHAO, EM METROS.
+    #
+    # E o unico campo deste dataclass que nao e um rotulo, e ha uma razao para
+    # abrir a excecao: e ele que responde a pergunta comercial. A planta
+    # declara que na gondola A, entre 1,10 m e 1,35 m, esta o produto X; a
+    # visao so precisa dizer se o pulso entrou naquela faixa e voltou.
+    #
+    #     O produto sai do CADASTRO, nao da imagem.
+    #
+    # Isso converte visao computacional dificil — reconhecer embalagem sob
+    # oclusao e iluminacao variavel — em comparacao de numeros.
+    #
+    # `None` quando o tornozelo nunca foi visto e a altura do quadril nao pode
+    # ser aprendida. Sem base, nao se responde.
+    altura_mao_esq: float | None = None
+    altura_mao_dir: float | None = None
+
     # 0 a 1. Confianca do eixo de locomocao, que e o mais usado pelo desenho.
     confianca: float = 0.0
 
@@ -101,7 +118,7 @@ class Acao:
     motivo: str = ""
 
     def para_dicionario(self):
-        return {
+        d = {
             "locomocao": self.locomocao,
             "postura": self.postura,
             "braco_esquerdo": self.braco_esquerdo,
@@ -110,13 +127,25 @@ class Acao:
             "velocidade_ms": round(self.velocidade_ms, 2),
             "giro_graus_s": round(self.giro_graus_s, 1),
         }
+        # So publica altura que foi MEDIDA. Uma chave com `null` e uma chave
+        # ausente dizem a mesma coisa, mas a ausente nao tenta ser lida por
+        # engano por quem consome o JSON sem checar.
+        if self.altura_mao_esq is not None:
+            d["altura_mao_esq"] = round(self.altura_mao_esq, 3)
+        if self.altura_mao_dir is not None:
+            d["altura_mao_dir"] = round(self.altura_mao_dir, 3)
+        return d
 
     def __repr__(self):
         b = ""
-        if self.braco_esquerdo != Braco.AO_LADO:
-            b += f" E:{self.braco_esquerdo}"
-        if self.braco_direito != Braco.AO_LADO:
-            b += f" D:{self.braco_direito}"
+        for lado, estado, altura in (
+                ("E", self.braco_esquerdo, self.altura_mao_esq),
+                ("D", self.braco_direito, self.altura_mao_dir)):
+            if estado in (Braco.AO_LADO, Braco.DESCONHECIDO):
+                continue
+            b += f" {lado}:{estado}"
+            if altura is not None:
+                b += f"@{altura:.2f}m"
         return f"{self.locomocao}/{self.postura}{b} ({self.confianca:.0%})"
 
 
