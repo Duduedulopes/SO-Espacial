@@ -66,6 +66,25 @@ from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
 
+def _azimute_calibrado():
+    """Le `config/azimute.json`. Ausente significa que o automatico decide.
+
+    O automatico continua existindo e nao deve ser removido: numa loja de
+    verdade a hipotese "quem anda olha para onde vai" volta a valer, e la nao
+    havera ninguem para calibrar. Aqui ele e reserva.
+    """
+    import json
+
+    caminho = RAIZ / "config" / "azimute.json"
+    if not caminho.exists():
+        return None
+    try:
+        return float(json.loads(caminho.read_text(encoding="utf-8"))
+                     ["azimute_rad"])
+    except Exception:
+        return None
+
+
 def _fator_de_escala():
     """Le `config/escala.json`. Ausente significa nao calibrado, e tudo bem:
     a altura da mao sai estimada pelo tronco e marcada como tal.
@@ -144,6 +163,7 @@ class SpatialEngine:
         # E aritmetica sobre numeros que ja estavam sendo calculados e
         # jogados fora depois da fusao.
         self.corpo = AnalisadorDeCorpo()
+        self.corpo.azimute.calibrado = _azimute_calibrado()
         self.leituras = {}             # id -> LeituraDoCorpo, para o painel
 
         # O AZIMUTE APRENDE POR DESLOCAMENTO, NAO POR VELOCIDADE.

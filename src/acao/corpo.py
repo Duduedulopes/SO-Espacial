@@ -282,6 +282,31 @@ class EstimadorDeAzimute:
         self.maioria = 0.0
         self.descartadas = 0
 
+        # OFFSET CALIBRADO: MEDIDO DE PROPOSITO, MANDA NO APRENDIDO.
+        #
+        # MEDIDO EM 11/08: com deslocamento no lugar de velocidade, o estimador
+        # finalmente convergiu — e convergiu para o grupo ERRADO. As direcoes
+        # sairam sistematicamente giradas: `andar_frente` lido como
+        # `andando_tras`, `andar_esquerda` como `andando_tras`.
+        #
+        # A causa nao e o algoritmo. E que a hipotese de que ele inteiro
+        # depende — "quem anda, olha para onde vai" — E FALSA nesta sala. Numa
+        # area de 1,4 m diante de um computador, a pessoa se desloca olhando
+        # para a tela, para a camera, para onde a voz esta falando. O corpo
+        # quase nunca aponta para onde os pes vao.
+        #
+        # Antes ele se abstinha, porque as amostras ficavam espalhadas. Ao
+        # aceitar mais amostras, o grupo majoritario passou a ser o errado.
+        #
+        #     Aumentar a amostra de uma hipotese falsa nao a torna verdadeira;
+        #     torna o erro confiante.
+        #
+        # O calibrado tem prioridade ABSOLUTA sobre o aprendido, e nao a media
+        # dos dois. Misturar uma medida honesta com um aprendizado viciado
+        # produz um terceiro numero pior que a medida — e ainda esconde qual
+        # dos dois estava errado.
+        self.calibrado = None
+
     def observar(self, rumo_ombros_camera, rumo_mundo, velocidade):
         """Alimenta uma amostra. Devolve True se ela foi aceita.
 
@@ -339,14 +364,21 @@ class EstimadorDeAzimute:
 
     @property
     def confiavel(self):
+        if self.calibrado is not None:
+            return True
         return (len(self.amostras) >= self.minimo
                 and self.maioria >= self.maioria_minima)
+
+    @property
+    def offset(self):
+        """O giro em uso. Calibrado ganha do aprendido, sempre."""
+        return self.calibrado if self.calibrado is not None else self.valor
 
     def para_o_mundo(self, rumo_camera):
         """Converte um rumo do referencial da lente para o do mundo."""
         if rumo_camera is None or not self.confiavel:
             return None
-        return diferenca_angular(rumo_camera + self.valor, 0.0)
+        return diferenca_angular(rumo_camera + self.offset, 0.0)
 
     @property
     def bimodal(self):
@@ -383,6 +415,21 @@ class EstimadorDeAzimute:
     @property
     def diagnostico(self):
         n = len(self.amostras)
+        if self.calibrado is not None:
+            texto = (f"azimute {np.degrees(self.calibrado):+.0f}deg "
+                     f"CALIBRADO")
+            # Mostrar tambem o que ele TERIA aprendido nao e curiosidade: se
+            # os dois discordarem muito, ou a calibracao envelheceu (alguem
+            # mexeu na camera) ou o ambiente mudou. E o unico jeito de a
+            # calibracao ser questionada depois de gravada.
+            if n >= self.minimo:
+                erro = np.degrees(abs(diferenca_angular(
+                    self.valor, self.calibrado)))
+                texto += (f"   (aprenderia {np.degrees(self.valor):+.0f}deg, "
+                          f"{erro:.0f}deg de diferenca)")
+                if erro > 45 and self.maioria >= self.maioria_minima:
+                    texto += "  [DISCORDAM: a camera foi movida?]"
+            return texto
         if n < self.minimo:
             return f"azimute aprendendo ({n}/{self.minimo})"
         estado = "ativo" if self.confiavel else "ABSTIDO"

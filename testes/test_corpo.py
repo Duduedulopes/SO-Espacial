@@ -1005,3 +1005,63 @@ def test_a_trilha_some_com_o_rastro():
 
     d.esquecer({2})
     assert 1 not in d._trilhas
+
+
+# ------------------------------------------------- azimute calibrado
+def test_calibrado_manda_no_aprendido():
+    """MEDIDO EM 11/08: o automatico convergiu para o grupo ERRADO — 55% de
+    maioria numa hipotese falsa. `andar_frente` saiu como `andando_tras`.
+
+    A hipotese "quem anda olha para onde vai" e falsa numa sala de 1,4 m
+    diante de um computador: a pessoa se desloca olhando para a tela.
+
+        Aumentar a amostra de uma hipotese falsa nao a torna verdadeira;
+        torna o erro confiante.
+
+    Misturar o calibrado com o aprendido daria um terceiro numero pior que a
+    medida honesta, e ainda esconderia qual dos dois estava errado.
+    """
+    e = EstimadorDeAzimute()
+    for _ in range(60):                      # aprende algo errado, com folga
+        e.observar(0.0, math.pi, velocidade=0.9)
+    assert e.confiavel and abs(e.valor - math.pi) < 0.1
+
+    e.calibrado = math.radians(35)
+
+    assert abs(diferenca_angular(e.offset, math.radians(35))) < 1e-9
+    mundo = e.para_o_mundo(0.0)
+    assert abs(diferenca_angular(mundo, math.radians(35))) < 1e-9
+
+
+def test_calibrado_responde_mesmo_sem_amostra_nenhuma():
+    """Uma medida deliberada nao precisa esperar aprendizado para valer."""
+    e = EstimadorDeAzimute()
+    e.calibrado = math.radians(-20)
+
+    assert e.confiavel, "calibrado tem que responder na hora"
+    assert "CALIBRADO" in e.diagnostico
+
+
+def test_o_painel_mostra_os_dois_e_acusa_discordancia():
+    """Se o calibrado e o automatico discordarem muito depois de gravado, ou a
+    camera foi movida ou o ambiente mudou. E o unico jeito de a calibracao ser
+    questionada depois de virar arquivo."""
+    e = EstimadorDeAzimute()
+    for _ in range(60):
+        e.observar(0.0, math.radians(150), velocidade=0.9)
+    e.calibrado = math.radians(20)
+
+    d = e.diagnostico
+    assert "CALIBRADO" in d
+    assert "aprenderia" in d
+    assert "camera foi movida" in d
+
+
+def test_sem_discordancia_o_painel_nao_alarma():
+    """O aviso so vale se ficar calado quando os dois concordam."""
+    e = EstimadorDeAzimute()
+    for _ in range(60):
+        e.observar(0.0, math.radians(30), velocidade=0.9)
+    e.calibrado = math.radians(32)
+
+    assert "camera foi movida" not in e.diagnostico
