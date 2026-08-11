@@ -539,16 +539,45 @@ class SinalDoRumo:
     `certo`; se discorda, um voto para `invertido`. A maioria decide.
     """
 
-    def __init__(self, minimo_votos=15, maioria=0.7):
+    def __init__(self, minimo_votos=15, maioria=0.7, zona_cega_graus=30.0,
+                 fixado=None):
         self.minimo = minimo_votos
         self.maioria = maioria
+        # FAIXA AMBIGUA: perto de 90 graus a pergunta nao tem resposta.
+        #
+        # Quem anda DE LADO tem o corpo perpendicular ao deslocamento. Esse
+        # quadro nao diz nada sobre o sinal — nem "certo" nem "invertido" — e
+        # contar como voto so injeta ruido numa decisao binaria que deveria ser
+        # facil.
+        #
+        # PROVA NOS DADOS QUE JA EXISTIAM: as duas calibracoes de azimute que
+        # "falharam" davam, em graus:
+        #
+        #     -175,5   -138,3   -70,3
+        #     -165,3    +77,8  -134,5
+        #
+        # Como angulo, discordancia de 105 e 148 graus. Como BIT, 2 x 1 nas
+        # duas — e o voto discordante em cada uma e justamente o que cai perto
+        # de 90 graus. Descartando a faixa cega, as duas viram 2 x 0, unanimes.
+        #
+        #     O dado sempre soube responder a pergunta binaria. Era a pergunta
+        #     continua que ele nao sustentava.
+        self.zona_cega = np.radians(zona_cega_graus)
         self.certo = 0
         self.invertido = 0
+        self.ignorados = 0
+        # Decisao gravada em config, quando existe. Uma sessao boa resolve para
+        # sempre, e o aprendizado continua rodando ao lado para poder discordar.
+        self.fixado = fixado
 
     def votar(self, rumo_lido, rumo_andado):
         if rumo_lido is None or rumo_andado is None:
             return
-        if abs(diferenca_angular(rumo_lido, rumo_andado)) < np.pi / 2:
+        d = abs(diferenca_angular(rumo_lido, rumo_andado))
+        if abs(d - np.pi / 2) < self.zona_cega:
+            self.ignorados += 1
+            return
+        if d < np.pi / 2:
             self.certo += 1
         else:
             self.invertido += 1
@@ -559,6 +588,8 @@ class SinalDoRumo:
 
     @property
     def decidido(self):
+        if self.fixado is not None:
+            return True
         if self.total < self.minimo:
             return False
         return max(self.certo, self.invertido) / self.total >= self.maioria
@@ -573,6 +604,8 @@ class SinalDoRumo:
         e melhor que nao responder nada, porque a votacao SO acontece com
         alguem andando, que e o unico momento em que a resposta importa.
         """
+        if self.fixado is not None:
+            return self.fixado
         if not self.decidido:
             return 1
         return 1 if self.certo >= self.invertido else -1
@@ -584,11 +617,30 @@ class SinalDoRumo:
 
     @property
     def diagnostico(self):
+        votos = f"{self.certo} x {self.invertido}"
+        if self.ignorados:
+            votos += f", {self.ignorados} de lado ignorados"
+
+        if self.fixado is not None:
+            texto = (f"sinal do rumo "
+                     f"{'INVERTIDO' if self.fixado < 0 else 'direto'} FIXADO")
+            # Mostrar o que ele estaria aprendendo e o unico jeito de o valor
+            # gravado ser questionado depois. Se discordarem, a camera do alto
+            # foi movida ou a homografia foi refeita.
+            if self.total >= self.minimo:
+                aprendido = 1 if self.certo >= self.invertido else -1
+                texto += f"   (aprenderia {'invertido' if aprendido < 0 else 'direto'}"
+                texto += f", {votos})"
+                if aprendido != self.fixado:
+                    texto += "  [DISCORDAM: a camera do alto foi movida?]"
+            return texto
+
         if self.total < self.minimo:
-            return f"sinal do rumo aprendendo ({self.total}/{self.minimo})"
+            return (f"sinal do rumo aprendendo ({self.total}/{self.minimo}"
+                    + (f", {self.ignorados} de lado ignorados" if self.ignorados
+                       else "") + ")")
         estado = "INVERTIDO" if self.sinal < 0 else "direto"
-        return (f"sinal do rumo {estado} "
-                f"({self.certo} x {self.invertido} votos)"
+        return (f"sinal do rumo {estado} ({votos})"
                 + ("" if self.decidido else "  [sem maioria, usando direto]"))
 
 

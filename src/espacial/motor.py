@@ -66,6 +66,24 @@ from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
 
+def _sinal_do_rumo_fixado():
+    """Le `config/rumo.json`: +1 direto, -1 invertido, None = aprender.
+
+    Uma sessao boa resolve para sempre. O aprendizado continua rodando ao
+    lado justamente para poder DISCORDAR do arquivo — se alguem mexer na
+    camera do alto, o painel acusa.
+    """
+    import json
+
+    caminho = RAIZ / "config" / "rumo.json"
+    if not caminho.exists():
+        return None
+    try:
+        return int(json.loads(caminho.read_text(encoding="utf-8"))["sinal"])
+    except Exception:
+        return None
+
+
 def _azimute_calibrado():
     """Le `config/azimute.json`. Ausente significa que o automatico decide.
 
@@ -182,7 +200,7 @@ class SpatialEngine:
         # 11/08. Uma votacao binaria contra o rumo de quem anda decide,
         # e tolera muito mais ruido que a media circular que fracassou
         # o dia inteiro tentando aprender o angulo.
-        self.sinal_do_rumo = SinalDoRumo()
+        self.sinal_do_rumo = SinalDoRumo(fixado=_sinal_do_rumo_fixado())
 
         # A CAMERA DO ALTO E A UNICA QUE VE OS PES, E E ELA QUE DA A ESCALA.
         #

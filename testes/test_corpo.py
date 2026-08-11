@@ -1246,3 +1246,51 @@ def test_nao_vota_sem_caminhada():
 
     assert s.total == 0
     assert not s.decidido
+
+
+def test_a_faixa_ambigua_e_descartada():
+    """Quem anda DE LADO tem o corpo perpendicular ao deslocamento. Esse quadro
+    nao responde nem `certo` nem `invertido` — contar como voto so injeta ruido
+    numa decisao binaria que deveria ser facil.
+
+    PROVA NOS DADOS QUE JA EXISTIAM: as duas calibracoes de azimute que
+    falharam davam -175, -138, -70 e -165, +78, -134. Como angulo, discordancia
+    de 105 e 148 graus. Como bit, 2 x 1 nas duas — e o voto discordante de cada
+    uma e justamente o que cai perto de 90 graus.
+    """
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo(minimo_votos=1)
+    for graus in (-175.5, -138.3, -70.3):
+        s.votar(math.radians(graus), 0.0)
+
+    assert s.ignorados == 1, "o -70 deveria cair na faixa cega"
+    assert (s.certo, s.invertido) == (0, 2), "e os outros dois, unanimes"
+    assert s.sinal == -1
+
+
+def test_o_bit_fixado_manda_no_aprendido():
+    """Uma sessao boa resolve para sempre. O aprendizado continua rodando ao
+    lado justamente para poder DISCORDAR do arquivo."""
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo(fixado=-1)
+    for i in range(30):                       # aprende o contrario
+        a = math.radians(10 * i)
+        s.votar(a, a)
+
+    assert s.sinal == -1, "o arquivo tem que mandar"
+    assert "FIXADO" in s.diagnostico
+    assert "DISCORDAM" in s.diagnostico, "e a discordancia tem que aparecer"
+
+
+def test_bit_fixado_sem_discordancia_nao_alarma():
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo(fixado=1)
+    for i in range(30):
+        a = math.radians(10 * i)
+        s.votar(a, a)
+
+    assert s.sinal == 1
+    assert "DISCORDAM" not in s.diagnostico
