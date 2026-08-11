@@ -8,7 +8,17 @@
     "captura": "640x480"
   },
   "lateral": {
-    "fonte": "http://192.168.1.2:8080/video",
-    "captura": "640x480"
+    "fonte": "http://192.168.1.9:8080/video",
+    "captura": "640x480",
+    "_nota": [
+      "O IP MUDA SOZINHO. Ele vem do DHCP do roteador, e o tablet pega outro",
+      "toda vez que reconecta. Em 11/08 estava .2 aqui e .9 no aparelho, e a",
+      "camera simplesmente nao conectava.",
+      "",
+      "E o mesmo defeito que os indices de camera do DirectShow ja causaram:",
+      "identidade que muda sozinha custa uma sessao de depuracao. La a saida",
+      "foi usar o NOME em vez do indice; aqui e `ferramentas/achar_ip.py`,",
+      "que varre a rede e escreve o IP certo neste arquivo."
+    ]
   }
 }

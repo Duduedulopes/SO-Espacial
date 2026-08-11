@@ -299,3 +299,108 @@ if __name__ == "__main__":
             print(f"  ERRO  {t.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(testes) - falhas}/{len(testes)} passaram")
     sys.exit(1 if falhas else 0)
+
+
+# ---------------------------------------------------- fonte remota (MJPEG)
+class _CapFalso:
+    """Um `cv2.VideoCapture` de mentira, para provar o contrato sem rede."""
+
+    def __init__(self, abre=True, quadros=None):
+        self._abre = abre
+        self._quadros = list(quadros or [])
+        self.liberado = False
+
+    def isOpened(self):
+        return self._abre
+
+    def read(self):
+        if self._quadros:
+            return True, self._quadros.pop(0)
+        return False, None
+
+    def get(self, prop):
+        return {3: 640.0, 4: 480.0}.get(prop, 0.0)
+
+    def release(self):
+        self.liberado = True
+
+
+def _remota_com(monkeypatch, cap):
+    from src.cameras import remota as mod
+    monkeypatch.setattr(mod.cv2, "VideoCapture", lambda *a, **k: cap)
+    return mod.RemoteCameraSource("http://192.168.1.9:8080/video", "lateral")
+
+
+def test_remota_guarda_o_handle_ao_abrir(monkeypatch):
+    """O defeito de 11/08, travado.
+
+    `_abrir` criava o VideoCapture numa variavel LOCAL e nunca o guardava. A
+    conexao abria, o objeto era descartado ao fim do metodo, e toda leitura
+    caia em `self._cap is None` -> "nao conectada".
+
+    O sintoma foi cruel: 58 s em CONECTANDO com 0 quadros e 0 FALHAS, logo
+    depois de a mesma URL ter entregue video com brilho 47,5 para outra
+    ferramenta. Zero falhas porque nenhuma leitura chegava a acontecer, e
+    CONECTANDO e o estado mais mudo de todos.
+
+        Duas implementacoes do mesmo contrato, e so o `usb.py` o cumpria.
+    """
+    cap = _CapFalso()
+    fonte = _remota_com(monkeypatch, cap)
+    fonte._abrir()
+
+    assert fonte._cap is cap, "o handle foi descartado — o defeito voltou"
+
+
+def test_remota_le_quadro_depois_de_abrir(monkeypatch):
+    """Guardar o handle so vale se o quadro atravessar de verdade."""
+    imagem = np.full((480, 640, 3), 90, np.uint8)
+    fonte = _remota_com(monkeypatch, _CapFalso(quadros=[imagem]))
+    fonte._abrir()
+
+    q = fonte._ler_bruto()
+    assert q is not None and q.shape == (480, 640, 3)
+
+
+def test_remota_registra_a_resolucao_que_o_servidor_entregou(monkeypatch):
+    """Pedir nao e receber: quem decide o tamanho e o servidor do tablet.
+
+    Sem registrar o real, a homografia seria reescalada para uma resolucao que
+    a fonte nunca entregou — cada pixel valendo o dobro do que deveria, sem
+    nenhum sintoma alem do numero errado. Corrigido para as USB em 10/08.
+    """
+    fonte = _remota_com(monkeypatch, _CapFalso())
+    fonte._abrir()
+
+    assert (fonte.largura, fonte.altura) == (640, 480)
+
+
+def test_remota_da_janela_de_timeout_ao_primeiro_quadro(monkeypatch):
+    """`_t_ultimo_ok` comecava em 0.0, e o relogio monotonico vale milhares.
+
+    Consequencia: a PRIMEIRA leitura sem quadro ja passava do timeout e
+    declarava a conexao perdida — antes de o stream ter tido chance de
+    entregar qualquer coisa. Uma fonte MJPEG leva algumas centenas de ms para
+    o primeiro quadro; sem esta janela, ela nunca conectaria.
+    """
+    fonte = _remota_com(monkeypatch, _CapFalso(quadros=[]))
+    fonte._abrir()
+
+    assert fonte._ler_bruto() is None, "devia esperar, nao desistir"
+
+
+def test_remota_nao_guarda_handle_que_nao_abriu(monkeypatch):
+    """Falhar tem que deixar o objeto limpo, senao a reconexao herda lixo."""
+    from src.nucleo.erros import ConexaoPerdida
+
+    cap = _CapFalso(abre=False)
+    fonte = _remota_com(monkeypatch, cap)
+
+    try:
+        fonte._abrir()
+        assert False, "devia ter levantado ConexaoPerdida"
+    except ConexaoPerdida:
+        pass
+
+    assert fonte._cap is None
+    assert cap.liberado, "handle inutil ficou aberto"

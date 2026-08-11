@@ -78,6 +78,36 @@ class RemoteCameraSource(FonteDeVideo):
                                  protocolo=self.protocolo, host=self.host,
                                  **self._diagnosticar_rede())
 
+        # GUARDAR O HANDLE. Sim, esta linha ja faltou.
+        #
+        # MEDIDO EM 11/08: a lateral ficou 58 s em `conectando`, com 0 quadros
+        # e 0 falhas, logo depois de `achar_ip.py` ter lido video daquela mesma
+        # URL com brilho 47,5. A conexao ABRIA — e o objeto era descartado ao
+        # fim deste metodo, porque `cap` era local. `_ler_bruto` entao batia em
+        # `self._cap is None` e levantava "nao conectada" para sempre.
+        #
+        # O estado nunca chegava a FALHA porque nenhuma LEITURA acontecia: a
+        # camera ficava eternamente em CONECTANDO, que e o estado mais mudo de
+        # todos. Uma falha barulhenta teria sido encontrada em 10/08.
+        #
+        #     O `usb.py` faz `self._cap = cap` na mesma posicao. Duas
+        #     implementacoes do mesmo contrato, e so uma o cumpria.
+        self._cap = cap
+        self._t_ultimo_ok = time.monotonic()
+
+        # Pedir nao e receber, aqui tambem: quem responde e o servidor do
+        # tablet, e ele decide a resolucao. Registrar o que de fato chegou e o
+        # que impede a homografia de ser reescalada para um tamanho que a
+        # fonte nunca entregou — defeito silencioso corrigido em 10/08 para as
+        # cameras USB e que valeria igual para esta.
+        largura = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        altura = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if largura and altura:
+            self.largura, self.altura = largura, altura
+
+        self.log.info("aberta", url=self.url, protocolo=self.protocolo,
+                      resolucao=f"{self.largura}x{self.altura}")
+
     def _diagnosticar_rede(self):
         """Quando falha, dizer O QUE HA DE ERRADO, nao so QUE deu errado.
 
