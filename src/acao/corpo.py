@@ -763,6 +763,12 @@ class AnalisadorDeCorpo:
                  quadril_min=0.40, quadril_max=1.30,
                  altura_maxima=2.50,
                  memoria_quadril=120,
+                 # Acima disto a coxa esta vertical o bastante para o quadril
+                 # estar onde a camera do alto disse. O mesmo 0,78 que o
+                 # `ClassificadorDeAcao` usa para decidir `agachado` — um
+                 # limiar so, porque sao a mesma pergunta: o corpo ainda esta
+                 # na postura em que a referencia foi medida?
+                 coxa_em_pe_acima=0.78,
                  **kw_azimute):
         self.levantado_acima = levantado_acima
         self.estendido_alem = estendido_alem
@@ -773,6 +779,7 @@ class AnalisadorDeCorpo:
         self.quadril_min = quadril_min
         self.quadril_max = quadril_max
         self.altura_maxima = altura_maxima
+        self.coxa_em_pe_acima = coxa_em_pe_acima
         self.memoria_quadril = memoria_quadril
 
         self.azimute = EstimadorDeAzimute(**kw_azimute)
@@ -1220,13 +1227,53 @@ class AnalisadorDeCorpo:
             Cada camera responde o que enxerga. Nenhuma precisa enxergar tudo.
                                                         — Eduardo, 11/08
 
-        O QUE ISTO AINDA NAO RESOLVE, DITO ANTES DE ALGUEM PERGUNTAR
+        A CAMERA DO ALTO MEDE O QUADRIL DE QUEM ESTA EM PE — E SO
 
-        Trocar a ancora conserta a ANCORA. A extensao do braco em relacao ao
-        quadril continua saindo comprimida, porque continua vindo do mesmo
-        estimador. O ponto fixo da reta medida vai deixar de andar; a
-        inclinacao dela, nao. Isso e a proxima medicao, nao esta.
+        `altura_do_quadril` e `estatura x 0,53`, e a estatura so e amostrada
+        com a pessoa ereta. Isso torna o numero uma CONSTANTE da pessoa, nao
+        uma medida do instante: quem agacha desce o quadril de verdade e a
+        ancora fica parada la em cima.
+
+        MEDIDO EM 11/08, e o padrao e inequivoco:
+
+            1,90 m  (em pe, braco para cima)     lido 1,89   erro  -0,01
+            1,35 m  (em pe, braco a frente)      lido 1,12   erro  -0,23
+            0,95 m  (leve inclinacao)            lido 1,10   erro  +0,15
+            0,55 m  (dobrado)                    lido 0,97   erro  +0,42
+            0,15 m  (agachado fundo)             lido 0,90   erro  +0,75
+
+        Em pe e ereto, UM CENTIMETRO. O erro cresce junto com o quanto o corpo
+        sai da vertical, e no chao chega a 75 cm — porque a ancora continuou
+        na altura de quem esta de pe enquanto o quadril desceu meio metro.
+
+            O que parecia compressao da leitura era a ancora nao acompanhando
+            a postura. Erro que cresce com uma variavel e erro daquela
+            variavel, nao ruido.
+
+        ENTAO A ORDEM DEPENDE DA POSTURA, E ISSO NAO E EXCECAO: E A REGRA
+
+            em pe        camera do alto ganha  (independente, e vale)
+            agachado     so o tornozelo VISTO AGORA sabe onde o quadril foi
+            agachado sem tornozelo a vista      nao ha resposta
+
+        O terceiro caso e o unico honesto quando o corpo saiu da postura em
+        que a referencia foi medida. Preencher com a constante de pessoa em pe
+        foi exatamente o que produziu os 75 cm.
         """
+        agachado = (leitura.verticalidade_coxa is not None
+                    and leitura.verticalidade_coxa < self.coxa_em_pe_acima)
+
+        if agachado:
+            # Agachado, so vale o que viu a perna NESTE quadro. A constante de
+            # quem esta em pe descreve outro corpo.
+            if leitura.altura_medida:
+                leitura.fonte_escala = "tornozelo visto (agachado)"
+                return leitura
+            leitura.fonte_escala = "sem ancora (agachado)"
+            leitura.altura_quadril = None
+            leitura.altura_mao_esq = leitura.altura_mao_dir = None
+            return leitura
+
         if quadril_do_alto is None:
             leitura.fonte_escala = ("tornozelo visto" if leitura.altura_medida
                                     else "tronco (proporcao)")

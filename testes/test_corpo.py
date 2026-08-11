@@ -1435,3 +1435,72 @@ def test_sem_alto_e_sem_tornozelo_sobra_o_tronco_e_ele_se_declara():
 
     assert leitura.fonte_escala == "tronco (proporcao)"
     assert not leitura.altura_medida
+
+
+# ------------------------------------------ a ancora tem que seguir a postura
+#
+# A camera do alto responde `estatura x 0,53`, e a estatura so e amostrada com
+# a pessoa ereta. E uma CONSTANTE da pessoa, nao uma medida do instante: quem
+# agacha desce o quadril de verdade e a ancora fica parada la em cima.
+#
+# Medido contra a estante em 11/08:
+#
+#     1,90 m  em pe, braco para cima     lido 1,89   erro  -0,01
+#     0,15 m  agachado fundo             lido 0,90   erro  +0,75
+#
+# Um centimetro em pe; setenta e cinco no chao. O erro cresce junto com o
+# quanto o corpo sai da vertical.
+#
+#     Erro que cresce com uma variavel e erro daquela variavel, nao ruido.
+
+def test_em_pe_a_camera_do_alto_ancora():
+    a = AnalisadorDeCorpo()
+    leitura = a.ler_varias(1, [(corpo(mao_dir=(1.90, 0.10)), tudo_visivel())],
+                           quadril_do_alto=0.95, nomes=["frontal"])
+
+    assert leitura.fonte_escala == "camera do alto"
+    assert leitura.altura_mao_dir is not None
+
+
+def test_agachado_a_constante_de_quem_esta_em_pe_nao_vale():
+    """Ela descreve outro corpo — o mesmo, na postura de antes."""
+    a = AnalisadorDeCorpo()
+    leitura = a.ler_varias(
+        1,
+        [(corpo(quadril=0.45, agachado=True), tudo_visivel(exceto=(15, 16)))],
+        quadril_do_alto=0.95, nomes=["frontal"])
+
+    assert leitura.fonte_escala == "sem ancora (agachado)"
+    assert leitura.altura_mao_dir is None
+    assert leitura.altura_quadril is None
+
+
+def test_agachado_com_tornozelo_a_vista_ainda_responde():
+    """Quem viu a perna NESTE quadro sabe para onde o quadril foi.
+
+    Recusar aqui tambem apagaria a unica fonte que acompanha o agachamento —
+    e prateleira baixa e justamente onde a pessoa agacha.
+    """
+    a = AnalisadorDeCorpo()
+    j = corpo(quadril=0.45, agachado=True, mao_dir=(0.15, 0.30))
+
+    leitura = a.ler_varias(1, [(j, tudo_visivel())],
+                           quadril_do_alto=0.95, nomes=["lateral"])
+
+    assert leitura.fonte_escala == "tornozelo visto (agachado)"
+    assert leitura.altura_mao_dir is not None
+    assert abs(leitura.altura_mao_dir - 0.15) < 0.05, leitura.altura_mao_dir
+
+
+def test_o_estado_do_braco_sobrevive_a_falta_de_ancora():
+    """Vocabulario fechado nao depende do chao. Perder a altura nao pode
+    apagar `levantado`, que compara pulso com ombro."""
+    a = AnalisadorDeCorpo()
+    leitura = a.ler_varias(
+        1,
+        [(corpo(quadril=0.45, agachado=True, mao_dir=(1.10, 0.05)),
+          tudo_visivel(exceto=(15, 16)))],
+        quadril_do_alto=0.95, nomes=["frontal"])
+
+    assert leitura.altura_mao_dir is None
+    assert leitura.braco_direito == Braco.LEVANTADO
