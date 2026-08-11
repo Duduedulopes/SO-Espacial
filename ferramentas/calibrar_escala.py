@@ -8,25 +8,40 @@ a altura da mao deixa de depender de uma proporcao chutada sobre o tronco.
 
 O QUE ELE FAZ
 
-Pede que voce fique EM PE e ande um pouco pela area por vinte segundos. Nesse
-tempo o `FiltroDePlausibilidade` aprende a razao geometrica da sua caixa, e a
-conta fecha:
+Pede que voce fique EM PE e ande um pouco pela area. Nesse tempo o
+`FiltroDePlausibilidade` aprende a razao geometrica da sua caixa, e a conta
+fecha:
 
-    Hc = sua_estatura / razao_observada
+    fator = sua_estatura / razao_observada
 
-Uma pessoa medida uma vez calibra a camera para todas as outras. Ver
+Uma pessoa medida uma vez calibra o sistema para todas as outras. Ver
 `src/acao/escala.py` para a geometria.
 
-POR QUE NAO MEDIR A CAMERA COM TRENA
+O FATOR NAO E A ALTURA DA CAMERA
 
-Daria certo e seria pior. Medir a altura da lente exige subir numa cadeira, e
-o numero que importa nao e a distancia ao teto: e a altura acima do PLANO que
-a homografia calibrou — que pode nao ser exatamente o piso, dependendo de onde
-os pontos de calibracao foram marcados.
+MEDIDO EM 11/08: 1,80 m de estatura deu razao 0,343 e fator 5,25 — e a camera
+do alto nao esta a cinco metros do chao. A primeira versao desta ferramenta
+avisava "altura improvavel" nesse caso, porque eu tinha escrito a suspeita
+errada no aviso.
 
-    Calibrar pelo que o sistema mede evita a discordancia entre a regua e o
-    modelo. Se o modelo estiver torto, a calibracao entorta junto e o
-    resultado continua certo.
+A relacao `razao = altura / altura_da_camera` vale para camera SEM inclinacao.
+A do alto olha o chao quase de cima, e de cima uma pessoa em pe aparece
+ENCURTADA — a razao fica em menos da metade do que o modelo simples previa, e
+o fator absorve a inclinacao junto.
+
+    Como fator de conversao, esta certo. Como altura da camera, e ficcao.
+
+POR QUE NAO MEDIR NADA COM TRENA NA PAREDE
+
+Justamente por isso. Calibrar pelo que o sistema mede, do jeito que ele vai
+usar, evita a discordancia entre a regua e o modelo. Se o modelo tiver uma
+aproximacao — e tem — a calibracao a absorve e o resultado continua certo.
+
+    Uma constante empirica nao precisa ter nome fisico. Precisa ser estavel, e
+    precisa ser medida do mesmo jeito que sera usada.
+
+O UNICO SINAL DE QUALIDADE E A DISPERSAO. Ela diz se a relacao e estavel pelo
+chao inteiro, que e a propriedade de que precisamos.
 
 ANDE. NAO FIQUE PARADO.
 
@@ -120,7 +135,7 @@ def main():
                       - np.percentile(razoes, 25)) / mediana
 
     try:
-        altura = EscalaVertical.calibrar(args.estatura, mediana)
+        fator = EscalaVertical.calibrar(args.estatura, mediana)
     except ValueError as e:
         print(f"\n  {e}")
         return 1
@@ -129,7 +144,9 @@ def main():
     print(f"  sua estatura declarada    {args.estatura:.2f} m")
     print(f"  razao mediana da caixa    {mediana:.4f}  "
           f"({len(razoes)} amostras, dispersao {dispersao:.0%})")
-    print(f"  ALTURA DA CAMERA DO ALTO  {altura:.2f} m\n")
+    print(f"  FATOR DE ESCALA           {fator:.2f}\n")
+    print("  (o fator NAO e a altura da camera — ele absorve a inclinacao.")
+    print("   Ver src/acao/escala.py. O que importa e a dispersao acima.)\n")
 
     # A dispersao e o unico sinal de que a calibracao NAO deve ser confiada.
     # Caixa tremendo muito significa deteccao instavel, e a mediana de dados
@@ -138,14 +155,16 @@ def main():
         print(f"  ATENCAO: dispersao de {dispersao:.0%} e alta. A caixa esta")
         print("  instavel — provavelmente voce saiu do quadro em parte dos")
         print("  quadros. Refaca ficando inteiro no campo da camera do alto.")
-    if not 1.2 <= altura <= 4.0:
-        print(f"  ATENCAO: {altura:.2f} m e uma altura de camera improvavel.")
-        print("  Confira se a estatura declarada esta certa.")
+    else:
+        print(f"  Dispersao de {dispersao:.0%}: a relacao e estavel pelo chao")
+        print("  inteiro, que e a propriedade de que precisamos. Serve.")
 
     DESTINO.parent.mkdir(exist_ok=True)
     DESTINO.write_text(json.dumps({
-        "altura_camera_m": round(altura, 4),
+        "fator": round(fator, 4),
         "_como": "estatura_conhecida / razao_observada da camera do alto",
+        "_nao_e": ("a altura da camera. O fator absorve a inclinacao da lente "
+                   "junto — ver src/acao/escala.py"),
         "estatura_de_referencia_m": args.estatura,
         "razao_mediana": round(mediana, 5),
         "amostras": len(razoes),
@@ -154,6 +173,9 @@ def main():
         "_atencao": [
             "Este numero vale enquanto a camera do alto NAO for movida.",
             "Mexeu na camera ou recalibrou a homografia? Refaca isto.",
+            "Calibrado com uma pessoa de 1,80 m: exato nessa altura e bom",
+            "perto dela. Para estaturas bem diferentes o erro cresce, porque",
+            "a proporcionalidade e aproximada com a lente inclinada.",
         ],
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 

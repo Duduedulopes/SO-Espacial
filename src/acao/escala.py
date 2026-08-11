@@ -38,13 +38,44 @@ constante, a estatura da pessoa em metros. Ele estava ali desde o comeco.
 
 A CALIBRACAO: UM NUMERO, UMA VEZ
 
-Hc nao precisa ser medido com trena na parede. Basta uma pessoa de estatura
+O fator nao e medido com trena na parede. Basta uma pessoa de estatura
 conhecida aparecer uma vez:
 
-    Hc = estatura_conhecida / razao_observada
+    fator = estatura_conhecida / razao_observada
 
-Depois disso, `estatura = razao x Hc` vale para qualquer um. Uma crianca, um
-adulto alto, alguem agachado — todos medidos, nenhum assumido.
+Depois disso, `estatura = razao x fator` vale para qualquer um.
+
+O FATOR NAO E A ALTURA DA CAMERA, E EU ERREI AO CHAMA-LO ASSIM
+
+MEDIDO EM 11/08: com o Eduardo a 1,80 m, a razao ficou em 0,343 e o fator em
+5,25 — e a camera do alto nao esta a cinco metros do chao. A ferramenta chegou
+a avisar "altura improvavel", porque eu tinha escrito a suspeita errada.
+
+A relacao `razao = altura / altura_da_camera` vale para camera SEM inclinacao,
+onde as verticais do mundo continuam verticais na imagem. A camera do alto
+olha o chao quase de cima: uma pessoa em pe aparece ENCURTADA, e a razao
+medida fica em menos da metade do que o modelo simples previa. O fator
+absorveu a inclinacao junto.
+
+    Como fator de conversao, 5,25 esta certo. Como altura da camera, e ficcao.
+
+A dispersao de 5% e o que diz que a relacao serve: ela e estavel pelo chao
+inteiro, que e a propriedade projetiva de que precisamos. O significado fisico
+do numero nao e usado em lugar nenhum.
+
+    Uma constante empirica nao precisa ter nome fisico. Precisa ser estavel, e
+    precisa ser medida do mesmo jeito que sera usada.
+
+O LIMITE QUE ISSO IMPOE, DECLARADO
+
+Sem inclinacao, `razao` e proporcional a altura e a conversao vale para
+qualquer estatura. COM inclinacao forte, a proporcionalidade e aproximada e o
+erro cresce conforme a pessoa se afasta da estatura de calibracao.
+
+Calibrado a 1,80 m, o fator e exato para 1,80 e bom perto disso. Para uma
+crianca de 1,10 m ele vai errar — quanto, so medindo. Enquanto o sistema for
+usado com adultos, nao incomoda; quando deixar de ser, isto tem que ser
+remedido, nao ajustado no chute.
 
 O QUE ISTO NAO RESOLVE
 
@@ -87,18 +118,18 @@ class EscalaVertical:
     rastro dela.
     """
 
-    def __init__(self, altura_camera_m=None, memoria=90):
-        self.altura_camera = altura_camera_m
+    def __init__(self, fator=None, memoria=90):
+        self.fator = fator
         self.memoria = memoria
         self._razoes = {}
 
     # ------------------------------------------------------------ calibracao
     @staticmethod
     def calibrar(estatura_conhecida_m, razao_observada):
-        """Devolve a altura da camera. Uma pessoa medida, uma vez.
+        """Devolve o FATOR de conversao. Uma pessoa medida, uma vez.
 
         Nao ha trena na parede nem angulo a medir: quem sabe a propria altura
-        aparece na cena, e a geometria devolve Hc.
+        aparece na cena, e a razao observada fecha a conta.
         """
         if razao_observada is None or razao_observada <= 1e-6:
             raise ValueError("razao invalida — a pessoa estava visivel?")
@@ -109,7 +140,7 @@ class EscalaVertical:
 
     @property
     def calibrada(self):
-        return bool(self.altura_camera)
+        return bool(self.fator)
 
     # ------------------------------------------------------------ medicao
     def observar(self, pessoa_id, razao, em_pe=True):
@@ -122,7 +153,7 @@ class EscalaVertical:
         if not self.calibrada or razao is None or not em_pe:
             return self.estatura(pessoa_id)
 
-        alta = razao * self.altura_camera
+        alta = razao * self.fator
         if ESTATURA_MIN <= alta <= ESTATURA_MAX:
             self._razoes.setdefault(
                 pessoa_id, deque(maxlen=self.memoria)).append(alta)
@@ -149,5 +180,5 @@ class EscalaVertical:
             return ("escala NAO CALIBRADA — altura da mao sai estimada pelo "
                     "tronco. Rode ferramentas/calibrar_escala.py")
         medidos = {p: round(self.estatura(p), 2) for p in self._razoes}
-        return (f"escala camera a {self.altura_camera:.2f} m   "
+        return (f"escala fator {self.fator:.2f}   "
                 f"estaturas {medidos or '-'}")

@@ -64,17 +64,22 @@ from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
 
-def _altura_da_camera():
+def _fator_de_escala():
     """Le `config/escala.json`. Ausente significa nao calibrado, e tudo bem:
-    a altura da mao sai estimada pelo tronco e marcada como tal."""
+    a altura da mao sai estimada pelo tronco e marcada como tal.
+
+    Aceita a chave antiga `altura_camera_m` por compatibilidade. O nome mudou
+    porque estava errado — o numero nao e a altura da camera, e sim o fator
+    empirico que converte razao em metros. Ver `src/acao/escala.py`.
+    """
     import json
 
     caminho = RAIZ / "config" / "escala.json"
     if not caminho.exists():
         return None
     try:
-        return float(json.loads(caminho.read_text(encoding="utf-8"))
-                     ["altura_camera_m"])
+        d = json.loads(caminho.read_text(encoding="utf-8"))
+        return float(d.get("fator", d["altura_camera_m"]))
     except Exception:
         return None
 
@@ -149,7 +154,7 @@ class SpatialEngine:
         #
         #     O dado que faltava ja estava sendo calculado para outra
         #     finalidade: recusar movel.
-        self.escala = EscalaVertical(altura_camera_m=_altura_da_camera())
+        self.escala = EscalaVertical(fator=_fator_de_escala())
 
         self.log = Log("espacial")
         self._rumos = {}

@@ -25,22 +25,33 @@ from src.acao.escala import (                                      # noqa: E402
     QUADRIL_POR_ESTATURA, EscalaVertical,
 )
 
-CAMERA = 2.40      # altura da camera do alto, em metros
+FATOR = 5.25       # fator empirico medido em 11/08 com a C920 do alto
 EDUARDO = 1.78     # estatura de referencia
 
 
-def razao_de(estatura, altura_camera=CAMERA):
+def razao_de(estatura, fator=FATOR):
     """A razao que a camera veria para alguem daquela altura."""
-    return estatura / altura_camera
+    return estatura / fator
 
 
 # ------------------------------------------------------------- calibracao
-def test_uma_pessoa_conhecida_calibra_a_camera():
-    """Sem trena na parede, sem angulo, sem subir em cadeira: alguem que sabe
-    a propria altura aparece uma vez e a geometria devolve Hc."""
+def test_uma_pessoa_conhecida_calibra_a_escala():
+    """Sem trena na parede, sem angulo, sem subir em cadeira: alguem que sabe a
+    propria altura aparece uma vez e a razao observada fecha a conta.
+
+    O NUMERO NAO E A ALTURA DA CAMERA, E EU ERREI AO CHAMA-LO ASSIM.
+
+    MEDIDO EM 11/08: Eduardo a 1,80 m deu razao 0,343 e fator 5,25 — e a camera
+    nao esta a cinco metros do chao. A relacao `razao = altura / Hc` vale para
+    camera SEM inclinacao; a do alto olha o chao quase de cima e a pessoa
+    aparece encurtada. O fator absorveu a inclinacao junto.
+
+        Uma constante empirica nao precisa ter nome fisico. Precisa ser
+        estavel, e precisa ser medida do mesmo jeito que sera usada.
+    """
     achado = EscalaVertical.calibrar(EDUARDO, razao_de(EDUARDO))
 
-    assert abs(achado - CAMERA) < 0.01
+    assert abs(achado - FATOR) < 0.01
 
 
 def test_calibracao_recusa_estatura_impossivel():
@@ -63,7 +74,7 @@ def test_calibracao_recusa_razao_invalida():
 # ---------------------------------------------------------------- medicao
 def test_mede_a_estatura_de_qualquer_um_depois_de_calibrada():
     """Uma pessoa calibra; todas as outras sao MEDIDAS, nao assumidas."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
 
     for pid, verdade in ((1, 1.78), (2, 1.62), (3, 1.10)):
         for _ in range(10):
@@ -88,7 +99,7 @@ def test_quem_agacha_nao_envenena_a_estatura():
     """A caixa de quem agacha e menor DE VERDADE, e uma amostra dali diria que
     a pessoa mede 1,10 m. O sinal de postura vem do classificador, que decidiu
     pela coxa — um caminho independente da caixa."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
 
     for _ in range(20):
         e.observar(1, razao_de(EDUARDO), em_pe=True)
@@ -104,7 +115,7 @@ def test_a_mediana_absorve_o_tremor_da_caixa():
     import random
 
     random.seed(11)
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
 
     for _ in range(60):
         ruido = random.gauss(0, 0.05)
@@ -116,7 +127,7 @@ def test_a_mediana_absorve_o_tremor_da_caixa():
 def test_estatura_absurda_nao_entra():
     """Uma caixa de 4 m nao e uma pessoa alta: e deteccao ruim, e ela nao pode
     virar a referencia de altura de ninguem."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
 
     for _ in range(20):
         e.observar(1, razao_de(4.0))
@@ -127,7 +138,7 @@ def test_estatura_absurda_nao_entra():
 def test_o_quadril_sai_da_estatura_MEDIDA():
     """A proporcao continua sendo modelo — mas aplicada sobre uma estatura
     medida, e nao sobre um tronco estimado. O erro cai de ~8 cm para ~3 cm."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
     for _ in range(10):
         e.observar(1, razao_de(EDUARDO))
 
@@ -136,7 +147,7 @@ def test_o_quadril_sai_da_estatura_MEDIDA():
 
 def test_a_memoria_some_com_o_rastro():
     """Estatura aprendida da pessoa 1 nao pode responder pela pessoa 2."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
     for _ in range(10):
         e.observar(1, razao_de(EDUARDO))
 
@@ -148,7 +159,7 @@ def test_camera_perpendicular_nao_derruba_a_escala():
     """Sem horizonte nao ha razao, e `razao()` devolve None. A escala tem que
     aceitar isso em silencio — foi um ZeroDivisionError em producao antes de a
     guarda entrar dentro do proprio filtro."""
-    e = EscalaVertical(altura_camera_m=CAMERA)
+    e = EscalaVertical(fator=FATOR)
 
     for _ in range(20):
         e.observar(1, None)

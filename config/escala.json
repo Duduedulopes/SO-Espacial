@@ -1,0 +1,14 @@
+{
+  "fator": 5.2475,
+  "_como": "estatura_conhecida / razao_observada da camera do alto",
+  "estatura_de_referencia_m": 1.8,
+  "razao_mediana": 0.34302,
+  "amostras": 148,
+  "dispersao": 0.054,
+  "quando": "2026-08-11T14:24:27",
+  "_atencao": [
+    "Este numero vale enquanto a camera do alto NAO for movida.",
+    "Mexeu na camera ou recalibrou a homografia? Refaca isto."
+  ],
+  "_nao_e": "a altura da camera. O fator absorve a inclinacao da lente junto — ver src/acao/escala.py"
+}
