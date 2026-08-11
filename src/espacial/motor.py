@@ -58,7 +58,9 @@ from percepcao.pose3d import (                              # noqa: E402
     EstimadorDeInclinacao, SuavizadorDeEsqueleto, ancorar_no_chao,
 )
 from src.acao.classificador import Descritor                 # noqa: E402
-from src.acao.corpo import AnalisadorDeCorpo                 # noqa: E402
+from src.acao.corpo import (                                 # noqa: E402
+    AnalisadorDeCorpo, DirecaoPorDeslocamento,
+)
 from src.acao.escala import EscalaVertical                   # noqa: E402
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
@@ -143,6 +145,14 @@ class SpatialEngine:
         # jogados fora depois da fusao.
         self.corpo = AnalisadorDeCorpo()
         self.leituras = {}             # id -> LeituraDoCorpo, para o painel
+
+        # O AZIMUTE APRENDE POR DESLOCAMENTO, NAO POR VELOCIDADE.
+        #
+        # Medido em 11/08 num espaco de 1,4 m: a caminhada real teve
+        # mediana de 0,23 m/s e o tremor do Kalman parado teve pico de
+        # 0,23 m/s. Nao ha limiar de velocidade que separe os dois ali.
+        # Em deslocamento liquido a diferenca e de dezessete vezes.
+        self.direcao = DirecaoPorDeslocamento()
 
         # A CAMERA DO ALTO E A UNICA QUE VE OS PES, E E ELA QUE DA A ESCALA.
         #
@@ -528,11 +538,20 @@ class SpatialEngine:
             return {}
 
         pessoa = estados[0]
+
+        # O rumo que alimenta o azimute vem do DESLOCAMENTO da janela, e o
+        # "velocidade" que ele recebe e o proprio deslocamento em metros. Sao
+        # grandezas diferentes com o mesmo papel: garantir que o vetor cujo
+        # angulo sera usado tenha comprimento suficiente.
+        rumo_andado, andou = self.direcao.observar(
+            pessoa.id, pessoa.x, pessoa.y, self._agora())
+        self.direcao.esquecer({e.id for e in estados})
+
         return {pessoa.id: self.corpo.ler_varias(
             pessoa.id, vistas,
             inclinacao_rad=self.inclinacao.valor,
-            rumo_mundo=pessoa.rumo,
-            velocidade=pessoa.velocidade,
+            rumo_mundo=rumo_andado,
+            velocidade=andou,
             quadril_do_alto=self.escala.altura_do_quadril(pessoa.id))}
 
     def _vistas_ativas(self):

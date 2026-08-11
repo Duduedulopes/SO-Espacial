@@ -920,3 +920,88 @@ def test_o_azimute_aprende_de_UMA_vista_so():
     assert a.azimute.confiavel, a.azimute.diagnostico
     assert abs(diferenca_angular(a.azimute.valor, verdade)) < math.radians(3)
     assert len(a.azimute.amostras) == 40, "a segunda vista tambem alimentou"
+
+
+# ------------------------------------------------ direcao por deslocamento
+def test_ruido_parado_nao_produz_direcao():
+    """MEDIDO EM 11/08: `parado` teve pico de 0,23 m/s so de tremor do Kalman —
+    exatamente a mediana da caminhada real do Eduardo naquele espaco.
+
+    Em velocidade os dois empatam. Em deslocamento nao: o ruido e centrado em
+    zero e se CANCELA ao longo da janela; a caminhada se ACUMULA.
+
+        Ruido nao vai a lugar nenhum. Caminhada vai.
+    """
+    import random
+
+    from src.acao.corpo import DirecaoPorDeslocamento
+
+    random.seed(5)
+    d = DirecaoPorDeslocamento(janela_s=2.0, deslocamento_minimo=0.25)
+
+    rumo = None
+    for i in range(30):
+        # tremendo em torno de um ponto, com passos do tamanho de 0,23 m/s
+        x = random.gauss(0, 0.03)
+        y = random.gauss(0, 0.03)
+        rumo, desloc = d.observar(1, x, y, i * 0.1)
+
+    assert rumo is None, "tremor virou direcao"
+    assert desloc < 0.25
+
+
+def test_caminhada_curta_produz_direcao_bem_definida():
+    """0,68 m em 4 s foi o que o Eduardo andou. Nao passa do limiar de
+    velocidade e passa com folga no de deslocamento."""
+    import math
+
+    from src.acao.corpo import DirecaoPorDeslocamento
+
+    d = DirecaoPorDeslocamento(janela_s=2.0, deslocamento_minimo=0.25)
+    alvo = math.radians(40)
+
+    rumo = None
+    for i in range(20):
+        p = i * 0.023                       # 0,23 m/s a 10 fps
+        rumo, desloc = d.observar(1, p * math.cos(alvo), p * math.sin(alvo),
+                                  i * 0.1)
+
+    assert rumo is not None, "caminhada real foi recusada"
+    assert abs(diferenca_angular(rumo, alvo)) < math.radians(3)
+
+
+def test_o_azimute_converge_com_caminhada_lenta():
+    """O caso que falhou no hardware: caminhada abaixo do limiar de velocidade.
+
+    Com deslocamento no lugar da velocidade instantanea, o azimute recebe
+    amostras de toda a caminhada em vez dos poucos picos de ruido que passavam.
+    """
+    import math
+
+    from src.acao.corpo import DirecaoPorDeslocamento
+
+    a = AnalisadorDeCorpo()
+    d = DirecaoPorDeslocamento(janela_s=2.0, deslocamento_minimo=0.25)
+    offset = math.radians(35)
+    rumo_real = math.radians(20)
+
+    for i in range(60):
+        p = i * 0.023                       # devagar: 0,23 m/s
+        rumo, andou = d.observar(1, p * math.cos(rumo_real),
+                                 p * math.sin(rumo_real), i * 0.1)
+        a.ler(1, corpo(rumo_camera=rumo_real - offset), tudo_visivel(),
+              rumo_mundo=rumo, velocidade=andou)
+
+    assert a.azimute.confiavel, a.azimute.diagnostico
+    assert abs(diferenca_angular(a.azimute.valor, offset)) < math.radians(3)
+
+
+def test_a_trilha_some_com_o_rastro():
+    from src.acao.corpo import DirecaoPorDeslocamento
+
+    d = DirecaoPorDeslocamento()
+    for i in range(10):
+        d.observar(1, i * 0.05, 0, i * 0.1)
+
+    d.esquecer({2})
+    assert 1 not in d._trilhas

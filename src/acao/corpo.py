@@ -285,10 +285,19 @@ class EstimadorDeAzimute:
     def observar(self, rumo_ombros_camera, rumo_mundo, velocidade):
         """Alimenta uma amostra. Devolve True se ela foi aceita.
 
-        So aceita quem anda ACIMA do limiar. Parado, o vetor velocidade do
-        Kalman e quase todo ruido e sua DIRECAO gira loucamente enquanto o
-        modulo mal se mexe — um vetor curto tem angulo mal definido. Aprender
-        com ele seria aprender ruido e chamar de calibracao.
+        `velocidade` aqui e uma MEDIDA DE BASE, nao necessariamente a
+        velocidade instantanea — ver `DirecaoPorDeslocamento`. O que ela
+        precisa garantir e que o vetor cujo angulo se vai usar seja longo o
+        bastante para ter angulo bem definido.
+
+        MEDIDO EM 11/08: com velocidade instantanea, a caminhada real do
+        Eduardo teve mediana de 0,23 m/s — ABAIXO do limiar de 0,25. O azimute
+        recusou quase tudo e aprendeu dos poucos picos que passaram; picos sao
+        ruido. E baixar o limiar nao resolvia: `parado` teve pico de 0,23 m/s
+        so de tremor do Kalman.
+
+            Naquele espaco, caminhada e ruido se sobrepoem em VELOCIDADE. Em
+            DESLOCAMENTO nao se sobrepoem: andar deu 0,68 m, tremer deu 0,04.
         """
         if (velocidade < self.vel_minima or rumo_ombros_camera is None
                 or rumo_mundo is None):
@@ -384,6 +393,80 @@ class EstimadorDeAzimute:
         elif not self.confiavel:
             texto += "  [amostras espalhadas: pouca caminhada util]"
         return texto
+
+
+class DirecaoPorDeslocamento:
+    """Para onde a pessoa ANDOU, medido por onde ela chegou.
+
+    O PROBLEMA, MEDIDO EM 11/08 NUM ESPACO DE 1,4 m
+
+        caminhada real do Eduardo   v mediana 0,23 m/s
+        ruido do Kalman parado      v maxima  0,23 m/s
+
+    Os dois se sobrepoem. Nao ha limiar de velocidade que separe um do outro
+    naquela sala — subir recusa a caminhada, descer aceita o tremor. O azimute
+    ficou com 71 amostras e 29% de maioria, e se absteve.
+
+    A SAIDA E TROCAR A GRANDEZA, NAO O LIMIAR
+
+        andar 4 segundos    deslocamento liquido 0,68 m
+        tremer no lugar     deslocamento liquido 0,04 m
+
+    Dezessete vezes de diferenca, onde a velocidade dava empate. E a razao e
+    geometrica, nao empirica: o ruido do Kalman e centrado em zero e se CANCELA
+    ao longo de uma janela; o deslocamento de quem anda se ACUMULA.
+
+        Ruido nao vai a lugar nenhum. Caminhada vai.
+
+    E o angulo tambem melhora de graca: a direcao de um vetor de 0,68 m e bem
+    definida; a de um vetor de 0,02 m por quadro e quase toda ruido. Mesmo
+    motivo pelo qual o giro exige velocidade alta desde 10/08 — vetor curto tem
+    angulo mal definido.
+
+    O QUE SE PAGA
+
+    Meia janela de atraso. Para uma constante de montagem que so muda quando
+    alguem mexe na camera, isso nao custa nada.
+    """
+
+    # A JANELA E O QUE DEFINE O LIMIAR DE VERDADE, E ELA PRECISA SER LONGA.
+    #
+    # Exigir 0,25 m numa janela de 1 s e exigir 0,25 m/s — exatamente o limiar
+    # que este objeto existe para contornar. A primeira versao fez isso e os
+    # testes reprovaram na hora, com a caminhada de 0,23 m/s recusada de novo.
+    #
+    #     Trocar a grandeza sem trocar a janela nao troca nada.
+    #
+    # Com 2 s, o piso efetivo cai para 0,125 m/s — abaixo dos 0,23 medidos — e
+    # o ruido tem o dobro de tempo para se cancelar: medido, ele acumula cerca
+    # de 4 cm em dois segundos contra os 46 cm de quem anda.
+    def __init__(self, janela_s=2.0, deslocamento_minimo=0.25):
+        self.janela_s = janela_s
+        self.minimo = deslocamento_minimo
+        self._trilhas = {}
+
+    def observar(self, pessoa_id, x, y, t):
+        """Devolve (rumo, deslocamento) da janela, ou (None, 0.0)."""
+        trilha = self._trilhas.setdefault(pessoa_id, deque(maxlen=120))
+        trilha.append((t, float(x), float(y)))
+
+        while len(trilha) > 2 and t - trilha[0][0] > self.janela_s:
+            trilha.popleft()
+
+        if len(trilha) < 3:
+            return None, 0.0
+
+        _, x0, y0 = trilha[0]
+        dx, dy = x - x0, y - y0
+        d = float(np.hypot(dx, dy))
+        if d < self.minimo:
+            return None, d
+        return float(np.arctan2(dy, dx)), d
+
+    def esquecer(self, vivos):
+        for pid in list(self._trilhas):
+            if pid not in vivos:
+                del self._trilhas[pid]
 
 
 class AnalisadorDeCorpo:
