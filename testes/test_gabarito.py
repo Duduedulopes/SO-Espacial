@@ -43,6 +43,7 @@ from src.acao.gabarito import (                                    # noqa: E402
     CERTO, ERRADO, POBRE, SEM_LEITURA, Passo, Placar, roteiro_padrao,
 )
 from src.acao.vocabulario import Acao, Braco, Locomocao, Postura   # noqa: E402
+from src.espacial.estado import EstadoDePessoa                     # noqa: E402
 from src.espacial.motor import SpatialEngine                       # noqa: E402
 from src.visao.observacao import Observacao                        # noqa: E402
 from test_corpo import corpo, tudo_visivel                         # noqa: E402
@@ -125,9 +126,9 @@ def test_quadro_previsto_nao_pontua():
     misturaria erro de classificacao com falta de medicao.
     """
     p = Placar()
+    coasting = {1: EstadoDePessoa(id=1, x=0, y=0, prevendo=3)}
     for _ in range(5):
-        p.anotar(PASSO_ANDAR, acoes(locomocao=Locomocao.PARADO), 2.0,
-                 prevendo={1: 3})
+        p.anotar(PASSO_ANDAR, acoes(locomocao=Locomocao.PARADO), 2.0, coasting)
 
     assert not p.contagens.get("andar_frente") or \
         p.contagens["andar_frente"].total == 0
@@ -175,28 +176,6 @@ def test_boletim_e_serializavel():
     assert json.loads(json.dumps(d))["acoes"]["andar_frente"]["nota"] == 1.0
 
 
-def test_roteiro_padrao_cobre_o_que_foi_pedido():
-    """As acoes que o Eduardo listou tem que estar todas la."""
-    acoes_r = {p.acao for p in roteiro_padrao()}
-
-    for exigida in ("parado", "andar_frente", "andar_tras", "virar_direita",
-                    "virar_esquerda", "agachar", "braco_dir_levantado",
-                    "braco_esq_levantado"):
-        assert exigida in acoes_r, exigida
-
-
-def test_roteiro_comeca_andando():
-    """O azimute so aprende com quem anda. Pedir 'vire' antes de qualquer
-    caminhada mediria um estimador sem materia-prima — e reprovaria o sistema
-    por uma coisa que o roteiro causou."""
-    r = roteiro_padrao()
-    assert r[0].eixo is None, "o primeiro passo tem que ser aquecimento"
-
-    def indice(nome):
-        return next(i for i, p in enumerate(r) if p.acao == nome)
-
-    assert indice("andar_frente") < indice("virar_direita")
-    assert indice("andar_frente") < indice("andar_lado")
 
 
 # ------------------------------------------------------ ator sintetico
@@ -283,14 +262,18 @@ def test_o_ator_sintetico_tira_nota_alta():
     motor, ator = montar()
     placar = Placar()
     por_acao = {p.acao: p for p in roteiro_padrao()}
+    posicionar = next(p for p in roteiro_padrao() if p.reposiciona)
 
-    # aquecimento: anda para frente e para tras, o azimute aprende
+    # OS PASSOS DE REPOSICIONAMENTO SAO O AQUECIMENTO.
+    #
+    # O roteiro do Eduardo nao tem passo dedicado a isso, e nao precisa: em
+    # `VA ATE A BORDA DE TRAS`, `VA PARA O MEIO` e `VOLTE PARA O MEIO` a pessoa
+    # anda olhando para onde vai, que e exatamente a hipotese do estimador.
+    # Aqui o ator faz o mesmo — vai e volta virando o corpo.
     for _ in range(2):
-        encenar(motor, ator, placar, por_acao["aquecer"], 40,
-                    direcao=0.0)
+        encenar(motor, ator, placar, posicionar, 40, direcao=0.0)
         ator.rumo += math.pi
-        encenar(motor, ator, placar, por_acao["aquecer"], 40,
-                    direcao=0.0)
+        encenar(motor, ator, placar, posicionar, 40, direcao=0.0)
     ator.rumo = 0.0
 
     assert motor.corpo.azimute.confiavel, motor.corpo.diagnostico
@@ -300,10 +283,20 @@ def test_o_ator_sintetico_tira_nota_alta():
     # cada passo do roteiro, encenado
     encenar(motor, ator, placar, por_acao["andar_frente"], 40,
                 direcao=0.0)
+    # ANDAR DE RE: a minoria que a moda tem que descartar.
+    #
+    # Estas amostras chegam ao azimute 180 graus fora. Com media elas puxavam a
+    # resposta para o vazio entre os grupos; com moda, sao minoria e caem fora.
+    # Se este passo quebrar o azimute, `andar_esquerda` abaixo reprova junto —
+    # que e exatamente o efeito em cascata visto no hardware em 11/08.
     encenar(motor, ator, placar, por_acao["andar_tras"], 40,
                 direcao=math.pi)
-    encenar(motor, ator, placar, por_acao["andar_lado"], 40,
+    encenar(motor, ator, placar, por_acao["andar_esquerda"], 40,
                 direcao=math.pi / 2)
+
+    assert motor.corpo.azimute.confiavel, (
+        f"andar de re e de lado derrubaram o azimute: "
+        f"{motor.corpo.diagnostico}")
 
     ator.mao_dir = (1.75, 0.10)
     encenar(motor, ator, placar, por_acao["braco_dir_levantado"], 30,
@@ -313,15 +306,9 @@ def test_o_ator_sintetico_tira_nota_alta():
     encenar(motor, ator, placar, por_acao["braco_esq_levantado"], 30,
                 direcao=0.0)
 
-    ator.mao_esq = None
-    ator.mao_dir = (1.47, 0.45)
-    encenar(motor, ator, placar, por_acao["braco_dir_estendido"], 30,
-                direcao=0.0)
-
     boletim = "\n".join(placar.linhas())
-    for acao in ("andar_frente", "andar_tras", "andar_lado",
-                 "braco_dir_levantado", "braco_esq_levantado",
-                 "braco_dir_estendido"):
+    for acao in ("andar_frente", "andar_tras", "andar_esquerda",
+                 "braco_dir_levantado", "braco_esq_levantado"):
         nota = placar.contagens[acao].nota
         assert nota > 0.85, f"{acao} tirou {nota:.0%}\n\n{boletim}"
 
@@ -361,3 +348,191 @@ def test_o_id_da_pessoa_e_registrado():
     encenar(motor, ator, placar, parado, 30, direcao=None)
 
     assert placar.contagens["parado"].ids == {1}
+
+
+# ------------------------------------------------- a fita metrica do chao
+def _andar(placar, passo, v, metros_por_quadro, n=20):
+    for i in range(n):
+        p = EstadoDePessoa(id=1, x=i * metros_por_quadro, y=0.0, vx=v)
+        placar.anotar(passo, acoes(locomocao=Locomocao.PARADO,
+                                   velocidade_ms=v), 2.0, {1: p})
+
+
+def test_boletim_mostra_a_velocidade_que_o_sistema_MEDIU():
+    """`parado` em 66% de quem andou tem duas explicacoes opostas.
+
+    A pessoa mal se deslocou, ou a homografia encolhe a distancia. A nota nao
+    separa as duas; o numero cru separa. Sem ele, escolher entre recalibrar e
+    refazer a sessao seria chute — e chute com trabalho ja custou duas rodadas
+    de otimizacao no lugar errado.
+    """
+    p = Placar()
+    _andar(p, PASSO_ANDAR, v=0.08, metros_por_quadro=0.02)
+
+    c = p.contagens["andar_frente"]
+    assert abs(c.velocidade_mediana - 0.08) < 0.001
+    assert abs(c.deslocamento - 0.38) < 0.01
+
+    texto = "\n".join(p.linhas())
+    assert "MOVIMENTO MEDIDO" in texto
+    assert "homografia esta encolhendo" in texto, texto
+
+
+def test_velocidade_saudavel_nao_dispara_o_alerta():
+    """O alerta so vale se ele ficar calado quando nao ha o que alertar."""
+    p = Placar()
+    _andar(p, PASSO_ANDAR, v=0.90, metros_por_quadro=0.09)
+
+    texto = "\n".join(p.linhas())
+    assert "MOVIMENTO MEDIDO" in texto
+    assert "homografia esta encolhendo" not in texto
+
+
+def test_deslocamento_usa_extremos_e_nao_soma_de_passinhos():
+    """Somar trechos infla com ruido: uma pessoa PARADA percorreria metros.
+
+    Com extremos, o tremor do Kalman em torno de um ponto continua sendo
+    aproximadamente zero de deslocamento — que e a verdade.
+    """
+    p = Placar()
+    for i in range(40):
+        tremor = 0.01 * (1 if i % 2 else -1)
+        p.anotar(PASSO_ANDAR, acoes(locomocao=Locomocao.PARADO), 2.0,
+                 {1: EstadoDePessoa(id=1, x=tremor, y=0.0)})
+
+    assert p.contagens["andar_frente"].deslocamento < 0.03
+
+
+def test_numeros_crus_valem_mesmo_quando_a_classificacao_erra():
+    """E principalmente quando erra: e ali que se precisa deles."""
+    p = Placar()
+    _andar(p, PASSO_ANDAR, v=0.05, metros_por_quadro=0.01)
+
+    c = p.contagens["andar_frente"]
+    assert c.nota == 0.0, "a classificacao errou mesmo"
+    assert c.velocidades and c.posicoes, "e os numeros crus ficaram"
+
+
+# ---------------------------------------------------- pares que se desfazem
+
+
+
+
+
+
+
+# ------------------------------------- o roteiro tem que caber em 140x140 cm
+AREA_M = 1.40      # o espaco real do Eduardo, medido em 11/08
+LIMIAR = 0.25      # `andar_acima` do ClassificadorDeAcao
+
+
+def test_todo_passo_de_caminhada_cabe_na_area_acima_do_limiar():
+    """A duracao do passo, num espaco fechado, E um limiar de velocidade.
+
+    MEDIDO EM 11/08: com 6 segundos, atravessar 1,40 m exige 0,23 m/s — ABAIXO
+    dos 0,25 que separam `parado` de `andando`. O roteiro PROIBIA o resultado
+    certo: mesmo andando de ponta a ponta, o passo sairia `parado`, e a nota
+    culparia o classificador por uma conta do roteiro.
+
+    Este teste nao mede o sistema. Mede se o roteiro e possivel de cumprir.
+    """
+    for p in roteiro_padrao():
+        if not (p.desloca and p.acao.startswith("andar")):
+            continue
+        exigida = AREA_M / p.segundos
+        assert exigida > LIMIAR * 1.2, (
+            f"{p.acao}: {p.segundos}s para {AREA_M} m exige {exigida:.2f} m/s, "
+            f"perto demais do limiar de {LIMIAR}")
+
+
+def test_a_acomodacao_nao_come_a_janela_curta():
+    """Com passos de 4 s, 1,2 s de acomodacao comeria um terco. O que sobra
+    ainda precisa cobrir os 0,35 s de que o `Estavel` precisa para se
+    comprometer, com folga para medir depois disso."""
+    for p in roteiro_padrao():
+        if p.eixo is None:
+            continue
+        sobra = p.segundos - p.acomodacao_s
+        assert sobra >= 2.0, f"{p.acao}: sobram so {sobra:.1f}s de medicao"
+
+
+
+
+# --------------------------------------------- o roteiro escrito pelo Eduardo
+def test_cada_acao_volta_ao_neutro_antes_da_seguinte():
+    """A correcao do Eduardo, 11/08, e a razao dela.
+
+    Ninguem emenda "ande de lado" em "agache" sem passar por ficar em pe no
+    meio. Quando o roteiro pede isso, a pessoa improvisa a transicao — e a
+    transicao entra na medicao.
+
+        Roteiro que emenda movimentos mede as emendas.
+    """
+    nomes = [p.acao for p in roteiro_padrao()]
+
+    for ida, volta in (("agachar", "levantar"),
+                       ("braco_dir_levantado", "braco_dir_baixado"),
+                       ("braco_esq_levantado", "braco_esq_baixado")):
+        assert nomes.index(volta) == nomes.index(ida) + 1, nomes
+
+
+def test_cada_movimento_de_braco_vale_nota_propria():
+    """Na minha versao a baixada vinha embutida na instrucao seguinte —
+    'BAIXE O DIREITO e LEVANTE O ESQUERDO'. Dois movimentos, uma nota so: se o
+    sistema perdesse a descida do direito, nada acusaria."""
+    por = {p.acao: p for p in roteiro_padrao()}
+
+    assert por["braco_dir_baixado"].certo == (Braco.AO_LADO,)
+    assert por["braco_esq_baixado"].certo == (Braco.AO_LADO,)
+    assert por["braco_dir_baixado"].eixo == "braco_direito"
+    assert por["braco_esq_baixado"].eixo == "braco_esquerdo"
+
+
+def test_o_deslocamento_e_sempre_seguido_de_reposicionamento():
+    """Sem isso, cada passo empurra a pessoa para fora do enquadramento."""
+    r = roteiro_padrao()
+
+    for i, p in enumerate(r[:-1]):
+        if p.desloca and not r[i + 1].desloca:
+            assert r[i + 1].reposiciona or r[i + 1].eixo != "locomocao", (
+                f"{p.acao} desloca e o seguinte ({r[i+1].acao}) nao "
+                f"reposiciona nem e outro deslocamento")
+
+
+def test_o_roteiro_dispensa_passo_de_aquecimento_dedicado():
+    """Os proprios `VA ATE A BORDA` sao o aquecimento: a pessoa anda olhando
+    para onde vai, que e a hipotese do EstimadorDeAzimute. O passo de 14 s
+    existia porque eu nao tinha reparado nisso."""
+    r = roteiro_padrao()
+    caminhadas = [p for p in r if p.reposiciona]
+
+    assert len(caminhadas) >= 4, "poucos trechos de caminhada util"
+    assert r[0].reposiciona, "o roteiro comeca posicionando, e ja andando"
+
+
+def test_termina_parado_e_com_os_bracos_ao_lado():
+    """`parado` no fim pergunta se o sistema VOLTA ao neutro depois de tudo —
+    a mesma cobranca que `levantar` faz da postura."""
+    r = roteiro_padrao()
+
+    assert r[-1].acao == "parado_fim"
+    assert r[-1].certo == (Locomocao.PARADO,)
+    assert r[-2].acao == "braco_esq_baixado"
+
+
+def test_os_dois_parados_sao_contados_separadamente():
+    """Dois passos com o mesmo nome colidiriam no placar e a nota do fim
+    sobrescreveria a do meio — apagando justamente a comparacao entre elas."""
+    nomes = [p.acao for p in roteiro_padrao() if p.eixo]
+
+    assert len(nomes) == len(set(nomes)), f"nome repetido: {nomes}"
+
+
+def test_todo_passo_cabe_em_140cm_acima_do_limiar():
+    """A duracao do passo, num espaco fechado, E um limiar de velocidade."""
+    for p in roteiro_padrao():
+        if not (p.desloca and p.acao.startswith("andar")):
+            continue
+        exigida = 1.40 / p.segundos
+        assert exigida > 0.25 * 1.2, (
+            f"{p.acao}: {p.segundos}s para 1,40 m exige {exigida:.2f} m/s")

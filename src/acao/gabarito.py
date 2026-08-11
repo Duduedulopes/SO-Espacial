@@ -72,6 +72,33 @@ class Passo:
     segundos: float = 6.0
     instrucao_extra: str = ""
 
+    # ESTE PASSO TIRA A PESSOA DO LUGAR?
+    #
+    # Sem retorno entre eles, cada deslocamento empurra a pessoa mais para
+    # longe do centro, e depois de dois ou tres passos ela esta fora do
+    # enquadramento. Os passos seguintes entao nao medem o classificador:
+    # medem uma pessoa que nao esta mais no quadro, e a nota culpa o codigo
+    # por um defeito do roteiro.
+    #
+    #     Um roteiro que expulsa o sujeito da cena mede a saida dele.
+    desloca: bool = False
+
+    # DOIS PASSOS SEM NOTA, COM PAPEIS DIFERENTES.
+    #
+    # Ambos tem `eixo=None`, mas nao sao intercambiaveis:
+    #
+    #     aquecimento    obrigatorio sempre — o azimute e a inclinacao so
+    #                    aprendem ali. Tirar significa reprovar o sistema por
+    #                    falta de materia-prima.
+    #     reposicionar   necessario so onde o passo anterior tirou a pessoa do
+    #                    lugar. Num recorte de `--acao`, os pares que se
+    #                    desfaziam somem e o retorno precisa ser recolocado —
+    #                    mas colocar dois seguidos so faz a pessoa esperar.
+    #
+    # Distinguir pelo `eixo` trataria os dois igual e foi o que produziu
+    # `['aquecer', 'andar_frente', 'voltar', 'voltar']`.
+    reposiciona: bool = False
+
     # PARTE DO PASSO QUE NAO CONTA, E POR QUE ELA PRECISA EXISTIR.
     #
     # No comeco de cada passo a pessoa ainda esta comecando o movimento, E o
@@ -83,6 +110,41 @@ class Passo:
     # maior nos passos curtos, o que faria a nota depender da duracao escolhida
     # no roteiro em vez de depender do sistema.
     acomodacao_s: float = 1.2
+
+
+def ir_para_a_borda(qual="DE TRAS", segundos=5.0):
+    """Reposiciona na BORDA, e nao no meio. Dobra o espaco de caminhada.
+
+    MEDIDO EM 11/08: a area util e de 140 x 140 cm. Comecando no meio sobram
+    70 cm para cada lado; comecando na borda, ha 140 cm inteiros para
+    atravessar. O mesmo espaco fisico, o dobro de caminhada.
+
+    E os 70 cm eram o problema. Em 6 segundos eles dao 0,12 m/s — abaixo do
+    limiar de 0,25 que separa `parado` de `andando`. O sistema respondia
+    `parado` e estava CERTO: a pessoa estava praticamente parada.
+
+        A area nao era pequena demais para medir. O roteiro e que estava
+        usando metade dela.
+    """
+    return Passo("posicionar", f"VA ATE A BORDA {qual} DA AREA",
+                 eixo=None, certo=(), segundos=segundos, reposiciona=True,
+                 instrucao_extra="so reposiciona, nao vale nota")
+
+
+def voltar_ao_meio(segundos=6.0):
+    """Reposiciona sem valer nota. Existe por causa do enquadramento.
+
+    Poderia ser resolvido com "ande menos", e seria pior: andar pouco e o que
+    mantem a velocidade abaixo do limiar de 0,25 m/s e faz tudo sair `parado`.
+    O roteiro precisa de caminhada LARGA e de pessoa CENTRADA, e as duas so
+    convivem com um retorno explicito.
+
+    `eixo=None` faz o placar ignorar estes quadros — o que a pessoa faz aqui
+    nao e uma acao declarada e nao pode contar a favor nem contra.
+    """
+    return Passo("voltar", "VOLTE PARA O MEIO, de frente para a camera",
+                 eixo=None, certo=(), segundos=segundos, reposiciona=True,
+                 instrucao_extra="so reposiciona, nao vale nota")
 
 
 def roteiro_padrao():
@@ -106,57 +168,81 @@ def roteiro_padrao():
     """
     from src.acao.vocabulario import Braco, Locomocao, Postura
 
+    def andar(nome, instrucao, esperado, segundos=4.0):
+        return Passo(nome, instrucao, eixo="locomocao", certo=(esperado,),
+                     pobre=(Locomocao.ANDANDO,), segundos=segundos,
+                     acomodacao_s=0.8, desloca=True)
+
+    def ir(instrucao, segundos=4.0):
+        return Passo("posicionar", instrucao, eixo=None, certo=(),
+                     segundos=segundos, reposiciona=True)
+
     return [
-        Passo("aquecer", "ANDE DE UM LADO PARA O OUTRO, natural",
-              eixo=None, certo=(), segundos=10,
-              instrucao_extra="o sistema esta aprendendo o angulo da camera"),
+        # ROTEIRO ESCRITO PELO EDUARDO, 11/08. Substitui o meu.
+        #
+        # A diferenca nao e de gosto, e de como gente funciona: CADA ACAO
+        # VOLTA AO NEUTRO ANTES DA SEGUINTE. Ninguem emenda "ande de lado" em
+        # "agache" sem passar por ficar em pe no meio — e quando o roteiro
+        # pede isso, a pessoa improvisa a transicao e a transicao entra na
+        # medicao.
+        #
+        #     Roteiro que emenda movimentos mede as emendas.
+        #
+        # E ha um ganho que eu nao tinha visto: OS PROPRIOS PASSOS DE IR ATE A
+        # BORDA SAO O AQUECIMENTO. Sao cinco trechos em que a pessoa anda
+        # olhando para onde vai, que e exatamente a hipotese do
+        # `EstimadorDeAzimute`. O passo dedicado de 14 s existia porque eu nao
+        # tinha reparado que o roteiro ja produzia as amostras.
+        #
+        # Isso so funciona porque o azimute passou a usar a MODA e nao a
+        # media: `VOLTE DE RE` e `ANDE DE LADO` produzem amostras a 180 e 90
+        # graus, e a moda as descarta como minoria em vez de cair no meio.
+        ir("VA ATE A BORDA DE TRAS"),
+        andar("andar_frente", "ANDE PARA FRENTE ATRAVESSANDO A AREA",
+              Locomocao.FRENTE),
+        andar("andar_tras", "VOLTE DE RE ate a borda", Locomocao.TRAS),
 
-        Passo("parado", "FIQUE PARADO, em pe, bracos ao lado do corpo",
-              eixo="locomocao", certo=(Locomocao.PARADO,), segundos=6),
+        ir("VA PARA O MEIO", 3.0),
+        ir("VA ATE A BORDA DA DIREITA"),
+        ir("VOLTE PARA O MEIO", 3.0),
+        andar("andar_esquerda", "ANDE DE LADO PARA A SUA ESQUERDA",
+              Locomocao.ESQUERDA, segundos=3.0),
+        ir("VOLTE PARA O MEIO", 3.0),
 
-        Passo("andar_frente", "ANDE PARA FRENTE, alguns passos",
-              eixo="locomocao", certo=(Locomocao.FRENTE,),
-              pobre=(Locomocao.ANDANDO,), segundos=6),
+        Passo("parado", "FIQUE PARADO", eixo="locomocao",
+              certo=(Locomocao.PARADO,), segundos=5),
 
-        Passo("andar_tras", "ANDE PARA TRAS, sem virar o corpo",
-              eixo="locomocao", certo=(Locomocao.TRAS,),
-              pobre=(Locomocao.ANDANDO,), segundos=6),
+        # POSTURA: agachar e levantar. O retorno nao e simetria — um estado
+        # que so entra e nunca sai nao e estado, e armadilha.
+        Passo("agachar", "AGACHE", eixo="postura",
+              certo=(Postura.AGACHADO,), pobre=(Postura.DESCONHECIDA,),
+              segundos=4),
+        Passo("levantar", "LEVANTE", eixo="postura",
+              certo=(Postura.EM_PE,), segundos=4),
 
-        Passo("andar_lado", "ANDE DE LADO, sem virar o corpo",
-              eixo="locomocao",
-              certo=(Locomocao.ESQUERDA, Locomocao.DIREITA),
-              pobre=(Locomocao.ANDANDO,), segundos=6),
+        # BRACOS: cada levantada tem a sua baixada, e cada uma vale nota.
+        #
+        # Na minha versao a baixada vinha embutida na instrucao seguinte
+        # ("BAIXE O DIREITO e LEVANTE O ESQUERDO") — dois movimentos num passo
+        # so, com uma nota so. Se o sistema perdesse a descida do direito,
+        # nada acusaria. Separados, cada um responde por si.
+        Passo("braco_dir_levantado", "LEVANTE O BRACO DIREITO",
+              eixo="braco_direito", certo=(Braco.LEVANTADO,), segundos=4),
+        Passo("braco_dir_baixado", "BAIXE O BRACO DIREITO",
+              eixo="braco_direito", certo=(Braco.AO_LADO,), segundos=4),
+        Passo("braco_esq_levantado", "LEVANTE O BRACO ESQUERDO",
+              eixo="braco_esquerdo", certo=(Braco.LEVANTADO,), segundos=4),
+        Passo("braco_esq_baixado", "BAIXE O BRACO ESQUERDO",
+              eixo="braco_esquerdo", certo=(Braco.AO_LADO,), segundos=4),
 
-        Passo("virar_direita", "GIRE PARA A DIREITA, andando devagar",
-              eixo="locomocao",
-              certo=(Locomocao.VIRANDO_DIR, Locomocao.MEIA_VOLTA),
-              pobre=(Locomocao.ANDANDO,), segundos=6),
-
-        Passo("virar_esquerda", "GIRE PARA A ESQUERDA, andando devagar",
-              eixo="locomocao",
-              certo=(Locomocao.VIRANDO_ESQ, Locomocao.MEIA_VOLTA),
-              pobre=(Locomocao.ANDANDO,), segundos=6),
-
-        Passo("em_pe", "FIQUE EM PE, parado",
-              eixo="postura", certo=(Postura.EM_PE,), segundos=5),
-
-        Passo("agachar", "AGACHE e fique agachado",
-              eixo="postura", certo=(Postura.AGACHADO,),
-              pobre=(Postura.DESCONHECIDA,), segundos=6),
-
-        Passo("braco_dir_levantado", "LEVANTE O BRACO DIREITO e segure",
-              eixo="braco_direito", certo=(Braco.LEVANTADO,), segundos=6),
-
-        Passo("braco_esq_levantado", "LEVANTE O BRACO ESQUERDO e segure",
-              eixo="braco_esquerdo", certo=(Braco.LEVANTADO,), segundos=6),
-
-        Passo("braco_dir_estendido",
-              "ESTENDA O BRACO DIREITO A FRENTE, como quem pega um produto",
-              eixo="braco_direito", certo=(Braco.ESTENDIDO,),
-              pobre=(Braco.LEVANTADO,), segundos=6),
-
-        Passo("bracos_ao_lado", "BAIXE OS DOIS BRACOS",
-              eixo="braco_direito", certo=(Braco.AO_LADO,), segundos=5),
+        # `PARADO` NO FIM RESPONDE OUTRA PERGUNTA QUE `PARADO` NO MEIO.
+        #
+        # No meio ele mede um retrato. No fim, depois de andar, agachar e
+        # levantar os dois bracos, ele pergunta: o sistema VOLTA a parado, ou
+        # grudou no ultimo estado?
+        Passo("parado_fim", "FIQUE PARADO", eixo="locomocao",
+              certo=(Locomocao.PARADO,), segundos=5,
+              instrucao_extra="ultimo passo"),
     ]
 
 
@@ -169,6 +255,37 @@ class Contagem:
     respostas: Counter = field(default_factory=Counter)
     alturas: list = field(default_factory=list)
     ids: set = field(default_factory=set)
+
+    # OS NUMEROS CRUS QUE PRODUZIRAM A NOTA.
+    #
+    # Sem eles, `parado` em 66% dos quadros de alguem que andou tem duas
+    # explicacoes indistinguiveis: a pessoa nao andou, ou o sistema mediu a
+    # caminhada dela como um quinto do que foi. As duas mandam consertar
+    # lugares opostos — uma pede outra sessao, a outra pede recalibrar a
+    # homografia.
+    #
+    #     Nota sem o numero cru nao aponta conserto.
+    velocidades: list = field(default_factory=list)
+    posicoes: list = field(default_factory=list)
+
+    @property
+    def velocidade_mediana(self):
+        if not self.velocidades:
+            return None
+        return float(sorted(self.velocidades)[len(self.velocidades) // 2])
+
+    @property
+    def deslocamento(self):
+        """Distancia entre o ponto mais distante e o mais proximo do inicio.
+
+        Nao e a soma dos passinhos: ruido de medicao infla soma de trechos e
+        faria uma pessoa parada "percorrer" metros. Extremos nao inflam.
+        """
+        if len(self.posicoes) < 2:
+            return None
+        x0, y0 = self.posicoes[0]
+        return max(((x - x0) ** 2 + (y - y0) ** 2) ** 0.5
+                   for x, y in self.posicoes)
 
     @property
     def total(self):
@@ -229,19 +346,21 @@ class Placar:
         self.contagens = {}
         self.previstos_ignorados = 0
 
-    def anotar(self, passo, acoes, decorrido_s, prevendo=None):
+    def anotar(self, passo, acoes, decorrido_s, pessoas=None):
         """Anota um quadro.
 
-        `acoes`     {id: (Acao, mudancas)} do SpatialEngine
-        `prevendo`  {id: quadros_sem_medicao}, do gemeo. Fica FORA do `Acao`
-                    de proposito: `Acao` e vocabulario fechado, e "ha quantos
-                    quadros ninguem ve esta pessoa" nao e uma acao dela.
+        `acoes`    {id: (Acao, mudancas)} do SpatialEngine
+        `pessoas`  {id: EstadoDePessoa} do gemeo — posicao e `prevendo`.
+                   Fica FORA do `Acao` de proposito: `Acao` e vocabulario
+                   fechado, e nem "onde ela esta" nem "ha quantos quadros
+                   ninguem a ve" sao acoes dela.
         """
         if passo.eixo is None:
             return
         if decorrido_s < passo.acomodacao_s:
             return
 
+        pessoas = pessoas or {}
         c = self.contagens.setdefault(passo.acao, Contagem(passo))
 
         if not acoes:
@@ -256,9 +375,17 @@ class Placar:
         acao = acoes[pid][0]
         c.ids.add(pid)
 
-        if (prevendo or {}).get(pid) and not self.contar_previstos:
+        p = pessoas.get(pid)
+        if p is not None and getattr(p, "prevendo", 0) \
+                and not self.contar_previstos:
             self.previstos_ignorados += 1
             return
+
+        # Os numeros crus entram ANTES do veredicto, porque valem mesmo quando
+        # a classificacao erra — e principalmente quando ela erra.
+        c.velocidades.append(float(getattr(acao, "velocidade_ms", 0.0)))
+        if p is not None:
+            c.posicoes.append((float(p.x), float(p.y)))
 
         resposta = getattr(acao, passo.eixo, None)
         c.respostas[resposta] += 1
@@ -306,6 +433,7 @@ class Placar:
                 f"{v[POBRE] / t:5.0%}  {v[ERRADO] / t:6.0%}  "
                 f"{v[SEM_LEITURA] / t:9.0%}   {texto}{marca}")
 
+        linhas += self._linhas_de_movimento()
         linhas += ["", self._resumo(reprovar_abaixo_de)]
 
         alturas = [a for c in self.contagens.values() for a in c.alturas]
@@ -320,6 +448,68 @@ class Placar:
         if self.previstos_ignorados:
             linhas.append(f"\n{self.previstos_ignorados} quadros ignorados: "
                           f"posicao prevista pelo Kalman, nao medida.")
+        return linhas
+
+    # LIMIAR DO CLASSIFICADOR. Repetido aqui de proposito e nao importado:
+    # esta secao existe para JULGAR aquele numero, e se ela o importasse, os
+    # dois mudariam juntos e a comparacao perderia o sentido.
+    ANDAR_ACIMA = 0.25
+
+    def _linhas_de_movimento(self):
+        """Quanto o sistema MEDIU de caminhada. A fita metrica do chao.
+
+        POR QUE ESTA SECAO EXISTE
+
+        MEDIDO EM 11/08: `andar_frente` leu `parado` em 66% dos quadros de
+        alguem que estava andando. Duas explicacoes, indistinguiveis pela nota:
+
+            a pessoa mal se deslocou
+            a homografia encolhe a distancia, e 1 m real vira 0,2 m medido
+
+        A primeira pede outra sessao. A segunda pede recalibrar. Escolher entre
+        elas no chute seria a terceira rodada de ajuste as cegas deste projeto
+        — depois de 08/08 (otimizar inferencia enquanto o custo estava no
+        desenho) e de 10/08 (mexer em limiares sem gabarito).
+
+        A saida e a mesma das outras duas vezes: MEDIR. O sistema diz quantos
+        metros viu; quem andou sabe quantos andou. A discordancia entre os dois
+        e a resposta, e ela nao precisa de mais nenhuma execucao.
+        """
+        andantes = [(a, c) for a, c in self.contagens.items()
+                    if c.passo.eixo == "locomocao" and c.velocidades]
+        if not andantes:
+            return []
+
+        linhas = ["", "MOVIMENTO MEDIDO   (compare com o que voce fez)",
+                  f"{'ACAO':22} {'v mediana':>10} {'v maxima':>10} "
+                  f"{'deslocamento':>13}"]
+
+        suspeitos = []
+        for acao, c in andantes:
+            desloc = c.deslocamento
+            texto = "     --" if desloc is None else f"{desloc:9.2f} m"
+            linhas.append(
+                f"{acao:22} {c.velocidade_mediana:8.2f} m/s "
+                f"{max(c.velocidades):8.2f} m/s {texto}")
+
+            esperava_andar = c.passo.acao != "parado"
+            if esperava_andar and c.velocidade_mediana < self.ANDAR_ACIMA:
+                suspeitos.append((acao, c))
+
+        if suspeitos:
+            linhas += [
+                "",
+                f"  {len(suspeitos)} passo(s) de caminhada com velocidade abaixo",
+                f"  de {self.ANDAR_ACIMA} m/s — que e o limiar de 'andando'. Por isso",
+                "  sairam `parado`. Duas explicacoes, e o deslocamento decide:",
+                "",
+                "    voce andou MENOS que o deslocamento acima",
+                "      -> o roteiro precisa de mais espaco, nao ha bug",
+                "",
+                "    voce andou MAIS que o deslocamento acima",
+                "      -> a homografia esta encolhendo a distancia.",
+                "         Recalibrar: python calibracao/homografia.py",
+                "         Nenhum limiar deve ser tocado antes disso."]
         return linhas
 
     def _resumo(self, limite):
@@ -348,6 +538,13 @@ class Placar:
                     "respostas": dict(c.respostas),
                     "ids": sorted(c.ids),
                     "alturas_m": [round(a, 3) for a in c.alturas],
+                    "velocidade_mediana": (
+                        None if c.velocidade_mediana is None
+                        else round(c.velocidade_mediana, 3)),
+                    "velocidade_maxima": (round(max(c.velocidades), 3)
+                                          if c.velocidades else None),
+                    "deslocamento_m": (None if c.deslocamento is None
+                                       else round(c.deslocamento, 3)),
                 }
                 for acao, c in self.contagens.items()
             },

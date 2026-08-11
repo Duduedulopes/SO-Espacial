@@ -76,7 +76,7 @@ if str(RAIZ) not in sys.path:
 
 from percepcao.pose3d import desfazer_inclinacao        # noqa: E402
 from src.acao.angulos import (                          # noqa: E402
-    concentracao, diferenca_angular, media_circular,
+    concentracao, diferenca_angular, media_circular, moda_circular,
 )
 from src.acao.vocabulario import Braco                  # noqa: E402
 
@@ -123,7 +123,45 @@ class LeituraDoCorpo:
     altura_mao_dir: float | None = None
 
     altura_quadril: float | None = None
+
+    # ALTURA DO QUADRIL AGORA, sem mediana. Duas perguntas diferentes.
+    #
+    # `altura_quadril` e a mediana das ultimas amostras: quanto esta pessoa
+    # mede EM PE. Ela e a referencia para a altura da mao, e por isso precisa
+    # ignorar os quadros em que a pessoa agachou — mediana existe ali para
+    # jogar fora valor esquisito.
+    #
+    # Mas "a pessoa agachou" e exatamente a informacao que a mediana apaga.
+    # Perguntar o agachamento ao numero que foi construido para nao senti-lo
+    # nao daria resposta nenhuma.
+    #
+    #     O mesmo dado, com dois usos, precisa de duas leituras. Reaproveitar
+    #     a suavizacao de um no outro apaga justamente o sinal procurado.
+    altura_quadril_agora: float | None = None
+
     motivo: str = ""
+
+    @property
+    def encolhimento(self):
+        """Quanto o quadril baixou em relacao ao proprio padrao em pe.
+
+        1.0 = em pe. Abaixo de ~0,75 = agachado. `None` quando falta base.
+
+        POR QUE ESTE SINAL, E NAO A ALTURA DA CAIXA
+
+        MEDIDO EM 11/08: `agachar` foi lido como `em_pe` em 100% dos quadros.
+        A postura vinha da razao de altura da CAIXA da camera do alto — e uma
+        camera olhando de cima quase nao ve mudanca de estatura. A caixa
+        naquela vista e dominada pela pegada da pessoa no chao, nao pela
+        altura dela.
+
+        O sinal estava errado na origem, e nenhum ajuste de limiar corrigiria
+        isso. A altura do quadril em metros e medida pela camera FRONTAL, que
+        ve a pessoa de lado — a vista em que agachar e obvio.
+        """
+        if not self.altura_quadril or self.altura_quadril_agora is None:
+            return None
+        return self.altura_quadril_agora / self.altura_quadril
 
     def para_dicionario(self):
         def m(v):
@@ -179,13 +217,27 @@ class EstimadorDeAzimute:
     """
 
     def __init__(self, memoria=240, vel_minima=0.25, minimo_amostras=20,
-                 concentracao_minima=0.75, desvio_maximo_rad=np.pi / 3):
+                 concentracao_minima=0.75, desvio_maximo_rad=np.pi / 3,
+                 maioria_minima=0.55):
         self.amostras = deque(maxlen=memoria)
         self.vel_minima = vel_minima
         self.minimo = minimo_amostras
         self.concentracao_minima = concentracao_minima
         self.desvio_maximo = desvio_maximo_rad
+        # MAIORIA, E NAO UNANIMIDADE.
+        #
+        # Num roteiro real a pessoa anda de re e de lado em alguns passos, e
+        # essas amostras ficam 180 ou 90 graus fora. Exigir concentracao alta
+        # de TODAS as amostras seria exigir um roteiro que so tem caminhada
+        # para frente — e nenhum roteiro util e assim.
+        #
+        # 55% e o suficiente para haver um grupo dominante claro; abaixo disso
+        # nao ha maioria e nao ha resposta.
+        self.maioria_minima = maioria_minima
+        self.recalcular_a_cada = 10
+        self._desde_o_calculo = 0
         self.valor = 0.0
+        self.maioria = 0.0
         self.descartadas = 0
 
     def observar(self, rumo_ombros_camera, rumo_mundo, velocidade):
@@ -210,8 +262,24 @@ class EstimadorDeAzimute:
             return False
 
         self.amostras.append(oferta)
-        if len(self.amostras) >= self.minimo:
-            self.valor = media_circular(self.amostras)
+        self._desde_o_calculo += 1
+
+        # A MODA CUSTA O(n^2) E NAO PRECISA SER RECALCULADA A CADA AMOSTRA.
+        #
+        # Com 240 amostras sao ~57 mil comparacoes. Rodando a cada quadro isso
+        # sozinho multiplicou por seis o custo desta camada — que existe
+        # justamente por nao custar nada.
+        #
+        # Uma amostra nova entre 240 nao move a moda. Recalcular a cada 10
+        # mantem a resposta praticamente igual por um decimo do custo, e o
+        # atraso maximo e de 10 quadros, ou cerca de um segundo — irrelevante
+        # para uma constante de montagem que nao muda enquanto ninguem mexe
+        # na camera.
+        pronto = len(self.amostras) >= self.minimo
+        if pronto and (self._desde_o_calculo >= self.recalcular_a_cada
+                       or not self.maioria):
+            self.valor, self.maioria = moda_circular(self.amostras)
+            self._desde_o_calculo = 0
         return True
 
     @property
@@ -221,7 +289,7 @@ class EstimadorDeAzimute:
     @property
     def confiavel(self):
         return (len(self.amostras) >= self.minimo
-                and self.concentracao >= self.concentracao_minima)
+                and self.maioria >= self.maioria_minima)
 
     def para_o_mundo(self, rumo_camera):
         """Converte um rumo do referencial da lente para o do mundo."""
@@ -230,13 +298,50 @@ class EstimadorDeAzimute:
         return diferenca_angular(rumo_camera + self.valor, 0.0)
 
     @property
+    def bimodal(self):
+        """As amostras estao em DOIS grupos opostos? Entao ha uma causa unica.
+
+        MEDIDO EM 11/08: tres execucoes seguidas, mesma camera, sem ninguem
+        mexer nela — o azimute deu +7, +85 e -123 graus, com concentracao entre
+        35% e 83%. Tres respostas diferentes para uma montagem que nao mudou.
+
+        Nao era ruido aleatorio: era ANDAR DE RE. Quem vai e volta no mesmo
+        eixo sem virar o corpo produz metade das amostras dizendo "o corpo
+        aponta para X e ela anda para +X" e a outra metade dizendo "o corpo
+        aponta para X e ela anda para -X". Os dois grupos ficam 180 graus
+        separados, e a media circular de dois grupos opostos e indefinida —
+        ela cai onde o acaso da contagem mandar.
+
+        O estimador ja se abstinha, e estava certo. O que faltava era DIZER
+        POR QUE, porque "ABSTIDO" sozinho manda procurar defeito no codigo, e
+        o conserto era virar o corpo ao voltar.
+
+            Abster-se sem explicar transfere o problema para quem le.
+
+        A conta: se dobrar todos os angulos concentra o que estava espalhado,
+        os dados sao bimodais a 180 graus. E o teste classico de eixo contra
+        direcao em estatistica circular — dobrar leva +X e -X para o mesmo
+        lugar.
+        """
+        if len(self.amostras) < self.minimo:
+            return False
+        dobrados = [2 * a for a in self.amostras]
+        return concentracao(dobrados) > self.concentracao_minima \
+            and self.concentracao < self.concentracao_minima
+
+    @property
     def diagnostico(self):
         n = len(self.amostras)
         if n < self.minimo:
             return f"azimute aprendendo ({n}/{self.minimo})"
         estado = "ativo" if self.confiavel else "ABSTIDO"
-        return (f"azimute {np.degrees(self.valor):+.0f}deg "
-                f"conc={self.concentracao:.0%} {estado} ({n} amostras)")
+        texto = (f"azimute {np.degrees(self.valor):+.0f}deg "
+                 f"maioria={self.maioria:.0%} {estado} ({n} amostras)")
+        if not self.confiavel and self.bimodal:
+            texto += "  [dois grupos opostos e nenhum e maioria]"
+        elif not self.confiavel:
+            texto += "  [amostras espalhadas: pouca caminhada util]"
+        return texto
 
 
 class AnalisadorDeCorpo:
@@ -296,12 +401,14 @@ class AnalisadorDeCorpo:
         if rumo_cam is not None:
             self.azimute.observar(rumo_cam, rumo_mundo, velocidade)
 
-        altura_quadril = self._altura_do_quadril(pessoa_id, j, visivel)
+        altura_quadril, quadril_agora = self._altura_do_quadril(
+            pessoa_id, j, visivel)
 
         leitura = LeituraDoCorpo(
             rumo_corpo=self.azimute.para_o_mundo(rumo_cam),
             rumo_corpo_camera=rumo_cam,
             altura_quadril=altura_quadril,
+            altura_quadril_agora=quadril_agora,
         )
 
         if rumo_cam is None:
@@ -388,17 +495,31 @@ class AnalisadorDeCorpo:
         historico = self._quadris.setdefault(
             pessoa_id, deque(maxlen=self.memoria_quadril))
 
+        agora = None
         if _visivel(visivel, TORNOZELO_ESQ, TORNOZELO_DIR):
             z = -float(min(j[TORNOZELO_ESQ][2], j[TORNOZELO_DIR][2]))
             # Guarda de proporcao humana: quadril de adulto fica perto de
             # 0,95 m e de crianca perto de 0,60. Fora da faixa e reconstrucao
             # ruim, nao pessoa incomum.
+            #
+            # A faixa e generosa no piso justamente para deixar o agachamento
+            # passar: quem agacha poe o quadril perto de 0,45 m, e recusar
+            # isso apagaria o sinal antes de ele ser lido.
             if self.quadril_min <= z <= self.quadril_max:
+                agora = z
                 historico.append(z)
 
         if not historico:
-            return None
-        return float(np.median(historico))
+            return None, agora
+
+        # A MEDIANA E O PADRAO EM PE, E A MEMORIA E LONGA DE PROPOSITO.
+        #
+        # Com 120 amostras a ~10 fps, sao 12 s de historia. Um agachamento de
+        # 6 s move a mediana pouco; ficar agachado meio minuto acabaria
+        # movendo. E o preco aceito: a alternativa seria aprender so quando o
+        # classificador dissesse "em pe", e ai o estimador dependeria do
+        # resultado que ele mesmo alimenta.
+        return float(np.median(historico)), agora
 
     # ------------------------------------------------------------ bracos
     def _ler_braco(self, j, visivel, i_ombro, i_pulso, lateral, frente,

@@ -52,6 +52,46 @@ def media_circular(angulos):
     return float(np.arctan2(np.sin(a).sum(), np.cos(a).sum()))
 
 
+def moda_circular(angulos, janela_rad=None):
+    """Direcao do MAIOR GRUPO, e que fracao do total ele representa.
+
+    POR QUE A MODA E NAO A MEDIA
+
+    A media circular exige que todas as amostras descrevam a mesma coisa. Num
+    roteiro real elas nao descrevem: quem vai ate a borda anda olhando para
+    onde vai (amostra boa), mas quem volta DE RE ou anda DE LADO produz
+    amostras deslocadas de 180 ou 90 graus.
+
+    MEDIDO EM 11/08: com essa mistura, tres execucoes seguidas deram +7, +85 e
+    -123 graus com a camera parada no mesmo lugar. A media caiu entre os
+    grupos, num ponto onde nao havia amostra nenhuma.
+
+        A media de dois grupos separados aponta para um lugar vazio entre eles.
+
+    A moda escolhe o grupo maior e ignora o resto. Como a maioria dos passos de
+    um roteiro tem a pessoa olhando para onde anda, o grupo maior E o certo — e
+    andar de re deixa de ser um problema a ser evitado para virar uma minoria a
+    ser descartada.
+
+    Devolve (direcao, fracao_no_grupo). A fracao e o que permite abster-se:
+    se o maior grupo tem 40% das amostras, nao ha maioria e nao ha resposta.
+    """
+    a = np.asarray(angulos, dtype=float)
+    if a.size == 0:
+        return 0.0, 0.0
+    if janela_rad is None:
+        janela_rad = np.pi / 6                      # 30 graus
+
+    # Diferenca angular entre todos os pares, sem sofrer com a volta: o angulo
+    # do numero complexo unitario resolve o meridiano de graca.
+    d = np.abs(np.angle(np.exp(1j * (a[:, None] - a[None, :]))))
+    vizinhos = d <= janela_rad
+
+    melhor = int(np.argmax(vizinhos.sum(axis=1)))
+    grupo = a[vizinhos[melhor]]
+    return media_circular(grupo), len(grupo) / len(a)
+
+
 def concentracao(angulos):
     """Quanto os angulos CONCORDAM entre si. 1 = identicos, 0 = espalhados.
 

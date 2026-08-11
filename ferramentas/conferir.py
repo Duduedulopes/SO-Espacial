@@ -51,9 +51,12 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from src.acao.gabarito import Placar, roteiro_padrao       # noqa: E402
+from src.acao.gabarito import (                            # noqa: E402
+    Placar, roteiro_padrao, voltar_ao_meio,
+)
 from src.app.orquestrador import Orquestrador              # noqa: E402
 from src.nucleo import log as logmod                       # noqa: E402
+from src.nucleo.voz import Voz, apito_de_fim, apito_de_inicio  # noqa: E402
 
 LIMPAR = "\033[H\033[J"
 
@@ -154,9 +157,36 @@ def mostrar_laudo(laudo):
 
 
 # --------------------------------------------------------------- fase 2
-def rodar_roteiro(app, roteiro, placar):
-    """Guia a pessoa passo a passo e anota o que o sistema leu."""
+def rodar_roteiro(app, roteiro, placar, voz=None, esperar_enter=False,
+                  preparo_s=4.0):
+    """Guia a pessoa passo a passo e anota o que o sistema leu.
+
+    A INSTRUCAO CHEGA PELO OUVIDO, NAO PELA TELA
+
+    A primeira versao mandava andar pela sala e ler a tela ao mesmo tempo. A
+    pessoa ficou perto do monitor, mal se deslocou, e dez acoes reprovaram por
+    uma causa que era o proprio aparato. Ver `src/nucleo/voz.py`.
+
+    O CICLO DE CADA PASSO
+
+        fala a instrucao   ->  preparo (ou ENTER)  ->  APITO
+        conta a janela     ->  APITO DUPLO         ->  fala o resultado
+
+    Os apitos existem porque a fala tem duracao variavel e nao serve de marco
+    temporal: quem escuve "ande para frente" nao sabe se o cronometro comecou
+    na primeira ou na ultima silaba.
+
+    E o resultado e falado no fim porque, com a pessoa longe do computador,
+    um boletim so no final obrigaria a refazer tudo para descobrir que um
+    passo falhou.
+    """
+    voz = voz or Voz(ligada=False)
+
     for n, passo in enumerate(roteiro, 1):
+        voz.dizer(f"Passo {n}. {passo.instrucao}")
+        _preparar(n, len(roteiro), passo, esperar_enter, preparo_s, voz)
+
+        apito_de_inicio()
         t0 = time.monotonic()
         while True:
             decorrido = time.monotonic() - t0
@@ -167,13 +197,76 @@ def rodar_roteiro(app, roteiro, placar):
                 continue
 
             acoes = app.espacial.acoes
-            prevendo = {pid: p.prevendo
-                        for pid, p in app.gemeo.pessoas.items()}
-            placar.anotar(passo, acoes, decorrido, prevendo)
-            _tela(n, len(roteiro), passo, decorrido, acoes, prevendo)
+            pessoas = dict(app.gemeo.pessoas)
+            placar.anotar(passo, acoes, decorrido, pessoas)
+            _tela(n, len(roteiro), passo, decorrido, acoes, pessoas)
+
+        apito_de_fim()
+        voz.dizer(_veredicto_falado(placar, passo))
 
 
-def _tela(n, total, passo, decorrido, acoes, prevendo):
+def _preparar(n, total, passo, esperar_enter, preparo_s, voz):
+    """Tempo entre ouvir a instrucao e a contagem comecar."""
+    print(f"{LIMPAR}  PASSO {n} de {total}\n")
+    print(f"      >>> {passo.instrucao} <<<")
+    if passo.instrucao_extra:
+        print(f"          {passo.instrucao_extra}")
+    print()
+
+    # PASSO DE REPOSICIONAMENTO NAO TEM PREPARO. Ele JA e o preparo.
+    #
+    # Contar quatro segundos antes de "va ate a borda de tras" e fazer a pessoa
+    # esperar duas vezes pela mesma coisa. Com dezoito passos, esse preparo
+    # somava mais de um minuto de espera pura.
+    if passo.reposiciona:
+        return
+
+    # O ENTER PRENDE A PESSOA AO TECLADO — E O TECLADO ESTA NUMA BORDA.
+    #
+    # Observado pelo Eduardo em 11/08: `--passo-a-passo` deixa quem executa na
+    # borda da frente, junto do notebook, e a instrucao seguinte manda ir ate a
+    # borda de TRAS. As duas brigam, e a segunda perde.
+    #
+    # Com voz, o ENTER deixou de ser necessario: a contagem regressiva e
+    # ouvida de qualquer lugar da sala. O modo continua existindo para
+    # depuracao, mas nao e mais o caminho recomendado.
+    if esperar_enter:
+        input("      ENTER quando estiver em posicao (o apito comeca a contar) ")
+        return
+
+    for falta in range(int(preparo_s), 0, -1):
+        print(f"\r      comeca em {falta}...   ", end="", flush=True)
+        time.sleep(1.0)
+    print()
+
+
+def _veredicto_falado(placar, passo):
+    """Uma frase curta, para quem esta do outro lado da sala.
+
+    Diz a nota E o que o sistema leu no lugar quando errou. Sem a segunda
+    parte, "vinte por cento" nao diz se o problema foi nao ver ninguem, ver e
+    classificar errado, ou o sistema ter se abstido.
+    """
+    if passo.eixo is None:
+        return "Aquecimento terminado."
+
+    c = placar.contagens.get(passo.acao)
+    if not c or not c.total:
+        return "Nao consegui medir esse passo."
+
+    nota = round(c.nota * 100)
+    if nota >= 85:
+        return f"Certo. {nota} por cento."
+
+    confusao, frac = c.pior_confusao
+    if confusao:
+        return f"Falhou. {nota} por cento. Leu {confusao.replace('_', ' ')}."
+    if c.aproveitamento > 0.8:
+        return f"{nota} por cento, mas sem erro: o sistema se absteve."
+    return f"Falhou. {nota} por cento."
+
+
+def _tela(n, total, passo, decorrido, acoes, pessoas):
     falta = passo.segundos - decorrido
     aquecendo = decorrido < passo.acomodacao_s
 
@@ -192,13 +285,121 @@ def _tela(n, total, passo, decorrido, acoes, prevendo):
         return
 
     for pid, (a, _) in sorted(acoes.items()):
-        marca = "  (posicao PREVISTA)" if prevendo.get(pid) else ""
+        p = pessoas.get(pid)
+        marca = "  (posicao PREVISTA)" if (p and p.prevendo) else ""
         print(f"      lendo agora:  #{pid}  {a.locomocao} / {a.postura}"
-              f"   conf {a.confianca:.0%}{marca}")
+              f"   {a.velocidade_ms:.2f} m/s{marca}")
         for lado, estado, altura in (("E", a.braco_esquerdo, a.altura_mao_esq),
                                      ("D", a.braco_direito, a.altura_mao_dir)):
             metros = "    --" if altura is None else f"{altura:5.2f}m"
             print(f"                    braco {lado}  {estado:14} {metros}")
+
+
+def diagnostico_da_cascata(app):
+    """O que estava APRENDIDO quando a sessao rodou. Vem antes das notas.
+
+    POR QUE ESTA SECAO EXISTE
+
+    MEDIDO EM 11/08: o boletim mostrou dez acoes reprovadas e a leitura natural
+    foi "dez coisas quebradas". Eram dez sintomas de UMA causa — a pessoa mal
+    se deslocou, entao o azimute e a inclinacao nunca convergiram, e tudo que
+    depende deles degradou junto.
+
+    Sem esta secao, o boletim manda consertar dez lugares. Com ela, manda
+    andar mais.
+
+        Nota que nao mostra a cadeia de dependencia manda consertar o lugar
+        errado — mesmo defeito do `rejeitadas plausibilidade 358` de 10/08,
+        que era verdadeiro e nao apontava conserto nenhum.
+    """
+    e = app.espacial.resumo()
+    corpo = app.espacial.corpo
+    incl = app.espacial.inclinacao
+
+    linhas = ["O QUE O SISTEMA APRENDEU NESTA SESSAO",
+              f"  azimute da camera   {e['corpo']}",
+              f"  inclinacao          {e['inclinacao']}",
+              f"  altura de pessoa    {e['altura']}"]
+
+    faltando = []
+    if not corpo.azimute.confiavel:
+        faltando.append(
+            "AZIMUTE nao convergiu. Sem ele o sistema nao sabe para que lado a\n"
+            "    camera aponta, e NAO consegue distinguir andar para frente de\n"
+            "    andar de lado — responde `andando` e conta como POBRE.")
+    if not incl.confiavel:
+        faltando.append(
+            "INCLINACAO nao convergiu. Sem ela o esqueleto chega girado pelo\n"
+            "    angulo da lente, e bracos e agachamento saem errados.")
+
+    if faltando:
+        linhas += ["", "  ISTO EXPLICA AS REPROVACOES ABAIXO:"]
+        linhas += [f"  -> {t}" for t in faltando]
+        linhas += [
+            "",
+            "  Os dois so aprendem com quem ANDA acima de 0,25 m/s. Ande de",
+            "  verdade no passo de aquecimento — alguns metros de ida e volta,",
+            "  nao passos no lugar. Nada abaixo depende de codigo enquanto",
+            "  estas duas linhas nao estiverem `ativo`."]
+    else:
+        linhas += ["", "  Os dois convergiram: as notas abaixo medem o "
+                       "classificador, nao a falta de caminhada."]
+    return linhas
+
+
+def escolher(nomes):
+    """Filtra o roteiro, mas NUNCA tira o aquecimento.
+
+    O `EstimadorDeAzimute` so aprende com quem anda, e o `EstimadorDeInclinacao`
+    tambem. Rodar `--acao andar_frente` sozinho mediria um sistema que ainda
+    nao teve materia-prima — e reprovaria por uma coisa que o recorte causou.
+
+    MEDIDO EM 11/08: sem caminhada suficiente, dez acoes reprovaram de uma vez.
+    Era uma causa so, e ela estava no comeco da cadeia.
+
+        Um componente que exige movimento nao pode ser julgado por uma sessao
+        sem movimento.                                        — caderno, 10/08
+    """
+    roteiro = roteiro_padrao()
+    if not nomes:
+        return roteiro
+
+    pedidos = set(nomes)
+    desconhecidos = pedidos - {p.acao for p in roteiro}
+    if desconhecidos:
+        raise SystemExit(
+            f"acao desconhecida: {', '.join(sorted(desconhecidos))}\n"
+            f"  veja os nomes com:  python ferramentas/conferir.py --listar")
+
+    # O AQUECIMENTO ENTRA SEMPRE; O RETORNO ENTRA ONDE FOR PRECISO.
+    #
+    # No roteiro inteiro, `andar_frente` e seguido de `andar_tras` e o par se
+    # desfaz sozinho. Recortado com `--acao andar_frente`, esse retorno some —
+    # e repetir o passo empurraria a pessoa para fora do quadro.
+    #
+    # Entao o retorno e acrescentado depois de todo passo que desloca, exceto
+    # quando o proprio passo seguinte ja e o par que desfaz o deslocamento.
+    # Os retornos do roteiro completo sao DESCARTADOS aqui e recolocados
+    # abaixo. Mante-los seria empilhar dois seguidos: um do roteiro e um da
+    # regra, com a pessoa esperando doze segundos entre dois passos.
+    selecionados = [p for p in roteiro
+                    if not p.reposiciona and (p.eixo is None
+                                              or p.acao in pedidos)]
+
+    escolhido = []
+    for i, passo in enumerate(selecionados):
+        escolhido.append(passo)
+        if not passo.desloca:
+            continue
+        proximo = selecionados[i + 1] if i + 1 < len(selecionados) else None
+        if proximo is not None and proximo.desloca:
+            continue          # o par seguinte ja traz a pessoa de volta
+        escolhido.append(voltar_ao_meio())
+
+    # Um retorno no fim nao serve para nada: a sessao acabou.
+    if escolhido and escolhido[-1].reposiciona:
+        escolhido.pop()
+    return escolhido
 
 
 # --------------------------------------------------------------- registro
@@ -250,7 +451,24 @@ def main():
     p.add_argument("--segundos-camera", type=float, default=20.0)
     p.add_argument("--comparar", nargs=2, metavar=("ANTES", "DEPOIS"))
     p.add_argument("--log", default="AVISO")
+
+    p.add_argument("--acao", action="append", metavar="NOME",
+                   help="testa so estas acoes. O aquecimento entra sempre, "
+                        "porque o azimute depende dele. Pode repetir.")
+    p.add_argument("--listar", action="store_true",
+                   help="mostra os nomes das acoes e sai")
+    p.add_argument("--passo-a-passo", action="store_true",
+                   help="espera ENTER antes de cada passo, em vez de contagem")
+    p.add_argument("--preparo", type=float, default=4.0,
+                   help="segundos entre ouvir a instrucao e comecar a contar")
+    p.add_argument("--sem-voz", action="store_true")
     args = p.parse_args()
+
+    if args.listar:
+        for passo in roteiro_padrao():
+            eixo = passo.eixo or "(aquecimento, sem nota)"
+            print(f"  {passo.acao:22} {eixo:16} {passo.instrucao}")
+        return
 
     if args.comparar:
         comparar(*args.comparar)
@@ -268,7 +486,8 @@ def main():
     app.iniciar()
 
     laudo, placar = {}, Placar()
-    roteiro = roteiro_padrao()
+    roteiro = escolher(args.acao)
+    voz = Voz(ligada=not args.sem_voz)
     try:
         laudo = conferir_cameras(app, args.segundos_camera)
         ruins = mostrar_laudo(laudo)
@@ -276,19 +495,28 @@ def main():
         if args.so_cameras:
             return
 
-        print("\n  A fase 2 leva cerca de "
-              f"{sum(p.segundos for p in roteiro) / 60:.0f} minutos.")
+        total = sum(p.segundos + args.preparo for p in roteiro)
+        print(f"\n  {len(roteiro)} passo(s), cerca de {total / 60:.0f} min.")
+        print("  As instrucoes sao FALADAS — voce nao precisa olhar a tela.")
+        print("  Um apito comeca a contagem; dois apitos terminam.")
         if ruins:
             print("  Com camera ruim, a nota mede o hardware e nao o sistema.")
         input("\n  ENTER para comecar, Ctrl+C para sair. ")
 
-        rodar_roteiro(app, roteiro, placar)
+        voz.dizer("Comecando. Pode se afastar do computador.", esperar=True)
+        rodar_roteiro(app, roteiro, placar, voz,
+                      esperar_enter=args.passo_a_passo,
+                      preparo_s=args.preparo)
+        voz.dizer("Terminado.")
     except KeyboardInterrupt:
         print("\n\n  interrompido — o boletim vale so ate aqui")
     finally:
+        voz.calar()
         app.parar()
 
     print(f"{LIMPAR}BOLETIM\n")
+    print("\n".join(diagnostico_da_cascata(app)))
+    print()
     print("\n".join(placar.linhas()))
 
     if laudo:

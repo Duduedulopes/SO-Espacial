@@ -41,7 +41,7 @@ from src.acao.angulos import (                                     # noqa: E402
 )
 from src.acao.classificador import ClassificadorDeAcao             # noqa: E402
 from src.acao.corpo import AnalisadorDeCorpo, EstimadorDeAzimute   # noqa: E402
-from src.acao.vocabulario import Braco, Locomocao                  # noqa: E402
+from src.acao.vocabulario import Braco, Locomocao, Postura         # noqa: E402
 from src.espacial.estado import EstadoDePessoa                     # noqa: E402
 
 QUADRIL = 0.95          # altura do quadril acima do chao, em metros
@@ -525,3 +525,164 @@ def test_custo_e_ruido_diante_do_detector():
     ms = (time.perf_counter() - t)
 
     assert ms < 1.0, f"{ms * 1000:.0f} us por leitura — esperado dezenas"
+
+
+# ------------------------------------------------------------------ postura
+def test_agachar_e_visto_pela_altura_do_quadril():
+    """O defeito de 11/08: `agachar` lido como `em_pe` em 100% dos quadros.
+
+    A postura vinha da altura da CAIXA da camera do alto. Uma camera olhando
+    de cima quase nao ve mudanca de estatura — a caixa naquela vista e
+    dominada pela pegada da pessoa no chao, nao pela altura dela.
+
+    O sinal estava errado na ORIGEM. Nenhum ajuste de limiar corrigiria, e
+    mexer no limiar teria sido a terceira rodada de ajuste as cegas deste
+    projeto.
+    """
+    a = AnalisadorDeCorpo()
+    c = ClassificadorDeAcao(estabilidade_s=0.2)
+    v = tudo_visivel()
+    p = EstadoDePessoa(id=1, x=0, y=0)
+
+    for _ in range(30):                       # em pe: aprende o padrao
+        acao, _ = c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
+    assert acao.postura == Postura.EM_PE, acao.postura
+
+    for _ in range(20):                       # agacha: quadril a 0,50 m
+        acao, _ = c.classificar(
+            p, 0.1, leitura=a.ler(1, corpo(quadril=0.50), v))
+
+    assert acao.postura == Postura.AGACHADO, acao.postura
+
+
+def test_levantar_devolve_em_pe():
+    """Um estado que so entra e nunca sai nao e estado, e armadilha."""
+    a = AnalisadorDeCorpo()
+    c = ClassificadorDeAcao(estabilidade_s=0.2)
+    v = tudo_visivel()
+    p = EstadoDePessoa(id=1, x=0, y=0)
+
+    for _ in range(30):
+        c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
+    for _ in range(20):
+        c.classificar(p, 0.1, leitura=a.ler(1, corpo(quadril=0.50), v))
+    for _ in range(20):
+        acao, _ = c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
+
+    assert acao.postura == Postura.EM_PE
+
+
+def test_a_mediana_do_quadril_nao_sente_o_agachamento():
+    """A referencia da ALTURA DA MAO tem que ignorar o agachamento; a POSTURA
+    tem que senti-lo. Mesmo dado, duas leituras — e e por isso que existem
+    dois campos em vez de um."""
+    a = AnalisadorDeCorpo()
+    v = tudo_visivel()
+
+    for _ in range(40):
+        a.ler(1, corpo(), v)
+    leitura = a.ler(1, corpo(quadril=0.50), v)
+
+    assert abs(leitura.altura_quadril - QUADRIL) < 0.05, "a mediana cedeu"
+    assert abs(leitura.altura_quadril_agora - 0.50) < 0.01
+    assert leitura.encolhimento < 0.6
+
+
+def test_sem_pose_frontal_a_postura_volta_para_a_caixa():
+    """A fonte antiga nao foi removida: ela nao esta errada, esta cega para
+    ESTE movimento nesta montagem. Sem quadril, ela e melhor que nada."""
+    c = ClassificadorDeAcao(estabilidade_s=0.2)
+    p = EstadoDePessoa(id=1, x=0, y=0)
+
+    for _ in range(20):
+        acao, _ = c.classificar(p, 0.1, razao_altura=0.15, k_referencia=0.30)
+
+    assert acao.postura == Postura.AGACHADO
+
+
+def test_azimute_acusa_amostras_bimodais():
+    """O caso real de 11/08: tres execucoes, tres valores, mesma camera.
+
+    +7, +85 e -123 graus com concentracao entre 35% e 83%. Nao era ruido: era
+    ir e voltar no mesmo eixo SEM VIRAR O CORPO. Metade das amostras dizia
+    "corpo aponta para X, anda para +X"; a outra metade, "-X". Dois grupos a
+    180 graus, e a media circular deles cai onde o acaso da contagem mandar.
+
+        Abster-se sem explicar transfere o problema para quem le.
+    """
+    e = EstimadorDeAzimute()
+    for i in range(40):
+        # anda para frente e para tras, sempre de frente para a camera
+        rumo_mundo = 0.0 if i % 2 else math.pi
+        e.observar(0.0, rumo_mundo, velocidade=0.9)
+
+    assert not e.confiavel, "com dois grupos opostos ele nao pode responder"
+    assert e.bimodal, e.diagnostico
+    assert "dois grupos opostos" in e.diagnostico
+
+
+def test_amostras_coerentes_nao_sao_bimodais():
+    """O aviso so vale se ele ficar calado quando nao ha o que avisar."""
+    e = EstimadorDeAzimute()
+    for _ in range(40):
+        e.observar(0.0, math.radians(30), velocidade=0.9)
+
+    assert e.confiavel
+    assert not e.bimodal
+    assert "grupos opostos" not in e.diagnostico
+
+
+def test_bagunca_pura_nao_e_confundida_com_bimodal():
+    """Espalhado em todas as direcoes e outro diagnostico: nao ha conserto de
+    postura da pessoa, ha dado ruim. Chamar isso de bimodal mandaria virar o
+    corpo quando o problema e outro."""
+    import random
+
+    random.seed(3)
+    e = EstimadorDeAzimute()
+    for _ in range(60):
+        e.observar(random.uniform(-math.pi, math.pi), 0.0, velocidade=0.9)
+
+    assert not e.confiavel
+    assert not e.bimodal, e.diagnostico
+
+
+def test_azimute_sobrevive_a_uma_minoria_andando_de_re():
+    """O ganho que permitiu o roteiro do Eduardo existir.
+
+    O roteiro dele tem `VOLTE DE RE` e `ANDE DE LADO` — passos legitimos, que
+    produzem amostras 180 e 90 graus fora. Com MEDIA, elas puxavam a resposta
+    para um ponto entre os grupos onde nao havia amostra nenhuma; foi o que
+    deu +7, +85 e -123 graus em tres execucoes com a camera parada.
+
+    Com MODA, a minoria e descartada por ser minoria.
+
+        A media de dois grupos separados aponta para um lugar vazio entre eles.
+    """
+    e = EstimadorDeAzimute()
+    verdade = math.radians(35)
+
+    for i in range(60):
+        if i % 4 == 3:                       # 25% andando de re
+            e.observar(0.0, verdade + math.pi, velocidade=0.9)
+        else:
+            e.observar(0.0, verdade, velocidade=0.9)
+
+    assert e.confiavel, e.diagnostico
+    assert abs(diferenca_angular(e.valor, verdade)) < math.radians(3), \
+        e.diagnostico
+
+
+def test_a_moda_nao_e_recalculada_a_cada_amostra():
+    """O(n^2) com 240 amostras sao 57 mil comparacoes por quadro. A camada de
+    acao existe por nao custar nada; recalcular sempre custaria seis vezes
+    mais que ela inteira."""
+    e = EstimadorDeAzimute()
+    for _ in range(40):
+        e.observar(0.0, 0.5, velocidade=0.9)
+
+    antes = e._desde_o_calculo
+    e.observar(0.0, 0.5, velocidade=0.9)
+
+    assert e._desde_o_calculo == antes + 1, "recalculou na hora"
+    assert e.confiavel, "e mesmo assim continua respondendo"

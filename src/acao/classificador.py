@@ -147,7 +147,8 @@ class ClassificadorDeAcao:
             motivo = f"propondo {proposta} ({motivo})"
             confianca *= 0.7
 
-        prop_postura, razao = self._propor_postura(razao_altura, k_referencia)
+        prop_postura, razao = self._propor_postura(
+            razao_altura, k_referencia, leitura.encolhimento)
         mudou_pos = self.postura.propor(prop_postura, dt)
 
         mudou_bre = self.braco_esquerdo.propor(leitura.braco_esquerdo, dt)
@@ -252,13 +253,34 @@ class ClassificadorDeAcao:
                 0.7, f"{g:.0f} graus do corpo")
 
     # ------------------------------------------------------------ postura
-    def _propor_postura(self, razao_altura, k):
-        """Encolheu em relacao ao que uma pessoa em pe mede ALI? Entao agachou.
+    def _propor_postura(self, razao_altura, k, encolhimento=None):
+        """Encolheu em relacao ao que esta pessoa mede EM PE? Entao agachou.
 
-        `k` vem do filtro de plausibilidade e ja embute a perspectiva: uma
-        pessoa longe tem menos pixels de altura, e a razao corrige isso pela
-        distancia ao horizonte. Comparar altura em pixels crua nao funcionaria.
+        DUAS FONTES, E A ORDEM NAO E ARBITRARIA
+
+        1. altura do QUADRIL em metros, da camera frontal
+        2. altura da CAIXA em pixels, da camera do alto
+
+        MEDIDO EM 11/08: com a fonte 2 sozinha, `agachar` foi lido como
+        `em_pe` em 100% dos quadros. Uma camera olhando de cima quase nao ve
+        mudanca de estatura — a caixa naquela vista e dominada pela pegada da
+        pessoa no chao. O sinal estava errado na ORIGEM, e nenhum ajuste de
+        limiar teria consertado; mexer no limiar teria sido a terceira rodada
+        de ajuste as cegas deste projeto.
+
+        A fonte 1 vem da camera FRONTAL, que ve a pessoa de lado — a vista em
+        que agachar e obvio. Ela e preferida sempre que existe.
+
+        A fonte 2 continua valendo como reserva: sem pose frontal nao ha
+        quadril, e a caixa e melhor que nada. Ela nao foi removida porque nao
+        esta errada — esta apenas cega para este movimento em UMA montagem de
+        camera. Numa camera lateral ou frontal ela funcionaria.
         """
+        if encolhimento is not None:
+            if encolhimento < self.agachado_abaixo:
+                return Postura.AGACHADO, encolhimento
+            return Postura.EM_PE, encolhimento
+
         if not razao_altura or not k:
             return Postura.DESCONHECIDA, 0.0
         proporcao = razao_altura / k
