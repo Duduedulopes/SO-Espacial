@@ -1,0 +1,77 @@
+{
+  "_comentario": [
+    "A estante de aco que o Eduardo posicionou em 11/08 atras da area de teste.",
+    "",
+    "ELA E DUAS COISAS AO MESMO TEMPO, E ESSA E A GRACA:",
+    "",
+    "  1. GABARITO FISICO. Cinco alturas conhecidas, medidas com trena. E a",
+    "     unica forma de verificar a altura da mao em metros — o numero mais",
+    "     importante do projeto e o unico que nunca foi conferido contra a",
+    "     realidade.",
+    "",
+    "  2. A ETAPA D. Prateleiras como faixas de altura na planta. Quando a",
+    "     altura da mao entrar numa faixa, o produto sai do CADASTRO e nao da",
+    "     imagem — que e a decisao que a arquitetura v3 tomou em 10/08.",
+    "",
+    "A CONTA QUE DECIDE SE ISSO FUNCIONA:",
+    "",
+    "    vao entre prateleiras          40 cm",
+    "    erro da altura (estimada)      +-8 cm",
+    "    erro da altura (medida)        +-3 cm",
+    "",
+    "Quarenta centimetros de vao contra tres a oito de erro: a prateleira e",
+    "distinguivel. O centimetro exato nao e — e nao precisa ser."
+  ],
+
+  "id": "estante-aco-teste",
+  "nome": "Estante de aco",
+  "unidade": "m",
+
+  "dimensoes": {
+    "altura": 1.90,
+    "largura": 0.92,
+    "profundidade": 0.30
+  },
+
+  "prateleiras": [
+    {
+      "id": "p1",
+      "nome": "Prateleira 1 (chao)",
+      "altura": 0.15,
+      "_nota": "a mais baixa. Exige agachar ou abaixar muito — e o caso em que a camera frontal perde as pernas, medido em 11/08."
+    },
+    {
+      "id": "p2",
+      "nome": "Prateleira 2",
+      "altura": 0.55,
+      "_nota": "altura de joelho. Pegar aqui e o gesto de agachar leve."
+    },
+    {
+      "id": "p3",
+      "nome": "Prateleira 3",
+      "altura": 0.95,
+      "_nota": "altura de quadril. A mais confortavel — em loja e onde se poe o que mais vende."
+    },
+    {
+      "id": "p4",
+      "nome": "Prateleira 4",
+      "altura": 1.35,
+      "_nota": "altura de peito. Braco estendido a frente, sem levantar."
+    },
+    {
+      "id": "p5",
+      "nome": "Prateleira 5 (topo)",
+      "altura": 1.90,
+      "_nota": "acima do ombro de um adulto de 1,80 m. Exige braco LEVANTADO — e o unico caso em que o vocabulario e a altura concordam sozinhos."
+    }
+  ],
+
+  "_faixas": [
+    "A faixa de cada prateleira ainda NAO esta declarada aqui, de proposito.",
+    "Declarar antes de medir seria escolher os limites pelo que parece razoavel",
+    "em vez de pelo erro real. Rode `ferramentas/conferir_altura.py` primeiro:",
+    "ele mede o vies e a dispersao de cada altura, e ai as faixas saem do dado.",
+    "",
+    "    Limite escolhido antes da medicao e chute com aparencia de projeto."
+  ]
+}

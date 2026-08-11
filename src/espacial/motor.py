@@ -574,7 +574,7 @@ class SpatialEngine:
             return {}
 
         agora = self._agora()
-        vistas = []
+        vistas, nomes = [], []
         for papel in ("frontal", "lateral"):
             candidata = self._poses_cruas.get(papel)
             if candidata is None or candidata.juntas_3d is None:
@@ -582,6 +582,7 @@ class SpatialEngine:
             if agora - candidata.t_mono > validade_s:
                 continue
             vistas.append((candidata.juntas_3d, candidata.conf_2d))
+            nomes.append(papel)
 
         if not vistas:
             return {}
@@ -617,7 +618,8 @@ class SpatialEngine:
             rumo_mundo=rumo_andado,
             velocidade=andou,
             quadril_do_alto=self.escala.altura_do_quadril(pessoa.id),
-            rumo_do_alto=self.sinal_do_rumo.aplicar(bruto))}
+            rumo_do_alto=self.sinal_do_rumo.aplicar(bruto),
+            nomes=nomes)}
 
     def _rumo_do_alto(self, pessoa, rastros):
         """Rumo do corpo em coordenadas de MUNDO, da camera de cima.

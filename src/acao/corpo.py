@@ -160,6 +160,23 @@ class LeituraDoCorpo:
     #     e modelo e o defeito que este projeto inteiro combate.
     altura_medida: bool = False
 
+    # QUAL VISTA RESPONDEU CADA BRACO, E QUAL DEU A ESCALA.
+    #
+    # Observado pelo Eduardo, 11/08: "se for lida apenas pela camera frontal,
+    # invalida o teste — elas precisam trabalhar juntas".
+    #
+    # Ele esta certo, e o defeito era do RELATORIO, nao do codigo: `ler_varias`
+    # ja consulta as duas vistas de pose e o alto ja da a escala. Mas o numero
+    # saia sem dizer de onde veio, e sem isso nao ha como saber se as tres
+    # trabalharam ou se so uma respondeu enquanto as outras estavam cegas.
+    #
+    #     Um resultado que nao diz de onde veio nao pode ser auditado, e
+    #     complementaridade que nao aparece no relatorio nao pode ser
+    #     verificada.
+    fonte_braco_esq: str = ""
+    fonte_braco_dir: str = ""
+    fonte_escala: str = ""
+
     motivo: str = ""
 
     # VERTICALIDADE DA COXA: quanto o vetor quadril->joelho aponta para baixo.
@@ -1054,7 +1071,7 @@ class AnalisadorDeCorpo:
     # ------------------------------------------------------------ varias vistas
     def ler_varias(self, pessoa_id, vistas, inclinacao_rad=0.0,
                    rumo_mundo=None, velocidade=0.0, quadril_do_alto=None,
-                   rumo_do_alto=None):
+                   rumo_do_alto=None, nomes=None):
         """Le TODAS as vistas e combina cada resposta com quem conseguiu da-la.
 
         O PROBLEMA MEDIDO EM 11/08
@@ -1088,17 +1105,28 @@ class AnalisadorDeCorpo:
         misturaria duas constantes distintas — exatamente o caso bimodal que
         ele existe para recusar. A primeira vista com ombros visiveis e a dona.
         """
-        leituras = []
+        nomes = list(nomes or [f"vista{i}" for i in range(len(vistas))])
+        leituras, rotulos = [], []
         for i, (juntas, visivel) in enumerate(vistas):
-            leituras.append(self._ler_uma(
+            r = self._ler_uma(
                 pessoa_id, juntas, visivel, inclinacao_rad,
                 rumo_mundo if i == 0 else None,
-                velocidade if i == 0 else 0.0))
+                velocidade if i == 0 else 0.0)
+            if r is not None:
+                leituras.append(r)
+                rotulos.append(nomes[i])
 
-        leituras = [x for x in leituras if x is not None]
         if not leituras:
             return LeituraDoCorpo(motivo="sem pose")
-        final = leituras[0] if len(leituras) == 1 else self._combinar(leituras)
+
+        if len(leituras) == 1:
+            final = leituras[0]
+            for lado, campo in (("braco_esquerdo", "fonte_braco_esq"),
+                                ("braco_direito", "fonte_braco_dir")):
+                if getattr(final, lado) != Braco.DESCONHECIDO:
+                    setattr(final, campo, rotulos[0])
+        else:
+            final = self._combinar(leituras, rotulos)
 
         # A CAMERA DO ALTO MANDA NO RUMO DO CORPO.
         #
@@ -1128,8 +1156,13 @@ class AnalisadorDeCorpo:
             Cada camera responde o que enxerga. Nenhuma precisa enxergar tudo.
                                                         — Eduardo, 11/08
         """
-        if leitura.altura_medida or quadril_do_alto is None:
+        if leitura.altura_medida:
+            leitura.fonte_escala = "tornozelo visto"
             return leitura
+        if quadril_do_alto is None:
+            leitura.fonte_escala = "tronco (proporcao)"
+            return leitura
+        leitura.fonte_escala = "camera do alto"
 
         antes = leitura.altura_quadril
         leitura.altura_quadril = quadril_do_alto
@@ -1146,9 +1179,10 @@ class AnalisadorDeCorpo:
         return leitura
 
     @staticmethod
-    def _combinar(leituras):
+    def _combinar(leituras, nomes=None):
         """Primeira resposta que existe, campo a campo. Sem media."""
         final = leituras[0]
+        nomes = nomes or [f"vista{i}" for i in range(len(leituras))]
 
         def primeiro(pega, invalido=None):
             for x in leituras:
@@ -1160,12 +1194,14 @@ class AnalisadorDeCorpo:
         # O braco vem junto com a altura DAQUELA MESMA vista. Separar os dois
         # deixaria o estado vindo de uma camera e a altura de outra, e a altura
         # e o que sustenta o estado.
-        for lado, campo_altura in (("braco_esquerdo", "altura_mao_esq"),
-                                   ("braco_direito", "altura_mao_dir")):
-            for x in leituras:
+        for lado, campo_altura, campo_fonte in (
+                ("braco_esquerdo", "altura_mao_esq", "fonte_braco_esq"),
+                ("braco_direito", "altura_mao_dir", "fonte_braco_dir")):
+            for nome, x in zip(nomes, leituras):
                 if getattr(x, lado) != Braco.DESCONHECIDO:
                     setattr(final, lado, getattr(x, lado))
                     setattr(final, campo_altura, getattr(x, campo_altura))
+                    setattr(final, campo_fonte, nome)
                     break
 
         if final.verticalidade_coxa is None:

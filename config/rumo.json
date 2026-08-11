@@ -1,0 +1,28 @@
+{
+  "sinal": -1,
+  "_o_que_e": "+1 = o rumo do corpo vindo da camera do alto sai certo. -1 = sai 180 graus virado, e o sistema corrige.",
+  "_por_que": "`frente = (dy, -dx)` supoe um sistema de coordenadas DESTRO. Se a homografia foi calibrada clicando os pontos na outra ordem, o rumo sai virado. Nao ha como deduzir.",
+  "travessias": [
+    {
+      "certo": 0,
+      "invertido": 31,
+      "ignorados": 0
+    },
+    {
+      "certo": 13,
+      "invertido": 2,
+      "ignorados": 8
+    },
+    {
+      "certo": 0,
+      "invertido": 17,
+      "ignorados": 0
+    }
+  ],
+  "unanime": false,
+  "quando": "2026-08-11T16:03:16",
+  "_atencao": [
+    "Vale enquanto a camera do ALTO nao for movida e a homografia nao for refeita.",
+    "O painel mostra o que o aprendizado automatico diria ao lado deste valor. Se discordarem, alguma das duas coisas mudou."
+  ]
+}
