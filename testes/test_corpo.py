@@ -51,16 +51,31 @@ OMBRO_DO_CHAO = QUADRIL + OMBRO      # 1,47 m
 
 
 def corpo(rumo_camera=-math.pi / 2, quadril=QUADRIL,
-          mao_esq=None, mao_dir=None, largura_ombros=LARGURA):
+          mao_esq=None, mao_dir=None, largura_ombros=LARGURA,
+          agachado=False):
     """Monta um esqueleto COCO-17 de medidas conhecidas.
 
     `rumo_camera`  para onde o corpo aponta, no referencial da lente.
                    -pi/2 e de frente para a camera.
     `mao_*`        (altura_do_chao_em_metros, avanco_em_metros).
                    None = braco pendurado ao lado.
+    `agachado`     dobra a perna DE VERDADE: coxa quase horizontal.
 
     Devolve (17,3) com origem no quadril e z para cima — que e exatamente o
     que o MediaPipe entrega DEPOIS de a inclinacao da lente ser desfeita.
+
+    POR QUE `agachado` E UM PARAMETRO SEPARADO DE `quadril`
+
+    A primeira versao simulava agachamento so baixando o quadril, e mantinha o
+    joelho na metade da distancia ate o chao — ou seja, a coxa continuava
+    VERTICAL. Isso nao e um agachamento: e uma pessoa em pe encolhida, que nao
+    existe.
+
+    O erro so apareceu quando a postura passou a ser lida pela verticalidade
+    da coxa: o teste reprovou codigo que estava certo, porque a ENTRADA nao
+    descrevia a situacao que o nome do teste prometia.
+
+        Corpo sintetico que nao respeita a anatomia testa a propria fantasia.
     """
     frente = np.array([math.cos(rumo_camera), math.sin(rumo_camera), 0.0])
     lado = np.array([-math.sin(rumo_camera), math.cos(rumo_camera), 0.0])
@@ -84,10 +99,20 @@ def corpo(rumo_camera=-math.pi / 2, quadril=QUADRIL,
     j[8] = (j[6] + j[10]) / 2
     j[11] = meia * 0.5                                         # quadris
     j[12] = -meia * 0.5
-    j[13] = meia * 0.5 + [0, 0, -quadril / 2]                  # joelhos
-    j[14] = -meia * 0.5 + [0, 0, -quadril / 2]
-    j[15] = meia * 0.5 + [0, 0, -quadril]                      # tornozelos
-    j[16] = -meia * 0.5 + [0, 0, -quadril]
+
+    if agachado:
+        # Coxa quase horizontal: o joelho sobe ate quase a altura do quadril e
+        # avanca. E o que o corpo faz de verdade — o femur nao encolhe, gira.
+        joelho = frente * 0.42 + np.array([0, 0, -0.08])
+        tornozelo = frente * 0.10 + np.array([0, 0, -quadril])
+    else:
+        joelho = np.array([0, 0, -quadril / 2])
+        tornozelo = np.array([0, 0, -quadril])
+
+    j[13] = meia * 0.5 + joelho                                # joelhos
+    j[14] = -meia * 0.5 + joelho
+    j[15] = meia * 0.5 + tornozelo                             # tornozelos
+    j[16] = -meia * 0.5 + tornozelo
     return j
 
 
@@ -548,9 +573,9 @@ def test_agachar_e_visto_pela_altura_do_quadril():
         acao, _ = c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
     assert acao.postura == Postura.EM_PE, acao.postura
 
-    for _ in range(20):                       # agacha: quadril a 0,50 m
+    for _ in range(20):                       # agacha de verdade: coxa dobrada
         acao, _ = c.classificar(
-            p, 0.1, leitura=a.ler(1, corpo(quadril=0.50), v))
+            p, 0.1, leitura=a.ler(1, corpo(quadril=0.50, agachado=True), v))
 
     assert acao.postura == Postura.AGACHADO, acao.postura
 
@@ -565,7 +590,8 @@ def test_levantar_devolve_em_pe():
     for _ in range(30):
         c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
     for _ in range(20):
-        c.classificar(p, 0.1, leitura=a.ler(1, corpo(quadril=0.50), v))
+        c.classificar(p, 0.1,
+                      leitura=a.ler(1, corpo(quadril=0.50, agachado=True), v))
     for _ in range(20):
         acao, _ = c.classificar(p, 0.1, leitura=a.ler(1, corpo(), v))
 
@@ -581,7 +607,7 @@ def test_a_mediana_do_quadril_nao_sente_o_agachamento():
 
     for _ in range(40):
         a.ler(1, corpo(), v)
-    leitura = a.ler(1, corpo(quadril=0.50), v)
+    leitura = a.ler(1, corpo(quadril=0.50, agachado=True), v)
 
     assert abs(leitura.altura_quadril - QUADRIL) < 0.05, "a mediana cedeu"
     assert abs(leitura.altura_quadril_agora - 0.50) < 0.01
@@ -686,3 +712,164 @@ def test_a_moda_nao_e_recalculada_a_cada_amostra():
 
     assert e._desde_o_calculo == antes + 1, "recalculou na hora"
     assert e.confiavel, "e mesmo assim continua respondendo"
+
+
+def test_agachar_e_visto_SEM_o_tornozelo_no_quadro():
+    """O caso real de 11/08, e a razao da coxa ter ganhado das outras fontes.
+
+    `agachar` NUNCA foi reconhecido, com 36% dos quadros sem leitura nenhuma.
+    Quem agacha tira as pernas do enquadramento — e as duas fontes anteriores
+    dependiam justamente do que sumia:
+
+        altura da CAIXA      de cima quase nao se ve mudanca de estatura
+        altura do QUADRIL    precisa do tornozelo para saber onde e o chao
+
+    A coxa e uma razao entre duas juntas VIZINHAS. Se o joelho aparece, o
+    quadril aparece.
+
+        Um sinal que precisa do chao morre quando o chao sai do quadro.
+    """
+    a = AnalisadorDeCorpo()
+    c = ClassificadorDeAcao(estabilidade_s=0.2)
+    sem_pe = tudo_visivel(exceto=(15, 16))
+    p = EstadoDePessoa(id=1, x=0, y=0)
+
+    for _ in range(20):
+        acao, _ = c.classificar(p, 0.1, leitura=a.ler(1, corpo(), sem_pe))
+    assert acao.postura == Postura.EM_PE, acao.postura
+
+    for _ in range(20):
+        acao, _ = c.classificar(
+            p, 0.1, leitura=a.ler(1, corpo(agachado=True), sem_pe))
+
+    assert acao.postura == Postura.AGACHADO, acao.postura
+
+
+def test_a_coxa_nao_depende_do_tamanho_da_pessoa():
+    """Razao adimensional: nao precisa de metros, de calibracao nem de saber a
+    altura. Funciona igual para adulto e para crianca."""
+    a = AnalisadorDeCorpo()
+    v = tudo_visivel()
+
+    adulto = a.ler(1, corpo(quadril=0.95), v).verticalidade_coxa
+    crianca = a.ler(2, corpo(quadril=0.55), v).verticalidade_coxa
+
+    assert abs(adulto - crianca) < 0.01
+    assert adulto > 0.95, "em pe a coxa e vertical"
+
+
+def test_a_coxa_sobrevive_a_camera_inclinada():
+    """Sem desfazer a inclinacao, a coxa de quem esta em pe apareceria dobrada
+    — e o sistema anunciaria agachamento em toda sessao com a lente torta."""
+    a = AnalisadorDeCorpo()
+    juntas = inclinar(corpo(), graus=-35)
+
+    com = a.ler(1, juntas, tudo_visivel(), inclinacao_rad=math.radians(-35))
+    sem = AnalisadorDeCorpo().ler(1, juntas, tudo_visivel())
+
+    assert com.verticalidade_coxa > 0.95
+    assert sem.verticalidade_coxa < 0.90, (
+        "sem a correcao a coxa deveria parecer dobrada; se nao parecer, "
+        "este teste nao esta provando nada")
+
+
+def test_fica_com_a_perna_mais_ESTICADA():
+    """Quem se abaixa para pegar algo frequentemente estende uma perna. Ficar
+    com a mais dobrada faria qualquer passada larga virar agachamento."""
+    a = AnalisadorDeCorpo()
+    j = corpo()
+    j[13] = j[11] + np.array([0.40, 0, -0.05])   # esquerda dobrada
+    j[14] = j[12] + np.array([0, 0, -0.45])      # direita esticada
+
+    leitura = a.ler(1, j, tudo_visivel())
+
+    assert leitura.verticalidade_coxa > 0.95, leitura.verticalidade_coxa
+
+
+def test_sem_joelho_visivel_cai_na_altura_do_quadril():
+    """A fonte antiga nao foi removida. Nenhuma vista ve tudo sempre."""
+    a = AnalisadorDeCorpo()
+    sem_joelho = tudo_visivel(exceto=(13, 14))
+
+    for _ in range(20):
+        a.ler(1, corpo(), sem_joelho)
+    leitura = a.ler(1, corpo(quadril=0.50, agachado=True), sem_joelho)
+
+    assert leitura.verticalidade_coxa is None
+    assert leitura.encolhimento is not None, "a reserva tem que responder"
+    assert leitura.encolhimento < 0.7
+
+
+# --------------------------------------------------- varias vistas
+def test_o_braco_vem_da_vista_que_ENXERGOU_o_pulso():
+    """O defeito de 11/08, e o mais caro dos tres.
+
+    Levantar o braco levava 9 a 10 s e lia `ao_lado` em 65 a 87% dos quadros;
+    BAIXAR levava 2 s. Assimetria e assinatura de mao saindo do quadro: a
+    webcam do notebook pega do peito para cima, o pulso levantado sobe alem da
+    borda, e o MediaPipe extrapola para baixo.
+
+    A lateral entregava 100% de pose e nunca era consultada, porque a escolha
+    da vista era uma ORDEM FIXA.
+
+        A pergunta certa nao e "qual camera e melhor", e "qual delas viu ESTA
+        junta".
+    """
+    a = AnalisadorDeCorpo()
+    levantado = corpo(mao_dir=(1.75, 0.10))
+
+    frontal = (levantado, tudo_visivel(exceto=(10,)))   # perdeu o pulso direito
+    lateral = (levantado, tudo_visivel())               # viu tudo
+
+    so_frontal = AnalisadorDeCorpo().ler(1, *frontal)
+    assert so_frontal.braco_direito == Braco.DESCONHECIDO
+
+    junto = a.ler_varias(1, [frontal, lateral])
+    assert junto.braco_direito == Braco.LEVANTADO, junto.braco_direito
+
+
+def test_a_altura_viaja_junto_com_o_braco_que_a_sustenta():
+    """Separar os dois deixaria o estado vindo de uma camera e a altura de
+    outra — e e a altura que sustenta o estado."""
+    a = AnalisadorDeCorpo()
+    for _ in range(10):                       # aprende o quadril nas duas
+        a.ler_varias(1, [(corpo(), tudo_visivel()),
+                         (corpo(), tudo_visivel())])
+
+    # As duas vistas veem a mao em alturas diferentes — na pratica isso e erro
+    # de reconstrucao, e aqui e proposital: se a altura publicada for a da
+    # frontal enquanto o ESTADO veio da lateral, o teste acusa.
+    frontal = (corpo(mao_dir=(1.90, 0.10)), tudo_visivel(exceto=(10,)))
+    lateral = (corpo(mao_dir=(1.70, 0.10)), tudo_visivel())
+
+    junto = a.ler_varias(1, [frontal, lateral])
+
+    assert junto.braco_direito == Braco.LEVANTADO
+    assert abs(junto.altura_mao_dir - 1.70) < 0.03, (
+        "a altura veio de uma vista e o estado de outra")
+
+
+def test_uma_vista_cega_nao_apaga_a_outra():
+    a = AnalisadorDeCorpo()
+    boa = (corpo(mao_esq=(1.75, 0.1)), tudo_visivel())
+    cega = (None, None)
+
+    junto = a.ler_varias(1, [cega, boa])
+
+    assert junto.braco_esquerdo == Braco.LEVANTADO
+
+
+def test_o_azimute_aprende_de_UMA_vista_so():
+    """Ele mede o giro DAQUELA lente. Alimenta-lo com duas cameras misturaria
+    duas constantes distintas — o caso bimodal que ele existe para recusar."""
+    a = AnalisadorDeCorpo()
+    verdade = math.radians(35)
+    frontal = (corpo(rumo_camera=-verdade), tudo_visivel())
+    lateral = (corpo(rumo_camera=-verdade + math.pi / 2), tudo_visivel())
+
+    for _ in range(40):
+        a.ler_varias(1, [frontal, lateral], rumo_mundo=0.0, velocidade=0.9)
+
+    assert a.azimute.confiavel, a.azimute.diagnostico
+    assert abs(diferenca_angular(a.azimute.valor, verdade)) < math.radians(3)
+    assert len(a.azimute.amostras) == 40, "a segunda vista tambem alimentou"

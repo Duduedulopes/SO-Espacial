@@ -85,6 +85,7 @@ OMBRO_ESQ, OMBRO_DIR = 5, 6
 COTOVELO_ESQ, COTOVELO_DIR = 7, 8
 PULSO_ESQ, PULSO_DIR = 9, 10
 QUADRIL_ESQ, QUADRIL_DIR = 11, 12
+JOELHO_ESQ, JOELHO_DIR = 13, 14
 TORNOZELO_ESQ, TORNOZELO_DIR = 15, 16
 
 
@@ -141,24 +142,45 @@ class LeituraDoCorpo:
 
     motivo: str = ""
 
+    # VERTICALIDADE DA COXA: quanto o vetor quadril->joelho aponta para baixo.
+    #
+    # 1.0 = coxa vertical (em pe).  ~0.2 = coxa horizontal (agachado).
+    #
+    # POR QUE ESTE SINAL GANHOU DOS OUTROS DOIS
+    #
+    # MEDIDO EM 11/08, com o roteiro travado: `agachar` NUNCA foi reconhecido,
+    # com 36% dos quadros sem leitura nenhuma. As duas fontes anteriores
+    # falharam por motivos diferentes, e os dois sao estruturais:
+    #
+    #     altura da CAIXA (camera do alto)
+    #         de cima quase nao se ve mudanca de estatura — a caixa e
+    #         dominada pela pegada da pessoa no chao.
+    #
+    #     altura do QUADRIL acima do chao (camera frontal)
+    #         precisa do tornozelo visivel para saber onde e o chao. E quem
+    #         agacha tira as pernas do enquadramento justamente ali.
+    #
+    # A coxa nao depende de nenhum dos dois. Ela e uma razao entre duas juntas
+    # vizinhas, e vizinhas costumam ser vistas juntas: se o joelho aparece, o
+    # quadril aparece.
+    #
+    #     Um sinal que precisa do chao morre quando o chao sai do quadro. A
+    #     geometria interna do corpo nao tem esse problema.
+    #
+    # E ele e adimensional: nao precisa de metros, de calibracao, nem de saber
+    # a altura da pessoa. Funciona igual para adulto e para crianca.
+    verticalidade_coxa: float | None = None
+
     @property
     def encolhimento(self):
-        """Quanto o quadril baixou em relacao ao proprio padrao em pe.
+        """Quanto a pessoa encolheu. 1.0 = em pe, ~0.2 = agachada.
 
-        1.0 = em pe. Abaixo de ~0,75 = agachado. `None` quando falta base.
-
-        POR QUE ESTE SINAL, E NAO A ALTURA DA CAIXA
-
-        MEDIDO EM 11/08: `agachar` foi lido como `em_pe` em 100% dos quadros.
-        A postura vinha da razao de altura da CAIXA da camera do alto — e uma
-        camera olhando de cima quase nao ve mudanca de estatura. A caixa
-        naquela vista e dominada pela pegada da pessoa no chao, nao pela
-        altura dela.
-
-        O sinal estava errado na origem, e nenhum ajuste de limiar corrigiria
-        isso. A altura do quadril em metros e medida pela camera FRONTAL, que
-        ve a pessoa de lado — a vista em que agachar e obvio.
+        Prefere a coxa; cai na altura do quadril quando o joelho nao aparece.
+        As duas medem a mesma coisa por caminhos independentes, e a segunda
+        existe porque nenhuma vista ve tudo sempre.
         """
+        if self.verticalidade_coxa is not None:
+            return self.verticalidade_coxa
         if not self.altura_quadril or self.altura_quadril_agora is None:
             return None
         return self.altura_quadril_agora / self.altura_quadril
@@ -367,7 +389,7 @@ class AnalisadorDeCorpo:
     def __init__(self,
                  levantado_acima=0.10,
                  estendido_alem=0.25,
-                 tronco_minimo=0.15,
+                 tronco_minimo=0.15, coxa_minima=0.15,
                  quadril_min=0.40, quadril_max=1.30,
                  altura_maxima=2.50,
                  memoria_quadril=120,
@@ -375,6 +397,7 @@ class AnalisadorDeCorpo:
         self.levantado_acima = levantado_acima
         self.estendido_alem = estendido_alem
         self.tronco_minimo = tronco_minimo
+        self.coxa_minima = coxa_minima
         self.quadril_min = quadril_min
         self.quadril_max = quadril_max
         self.altura_maxima = altura_maxima
@@ -386,6 +409,13 @@ class AnalisadorDeCorpo:
     # ------------------------------------------------------------ principal
     def ler(self, pessoa_id, juntas_3d, visivel, inclinacao_rad=0.0,
             rumo_mundo=None, velocidade=0.0):
+        """Atalho para UMA vista. Ver `ler_varias` para o caminho completo."""
+        r = self._ler_uma(pessoa_id, juntas_3d, visivel, inclinacao_rad,
+                          rumo_mundo, velocidade)
+        return r if r is not None else LeituraDoCorpo(motivo="sem pose")
+
+    def _ler_uma(self, pessoa_id, juntas_3d, visivel, inclinacao_rad=0.0,
+                 rumo_mundo=None, velocidade=0.0):
         """Devolve uma `LeituraDoCorpo` a partir de UMA vista.
 
         `juntas_3d`   (17,3) em metros, origem no quadril, eixos da CAMERA
@@ -393,7 +423,7 @@ class AnalisadorDeCorpo:
         `rumo_mundo`  rumo do Kalman, para o azimute aprender
         """
         if juntas_3d is None:
-            return LeituraDoCorpo(motivo="sem pose")
+            return None
 
         j = desfazer_inclinacao(juntas_3d, inclinacao_rad)
 
@@ -409,6 +439,7 @@ class AnalisadorDeCorpo:
             rumo_corpo_camera=rumo_cam,
             altura_quadril=altura_quadril,
             altura_quadril_agora=quadril_agora,
+            verticalidade_coxa=self._verticalidade_da_coxa(j, visivel),
         )
 
         if rumo_cam is None:
@@ -521,6 +552,43 @@ class AnalisadorDeCorpo:
         # resultado que ele mesmo alimenta.
         return float(np.median(historico)), agora
 
+    # ------------------------------------------------------------ coxa
+    def _verticalidade_da_coxa(self, j, visivel):
+        """Quanto a coxa aponta para baixo. 1 = em pe, ~0.2 = agachado.
+
+        A GEOMETRIA, EM UMA LINHA
+
+            em pe       o joelho fica quase 45 cm ABAIXO do quadril
+            agachado    o joelho sobe e avanca; a coxa fica quase horizontal
+
+        Dividir a queda vertical pelo comprimento da coxa da uma razao entre 0
+        e 1 que nao depende do tamanho da pessoa, da distancia a camera, nem de
+        haver chao no quadro.
+
+        USA OS DOIS LADOS, E FICA COM O MAIOR
+
+        Quem agacha costuma pousar um joelho antes do outro, e quem se abaixa
+        para pegar algo no chao frequentemente estende uma perna. A perna mais
+        ESTICADA e a que descreve melhor a postura do tronco — e ficar com o
+        menor faria qualquer passada larga parecer agachamento.
+        """
+        razoes = []
+        for quadril, joelho in ((QUADRIL_ESQ, JOELHO_ESQ),
+                                (QUADRIL_DIR, JOELHO_DIR)):
+            if not _visivel(visivel, quadril, joelho):
+                continue
+            coxa = j[quadril] - j[joelho]
+            comprimento = float(np.linalg.norm(coxa))
+            # Coxa curta demais e reconstrucao ruim, nao anatomia: o segmento
+            # nao pode encolher: ele so pode GIRAR.
+            if comprimento < self.coxa_minima:
+                continue
+            razoes.append(float(coxa[2]) / comprimento)
+
+        if not razoes:
+            return None
+        return max(0.0, min(1.0, max(razoes)))
+
     # ------------------------------------------------------------ bracos
     def _ler_braco(self, j, visivel, i_ombro, i_pulso, lateral, frente,
                    altura_quadril):
@@ -579,6 +647,88 @@ class AnalisadorDeCorpo:
         if not -0.15 <= altura <= self.altura_maxima:
             return None
         return max(0.0, altura)
+
+    # ------------------------------------------------------------ varias vistas
+    def ler_varias(self, pessoa_id, vistas, inclinacao_rad=0.0,
+                   rumo_mundo=None, velocidade=0.0):
+        """Le TODAS as vistas e combina cada resposta com quem conseguiu da-la.
+
+        O PROBLEMA MEDIDO EM 11/08
+
+        Com a frontal sozinha, levantar o braco levava 9 a 10 s para ser
+        reconhecido e lia `ao_lado` em 65 a 87% dos quadros. BAIXAR levava 2 s.
+
+        Essa assimetria e a assinatura de mao saindo do quadro: a webcam do
+        notebook pega do peito para cima, o pulso levantado sobe alem da borda,
+        e o MediaPipe entrega um pulso extrapolado — para baixo, que e o
+        palpite mais provavel dele. Baixando, a mao volta ao quadro e a leitura
+        acerta na hora.
+
+        E a camera lateral estava entregando 100% de pose e nao era consultada,
+        porque a escolha da vista era uma ORDEM FIXA: frontal, senao lateral.
+
+            Preferencia fixa escolhe a vista antes de saber o que se quer ver.
+            A pergunta certa nao e "qual camera e melhor", e "qual delas viu
+            ESTA junta".
+
+        COMO COMBINA
+
+        Cada braco vem da vista que enxergou aquele pulso. O rumo do corpo e a
+        postura vem da primeira que respondeu. Nada e mediado entre vistas —
+        media de duas leituras discordantes produz uma terceira que nao
+        corresponde a nenhuma, que foi o amontoado de juntas de 10/08.
+
+        O AZIMUTE APRENDE DE UMA VISTA SO
+
+        Ele mede o giro DAQUELA lente. Alimenta-lo com duas cameras diferentes
+        misturaria duas constantes distintas — exatamente o caso bimodal que
+        ele existe para recusar. A primeira vista com ombros visiveis e a dona.
+        """
+        leituras = []
+        for i, (juntas, visivel) in enumerate(vistas):
+            leituras.append(self._ler_uma(
+                pessoa_id, juntas, visivel, inclinacao_rad,
+                rumo_mundo if i == 0 else None,
+                velocidade if i == 0 else 0.0))
+
+        leituras = [x for x in leituras if x is not None]
+        if not leituras:
+            return LeituraDoCorpo(motivo="sem pose")
+        if len(leituras) == 1:
+            return leituras[0]
+        return self._combinar(leituras)
+
+    @staticmethod
+    def _combinar(leituras):
+        """Primeira resposta que existe, campo a campo. Sem media."""
+        final = leituras[0]
+
+        def primeiro(pega, invalido=None):
+            for x in leituras:
+                v = pega(x)
+                if v is not invalido and v != invalido:
+                    return v
+            return invalido
+
+        # O braco vem junto com a altura DAQUELA MESMA vista. Separar os dois
+        # deixaria o estado vindo de uma camera e a altura de outra, e a altura
+        # e o que sustenta o estado.
+        for lado, campo_altura in (("braco_esquerdo", "altura_mao_esq"),
+                                   ("braco_direito", "altura_mao_dir")):
+            for x in leituras:
+                if getattr(x, lado) != Braco.DESCONHECIDO:
+                    setattr(final, lado, getattr(x, lado))
+                    setattr(final, campo_altura, getattr(x, campo_altura))
+                    break
+
+        if final.verticalidade_coxa is None:
+            final.verticalidade_coxa = primeiro(
+                lambda x: x.verticalidade_coxa)
+        if final.rumo_corpo is None:
+            final.rumo_corpo = primeiro(lambda x: x.rumo_corpo)
+        if final.altura_quadril is None:
+            final.altura_quadril = primeiro(lambda x: x.altura_quadril)
+        return final
 
     # ------------------------------------------------------------ ciclo
     def esquecer(self, vivos):

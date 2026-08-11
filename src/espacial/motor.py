@@ -130,6 +130,7 @@ class SpatialEngine:
         # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
         # justamente para nao herdar o erro da combinacao.
         self._poses_cruas = {}
+        self._confiaveis = set()
         # FUNIL, nao so rejeicoes.
         #
         # Em 10/08 o painel disse `rejeitadas plausibilidade 358`. Numero solto
@@ -183,6 +184,7 @@ class SpatialEngine:
                 and o.tem_caixa]
         poses = [o for o in observacoes if o.tem_pose]
 
+        self._confiaveis = self._ids_ja_provados()
         medidas = self._medir_no_chao(chao)
         self._alimentar_fusor(poses)
 
@@ -190,6 +192,23 @@ class SpatialEngine:
         self._observar_inclinacao(
             poses, [float(np.hypot(*r.kf.vel)) for r in rastros.values()])
         return self._montar_estados(rastros)
+
+    def _ids_ja_provados(self, percorrido_minimo=0.8):
+        """Ids do rastreador que pertencem a um rastro que JA ANDOU.
+
+        Mobilia nao anda. Oitenta centimetros e curto o bastante para uma
+        pessoa cobrir em dois passos e longo o bastante para nenhuma cadeira
+        acumular por ruido de deteccao.
+
+        A leitura e do quadro ANTERIOR, porque os rastros deste ainda nao
+        foram atualizados. E isso e o correto: a prova tem que vir de antes,
+        nao da caixa que esta sendo julgada agora.
+        """
+        provados = set()
+        for r in self.rastros.rastros.values():
+            if r.percorrido >= percorrido_minimo:
+                provados |= set(r.ids_externos)
+        return provados
 
     # ------------------------------------------------------------ 1 a 4
     def _medir_no_chao(self, observacoes):
@@ -205,8 +224,30 @@ class SpatialEngine:
                 continue
             vivos.add(tid)
 
-            # 1. plausibilidade — geometria, gratis, antes de tudo
-            if self.usar_plausibilidade:
+            # 1. plausibilidade — geometria, gratis, antes de tudo.
+            #
+            # MAS NAO CONTRA QUEM JA PROVOU SER GENTE.
+            #
+            # MEDIDO EM 11/08: `agachar` nunca foi reconhecido, com 36% dos
+            # quadros sem leitura nenhuma e 198 caixas recusadas por
+            # plausibilidade. O motivo e aritmetico: o filtro recusa abaixo de
+            # 1/1,7 = 0,59x da altura de uma pessoa em pe, e agachar da cerca
+            # de 0,62x. Com ruido, metade dos quadros cai abaixo da linha.
+            #
+            #     O filtro que existe para recusar movel estava recusando uma
+            #     pessoa agachada.
+            #
+            # A regra que resolve ja estava escrita no projeto, aplicada do
+            # outro lado: o filtro so APRENDE com quem andou, porque "cadeira
+            # nao anda". Falta usar a mesma prova para a RECUSA. Um rastro que
+            # ja percorreu distancia demonstrou ser gente; uma caixa baixa dele
+            # e agachamento, nao mobilia.
+            #
+            # O que se paga: se uma pessoa desaparecer e uma cadeira herdar o
+            # id do rastreador, a cadeira fica isenta ate o rastro morrer. E um
+            # risco menor que o de nao enxergar ninguem agachado — que e a
+            # postura de quem pega produto na prateleira de baixo.
+            if self.usar_plausibilidade and tid not in self._confiaveis:
                 ok, _motivo = self.plausibilidade.plausivel(o.caixa)
                 if not ok:
                     self.rejeitadas["plausibilidade"] += 1
@@ -362,12 +403,25 @@ class SpatialEngine:
         pulso contra ombro e pulso contra tornozelo sao todos medidas que UMA
         camera responde. Pedir menos e o que a torna confiavel.
 
-        PREFERENCIA PELA FRONTAL, E POR QUE ELA E EXPLICITA
+        TODAS AS VISTAS, E NAO A PRIMEIRA DA FILA
 
-        O MediaPipe foi treinado com imagens frontais. A lateral funciona, mas
-        e vista mais dificil: ombros quase alinhados com a profundidade fazem
-        a projecao horizontal encolher, e o rumo passa a ser definido por
-        ruido. Ordem declarada em vez de "a que chegou por ultimo".
+        Ate 11/08 a escolha era uma ordem fixa: frontal, senao lateral. E a
+        frontal quase sempre respondia, entao a lateral nunca era consultada —
+        mesmo entregando 100% de pose.
+
+        MEDIDO NAQUELE DIA: levantar o braco levava 9 a 10 s para ser
+        reconhecido e lia `ao_lado` em 65 a 87% dos quadros; BAIXAR levava 2 s.
+        A assimetria e assinatura de mao saindo do quadro — a webcam do
+        notebook pega do peito para cima, e o MediaPipe extrapola o pulso que
+        subiu alem da borda.
+
+            Preferencia fixa escolhe a vista antes de saber o que se quer ver.
+            A pergunta certa nao e "qual camera e melhor", e "qual delas viu
+            ESTA junta".
+
+        Agora as duas sao lidas e cada braco vem de quem enxergou aquele pulso.
+        A frontal continua vindo primeiro, e isso ainda importa: e dela que o
+        azimute aprende, porque o giro medido e o DAQUELA lente.
 
         JANELA DE VALIDADE
 
@@ -381,17 +435,16 @@ class SpatialEngine:
             return {}
 
         agora = self._agora()
-        obs = None
+        vistas = []
         for papel in ("frontal", "lateral"):
             candidata = self._poses_cruas.get(papel)
             if candidata is None or candidata.juntas_3d is None:
                 continue
             if agora - candidata.t_mono > validade_s:
                 continue
-            obs = candidata
-            break
+            vistas.append((candidata.juntas_3d, candidata.conf_2d))
 
-        if obs is None:
+        if not vistas:
             return {}
 
         # LIMITE HERDADO, E DECLARADO OUTRA VEZ AQUI: com mais de uma pessoa
@@ -402,8 +455,8 @@ class SpatialEngine:
             return {}
 
         pessoa = estados[0]
-        return {pessoa.id: self.corpo.ler(
-            pessoa.id, obs.juntas_3d, obs.conf_2d,
+        return {pessoa.id: self.corpo.ler_varias(
+            pessoa.id, vistas,
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=pessoa.rumo,
             velocidade=pessoa.velocidade)}
