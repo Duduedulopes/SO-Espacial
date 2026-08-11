@@ -205,8 +205,73 @@ def rodar_roteiro(app, roteiro, placar, voz=None, esperar_enter=False,
         voz.dizer(_veredicto_falado(placar, passo))
 
 
+class Janela:
+    """Mostra as cameras com os landmarks desenhados, ao vivo.
+
+    NAO E ENFEITE, E O UNICO JEITO DE SEPARAR TRES CAUSAS
+
+    O boletim diz `braco_dir_levantado leu ao_lado em 73%`. Isso pode ser:
+
+        o MediaPipe perdeu o pulso           -> pulso VERMELHO na tela
+        achou o pulso no lugar errado        -> pulso verde, posicao absurda
+        achou certo e o limiar recusou       -> pulso verde abaixo da linha
+
+    Os tres pedem consertos diferentes e nenhum aparece num numero.
+
+    Desligada por padrao: desenhar custa caro e o boletim com janela nao e
+    comparavel com o boletim sem. Ver `visual/monitor.py`.
+    """
+
+    TITULO = "conferidor — o que as cameras veem"
+
+    def __init__(self, ligada=True, largura=420):
+        self.ligada = ligada
+        self.largura = largura
+        self._cv2 = None
+        self._monitor = None
+
+        if not ligada:
+            return
+        try:
+            import cv2
+
+            from visual import monitor
+            self._cv2, self._monitor = cv2, monitor
+        except Exception as e:
+            print(f"  (janela desligada: {e})", file=sys.stderr)
+            self.ligada = False
+
+    def mostrar(self, instante, app, passo, acao, certo, acumulado,
+                confirmar_s, leitura=None):
+        if not self.ligada or instante is None:
+            return True
+
+        caixas = {}
+        for tid, caixa in app.espacial.caixas_por_id.items():
+            caixas.setdefault(app.espacial.papel_chao, (caixa, tid))
+
+        tela = self._monitor.mosaico(
+            instante.quadros, app.espacial.poses_por_papel, caixas,
+            largura=self.largura)
+        if tela is None:
+            return True
+
+        faixa = self._monitor.faixa_de_leitura(
+            tela.shape[1], passo, acao, certo, acumulado, confirmar_s, leitura)
+        import numpy as np
+
+        self._cv2.imshow(self.TITULO, np.vstack([tela, faixa]))
+        # ESC encerra a sessao inteira. Sem saida pela janela, quem esta longe
+        # do teclado teria que voltar para o computador so para interromper.
+        return (self._cv2.waitKey(1) & 0xFF) != 27
+
+    def fechar(self):
+        if self.ligada and self._cv2 is not None:
+            self._cv2.destroyAllWindows()
+
+
 def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
-                  confirmar_s=0.8, preparo_s=3.0):
+                  confirmar_s=0.8, preparo_s=3.0, janela=None):
     """Cada passo ESPERA ate o sistema reconhecer a acao. Sem cronometro.
 
     IDEIA DO EDUARDO, 11/08, E ELA MUDA A PERGUNTA DO TESTE
@@ -231,12 +296,14 @@ def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
     e o tempo gasto ate desistir vira o proprio dado.
     """
     voz = voz or Voz(ligada=False)
+    janela = janela or Janela(ligada=False)
 
     for n, passo in enumerate(roteiro, 1):
         voz.dizer(f"Passo {n}. {passo.instrucao}")
 
         if passo.reposiciona or passo.eixo is None:
-            _contar(app, passo, passo.segundos, placar, n, len(roteiro))
+            _contar(app, passo, passo.segundos, placar, n, len(roteiro),
+                    janela, confirmar_s)
             continue
 
         _preparo_curto(n, len(roteiro), passo, preparo_s)
@@ -251,7 +318,8 @@ def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
             decorrido = time.monotonic() - t0
             if decorrido > limite_s:
                 break
-            if app.passo() is None:
+            instante = app.passo()
+            if instante is None:
                 time.sleep(0.005)
                 continue
 
@@ -283,6 +351,14 @@ def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
             _tela_travada(n, len(roteiro), passo, decorrido, acoes, pessoas,
                           certo, acumulado, confirmar_s, limite_s)
 
+            pid = sorted(acoes)[0] if acoes else None
+            if not janela.mostrar(
+                    instante, app, passo,
+                    acoes[pid][0] if pid is not None else None,
+                    certo, acumulado, confirmar_s,
+                    app.espacial.leituras.get(pid)):
+                raise KeyboardInterrupt
+
         espera = time.monotonic() - t0
         placar.marcar_tempo(passo, t_primeira, t_confirmada, espera)
         apito_de_fim()
@@ -298,15 +374,26 @@ def _esta_certo(passo, acoes, pessoas):
     return getattr(acoes[pid][0], passo.eixo, None) in passo.certo
 
 
-def _contar(app, passo, segundos, placar, n, total):
+def _contar(app, passo, segundos, placar, n, total, janela=None,
+            confirmar_s=0.8):
     """Passo sem nota: so espera o tempo declarado."""
     t0 = time.monotonic()
     while time.monotonic() - t0 < segundos:
-        if app.passo() is None:
+        instante = app.passo()
+        if instante is None:
             time.sleep(0.005)
             continue
-        _tela(n, total, passo, time.monotonic() - t0,
-              app.espacial.acoes, dict(app.gemeo.pessoas))
+        acoes = app.espacial.acoes
+        _tela(n, total, passo, time.monotonic() - t0, acoes,
+              dict(app.gemeo.pessoas))
+        if janela is not None:
+            pid = sorted(acoes)[0] if acoes else None
+            if not janela.mostrar(
+                    instante, app, passo,
+                    acoes[pid][0] if pid is not None else None,
+                    False, 0.0, confirmar_s,
+                    app.espacial.leituras.get(pid)):
+                raise KeyboardInterrupt
 
 
 def _preparo_curto(n, total, passo, preparo_s):
@@ -621,6 +708,11 @@ def main():
                    help="segundos ate desistir de um passo travado")
     p.add_argument("--confirmar", type=float, default=0.8,
                    help="segundos de leitura certa SUSTENTADA para confirmar")
+    p.add_argument("--janela", action="store_true",
+                   help="mostra as cameras com os landmarks desenhados. "
+                        "Verde = junta MEDIDA, vermelho = extrapolada. "
+                        "Custa fps: nao compare boletim com e sem janela")
+    p.add_argument("--largura-janela", type=int, default=420)
     args = p.parse_args()
 
     if args.listar:
@@ -647,6 +739,7 @@ def main():
     laudo, placar = {}, Placar()
     roteiro = escolher(args.acao)
     voz = Voz(ligada=not args.sem_voz)
+    janela = Janela(ligada=args.janela, largura=args.largura_janela)
     try:
         laudo = conferir_cameras(app, args.segundos_camera)
         ruins = mostrar_laudo(laudo)
@@ -665,6 +758,13 @@ def main():
             print("  Modo TRAVADO: cada passo espera ate o sistema RECONHECER.")
             print("  Segure a posicao ate ouvir que confirmou. Nao ha pressa —")
             print(f"  ele desiste sozinho depois de {args.limite:.0f}s.")
+        if janela.ligada:
+            print("\n  JANELA LIGADA. Verde = junta MEDIDA, vermelho = "
+                  "extrapolada.")
+            print("  A linha amarela e a altura do ombro: `levantado` exige o")
+            print("  pulso ACIMA dela. ESC na janela encerra a sessao.")
+            print("  Desenhar custa fps — nao compare este boletim com um sem "
+                  "janela.")
         if ruins:
             print("  Com camera ruim, o resultado mede o hardware, nao o sistema.")
         input("\n  ENTER para comecar, Ctrl+C para sair. ")
@@ -676,12 +776,14 @@ def main():
                           preparo_s=args.preparo)
         else:
             rodar_travado(app, roteiro, placar, voz,
-                          limite_s=args.limite, confirmar_s=args.confirmar)
+                          limite_s=args.limite, confirmar_s=args.confirmar,
+                          janela=janela)
         voz.dizer("Terminado.")
     except KeyboardInterrupt:
         print("\n\n  interrompido — o boletim vale so ate aqui")
     finally:
         voz.calar()
+        janela.fechar()
         app.parar()
 
     print(f"{LIMPAR}BOLETIM\n")

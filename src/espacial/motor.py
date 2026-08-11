@@ -193,6 +193,21 @@ class SpatialEngine:
             poses, [float(np.hypot(*r.kf.vel)) for r in rastros.values()])
         return self._montar_estados(rastros)
 
+    @property
+    def poses_por_papel(self):
+        """Ultima pose CRUA de cada vista. Para a janela desenhar o que entrou.
+
+        Publica porque a janela precisa mostrar exatamente os landmarks que o
+        analisador consumiu — nao uma segunda estimativa. Ver a entrada de
+        verdade e a unica forma de separar "o modelo perdeu a junta" de "o
+        limiar recusou a junta".
+        """
+        return dict(self._poses_cruas)
+
+    @property
+    def caixas_por_id(self):
+        return dict(self._caixas)
+
     def _ids_ja_provados(self, percorrido_minimo=0.8):
         """Ids do rastreador que pertencem a um rastro que JA ANDOU.
 
