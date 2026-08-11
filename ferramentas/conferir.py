@@ -56,7 +56,9 @@ from src.acao.gabarito import (                            # noqa: E402
 )
 from src.app.orquestrador import Orquestrador              # noqa: E402
 from src.nucleo import log as logmod                       # noqa: E402
-from src.nucleo.voz import Voz, apito_de_fim, apito_de_inicio  # noqa: E402
+from src.nucleo.voz import (                                # noqa: E402
+    Voz, apitar, apito_de_fim, apito_de_inicio,
+)
 
 LIMPAR = "\033[H\033[J"
 
@@ -84,21 +86,65 @@ def conferir_cameras(app, segundos=20.0):
     print("  Isto mede o que chega ao programa, nao o que aparece no Windows.\n")
 
     t0 = time.monotonic()
+    enquadramento = {}
     while time.monotonic() - t0 < segundos:
         if app.passo() is None:
             time.sleep(0.005)
             continue
+        _amostrar_enquadramento(app, enquadramento)
         falta = segundos - (time.monotonic() - t0)
         print(f"{LIMPAR}FASE 1 — SAUDE DAS CAMERAS      faltam {falta:4.1f} s\n")
         print("\n".join("  " + l for l in app.cameras.painel()))
         print()
         print("\n".join("  " + l for l in app.visao.painel()))
 
-    return _laudo_das_cameras(app)
+    return _laudo_das_cameras(app, enquadramento)
 
 
-def _laudo_das_cameras(app):
+# Juntas que a camada de acao consome. Nariz, olhos e orelhas ficam de fora:
+# eles nao sustentam nenhuma resposta e enchem a estatistica de otimismo — uma
+# camera apontada so para o rosto mostraria 5 de 5 e pareceria perfeita.
+JUNTAS_QUE_IMPORTAM = {
+    "ombros": (5, 6), "cotovelos": (7, 8), "pulsos": (9, 10),
+    "quadris": (11, 12), "joelhos": (13, 14), "tornozelos": (15, 16),
+}
+
+
+def _amostrar_enquadramento(app, acumulador):
+    """Que fracao do CORPO cada vista esta realmente vendo.
+
+    POR QUE ISTO PRECISOU ENTRAR NO LAUDO
+
+    MEDIDO EM VIDEO, 11/08: a camera frontal foi aprovada com brilho 84 e 100%
+    de taxa de pose — e o video mostrou que, em varios momentos, ela via so a
+    CABECA do Eduardo. Em outros, ele estava colado nela e em contraluz, virado
+    silhueta preta.
+
+    Taxa de pose nao mede isso. O MediaPipe devolve uma pose sempre que acha um
+    corpo, mesmo que so a cabeca esteja no quadro — e devolve as 17 juntas do
+    mesmo jeito, extrapolando o resto.
+
+        `100% de pose` responde "achou alguem". Nao responde "viu o que eu
+        preciso medir".
+
+    Aqui a conta e por PAR de juntas, porque e assim que a camada de acao
+    consome: bracos precisam de ombro E pulso; agachamento precisa de quadril E
+    joelho; altura da mao precisa de tornozelo.
+    """
+    for papel, obs in app.espacial.poses_por_papel.items():
+        if obs is None or obs.conf_2d is None:
+            continue
+        alvo = acumulador.setdefault(papel, {"quadros": 0})
+        alvo["quadros"] += 1
+        conf = obs.conf_2d
+        for nome, (a, b) in JUNTAS_QUE_IMPORTAM.items():
+            if float(conf[a]) > 0.5 and float(conf[b]) > 0.5:
+                alvo[nome] = alvo.get(nome, 0) + 1
+
+
+def _laudo_das_cameras(app, enquadramento=None):
     laudo = {}
+    enquadramento = enquadramento or {}
     poses = {p: ex.t.metricas for p, ex in app.visao.executores.items()}
 
     for papel, fonte in app.cameras.fontes.items():
@@ -120,6 +166,13 @@ def _laudo_das_cameras(app):
         if pm is not None and pm.quadros > 30 and pm.saidas == 0:
             queixas.append(f"{pm.quadros} quadros e ZERO poses")
 
+        visto = {}
+        e = enquadramento.get(papel)
+        if e and e["quadros"] >= 20:
+            n = e["quadros"]
+            visto = {k: round(e.get(k, 0) / n, 2) for k in JUNTAS_QUE_IMPORTAM}
+            queixas += _queixas_de_enquadramento(visto)
+
         laudo[papel] = {
             "estado": fonte.estado.value,
             "fps": round(m.fps, 1),
@@ -128,9 +181,32 @@ def _laudo_das_cameras(app):
             "falhas": m.falhas_leitura,
             "poses": pm.saidas if pm else None,
             "quadros_pose": pm.quadros if pm else None,
+            "enquadramento": visto,
             "queixas": queixas,
         }
     return laudo
+
+
+def _queixas_de_enquadramento(visto, minimo=0.6):
+    """Traduz a fracao vista em qual RESPOSTA fica sem base.
+
+    Uma lista de porcentagens nao diz o que fazer. Dizer que `agachar` vai
+    falhar porque o joelho aparece em 12% dos quadros diz — e aponta a camera,
+    nao o codigo.
+    """
+    depende = [
+        ("ombros", "rumo do corpo e estado dos bracos"),
+        ("pulsos", "estado dos bracos"),
+        ("joelhos", "agachamento"),
+        ("tornozelos", "ALTURA DA MAO em metros"),
+    ]
+    queixas = []
+    for junta, resposta in depende:
+        f = visto.get(junta)
+        if f is not None and f < minimo:
+            queixas.append(f"{junta} visiveis em so {f:.0%} dos quadros "
+                           f"-> {resposta} fica sem base")
+    return queixas
 
 
 def mostrar_laudo(laudo):
@@ -141,6 +217,10 @@ def mostrar_laudo(laudo):
         print(f"  {marca} {papel:9} {d['fps']:5.1f} fps  "
               f"brilho {d['brilho']:5.1f}  quadros {d['recebidos']:5}  "
               f"poses {pose}")
+        if d.get("enquadramento"):
+            visto = "  ".join(f"{k[:4]} {v:.0%}"
+                              for k, v in d["enquadramento"].items())
+            print(f"         ve: {visto}")
         for q in d["queixas"]:
             print(f"         ! {q}")
 
@@ -271,7 +351,7 @@ class Janela:
 
 
 def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
-                  confirmar_s=0.8, preparo_s=3.0, janela=None):
+                  confirmar_s=0.8, preparo_s=2.0, janela=None):
     """Cada passo ESPERA ate o sistema reconhecer a acao. Sem cronometro.
 
     IDEIA DO EDUARDO, 11/08, E ELA MUDA A PERGUNTA DO TESTE
@@ -299,11 +379,46 @@ def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
     janela = janela or Janela(ligada=False)
 
     for n, passo in enumerate(roteiro, 1):
-        voz.dizer(f"Passo {n}. {passo.instrucao}")
+        # ESPERA A FALA TERMINAR ANTES DE COMECAR O PASSO.
+        #
+        # RELATADO PELO EDUARDO, 11/08: "pulou o passo 4, 5, 6" e "pulou o
+        # passo 8". Os quatro sao reposicionamentos, que duram 3 segundos —
+        # e falar "Passo cinco, va ate a borda da direita" tambem leva uns 3.
+        #
+        # Como `dizer` CALA a fala anterior antes de comecar a proxima, tres
+        # reposicionamentos seguidos viravam frases cortadas pela metade. Os
+        # passos rodaram; quem executa e que nao teve como saber o que fazer.
+        #
+        #     Instrucao que termina depois do passo que ela instrui nao e
+        #     instrucao.
+        #
+        # Bloquear custa o tempo da frase e devolve a unica coisa que importa
+        # aqui: a pessoa ouviu o pedido antes de o cronometro correr.
+        voz.dizer(f"Passo {n}. {passo.instrucao}", esperar=True)
 
         if passo.reposiciona or passo.eixo is None:
+            # Um apito curto marca que um passo COMECOU. Sem ele, um
+            # reposicionamento silencioso entre dois passos com apito parece
+            # que nao aconteceu.
+            apitar(520, 90)
             _contar(app, passo, passo.segundos, placar, n, len(roteiro),
                     janela, confirmar_s)
+            continue
+
+        # CAMINHADA NAO SE SEGURA. Cronometra e passa adiante.
+        #
+        # Travar um passo de locomocao em 1,4 m produz vinte segundos de
+        # pessoa parada esperando uma confirmacao que nao pode vir — e a
+        # mediana da velocidade daquele passo passa a descrever a espera, nao
+        # a caminhada. Ver o campo `travavel` em `Passo`.
+        if not passo.travavel:
+            _preparo_curto(n, len(roteiro), passo, preparo_s,
+                           "ATRAVESSE a area sem parar")
+            apito_de_inicio()
+            _contar(app, passo, passo.segundos, placar, n, len(roteiro),
+                    janela, confirmar_s, pontuar=True)
+            apito_de_fim()
+            voz.dizer(_veredicto_falado(placar, passo))
             continue
 
         _preparo_curto(n, len(roteiro), passo, preparo_s)
@@ -375,17 +490,20 @@ def _esta_certo(passo, acoes, pessoas):
 
 
 def _contar(app, passo, segundos, placar, n, total, janela=None,
-            confirmar_s=0.8):
-    """Passo sem nota: so espera o tempo declarado."""
+            confirmar_s=0.8, pontuar=False):
+    """Roda por um tempo fixo. `pontuar` decide se os quadros valem nota."""
     t0 = time.monotonic()
     while time.monotonic() - t0 < segundos:
         instante = app.passo()
         if instante is None:
             time.sleep(0.005)
             continue
+        decorrido = time.monotonic() - t0
         acoes = app.espacial.acoes
-        _tela(n, total, passo, time.monotonic() - t0, acoes,
-              dict(app.gemeo.pessoas))
+        pessoas = dict(app.gemeo.pessoas)
+        if pontuar:
+            placar.anotar(passo, acoes, decorrido, pessoas)
+        _tela(n, total, passo, decorrido, acoes, pessoas)
         if janela is not None:
             pid = sorted(acoes)[0] if acoes else None
             if not janela.mostrar(
@@ -396,10 +514,11 @@ def _contar(app, passo, segundos, placar, n, total, janela=None,
                 raise KeyboardInterrupt
 
 
-def _preparo_curto(n, total, passo, preparo_s):
+def _preparo_curto(n, total, passo, preparo_s,
+                   dica="SEGURE ate ouvir que confirmou"):
     print(f"{LIMPAR}  PASSO {n} de {total}\n")
     print(f"      >>> {passo.instrucao} <<<")
-    print("          SEGURE ate ouvir que confirmou\n")
+    print(f"          {dica}\n")
     for falta in range(int(preparo_s), 0, -1):
         print(f"\r      comeca em {falta}...   ", end="", flush=True)
         time.sleep(1.0)

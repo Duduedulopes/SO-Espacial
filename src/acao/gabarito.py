@@ -83,6 +83,26 @@ class Passo:
     #     Um roteiro que expulsa o sujeito da cena mede a saida dele.
     desloca: bool = False
 
+    # ESTA ACAO PODE SER SEGURADA ATE O SISTEMA RECONHECER?
+    #
+    # O modo travado manda "segure ate confirmar". Isso funciona para postura e
+    # bracos: da para ficar agachado dez segundos, da para segurar o braco no
+    # alto. Nao funciona para caminhada.
+    #
+    # MEDIDO EM 11/08, EM VIDEO: durante um passo de 25 s pedindo "ande para
+    # frente", o Eduardo ficou DOZE SEGUNDOS no mesmo lugar. Nao por falta de
+    # esforco — em 1,4 m ele atravessa em dois segundos, chega na parede, e ai
+    # so resta esperar parado. A mediana da velocidade no passo inteiro ficou
+    # em 0,03 m/s e o sistema respondeu `parado`, corretamente.
+    #
+    #     O instrumento pediu uma acao fisicamente insustentavel e depois
+    #     reprovou quem nao a sustentou.
+    #
+    # Caminhada volta a ser cronometrada: uma janela curta, atravessar e
+    # pronto. O que se perde e a comodidade de nao ter pressa; o que se ganha e
+    # medir a acao que foi pedida.
+    travavel: bool = True
+
     # DOIS PASSOS SEM NOTA, COM PAPEIS DIFERENTES.
     #
     # Ambos tem `eixo=None`, mas nao sao intercambiaveis:
@@ -169,9 +189,10 @@ def roteiro_padrao():
     from src.acao.vocabulario import Braco, Locomocao, Postura
 
     def andar(nome, instrucao, esperado, segundos=4.0):
+        # `travavel=False`: caminhada nao se sustenta em 1,4 m. Ver `Passo`.
         return Passo(nome, instrucao, eixo="locomocao", certo=(esperado,),
                      pobre=(Locomocao.ANDANDO,), segundos=segundos,
-                     acomodacao_s=0.8, desloca=True)
+                     acomodacao_s=0.8, desloca=True, travavel=False)
 
     def ir(instrucao, segundos=4.0):
         return Passo("posicionar", instrucao, eixo=None, certo=(),

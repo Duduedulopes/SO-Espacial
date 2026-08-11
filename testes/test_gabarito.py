@@ -614,3 +614,37 @@ def test_o_limite_existe_para_a_sessao_nao_travar():
 
     assinatura = inspect.signature(rodar_travado)
     assert assinatura.parameters["limite_s"].default > 0
+
+
+# ----------------------------------------- o que se sustenta e o que nao
+def test_caminhada_nao_e_travavel():
+    """MEDIDO EM VIDEO, 11/08: num passo de 25 s pedindo `ande para frente`, o
+    Eduardo ficou DOZE SEGUNDOS no mesmo lugar. Nao por falta de esforco — em
+    1,4 m ele atravessa em dois segundos, chega na parede, e so resta esperar.
+
+    A mediana da velocidade daquele passo ficou em 0,03 m/s e o sistema
+    respondeu `parado`, corretamente.
+
+        O instrumento pediu uma acao fisicamente insustentavel e depois
+        reprovou quem nao a sustentou.
+    """
+    for p in roteiro_padrao():
+        if p.eixo == "locomocao" and p.acao.startswith("andar"):
+            assert not p.travavel, f"{p.acao} nao pode ser travado"
+
+
+def test_postura_e_bracos_continuam_travaveis():
+    """Da para ficar agachado dez segundos e segurar o braco no alto. Tirar a
+    trava deles perderia o unico modo que mede tempo de reconhecimento."""
+    for p in roteiro_padrao():
+        if p.eixo in ("postura", "braco_direito", "braco_esquerdo"):
+            assert p.travavel, f"{p.acao} deveria ser travavel"
+
+
+def test_parado_e_travavel_mesmo_sendo_locomocao():
+    """`parado` e locomocao e SE SUSTENTA — a distincao nao e pelo eixo, e
+    pela fisica do movimento."""
+    por = {p.acao: p for p in roteiro_padrao()}
+
+    assert por["parado"].travavel
+    assert por["parado_fim"].travavel
