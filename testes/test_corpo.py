@@ -40,7 +40,9 @@ from src.acao.angulos import (                                     # noqa: E402
     concentracao, diferenca_angular, media_circular,
 )
 from src.acao.classificador import ClassificadorDeAcao             # noqa: E402
-from src.acao.corpo import AnalisadorDeCorpo, EstimadorDeAzimute   # noqa: E402
+from src.acao.corpo import (                                       # noqa: E402
+    QUADRIL_DIR, QUADRIL_ESQ, AnalisadorDeCorpo, EstimadorDeAzimute,
+)
 from src.acao.vocabulario import Braco, Locomocao, Postura         # noqa: E402
 from src.espacial.estado import EstadoDePessoa                     # noqa: E402
 
@@ -1294,3 +1296,72 @@ def test_bit_fixado_sem_discordancia_nao_alarma():
 
     assert s.sinal == 1
     assert "DISCORDAM" not in s.diagnostico
+
+
+# ---------------------------------------------------------------- a origem
+#
+# `pose3d` ancora o esqueleto subtraindo o centro do quadril de todas as
+# juntas. Isso acontece SEMPRE, com quadril visto ou extrapolado, e ate 11/08
+# a altura da mao nao tinha como saber a diferenca.
+#
+# O laudo do dia deu o tamanho do buraco: a frontal via os quadris em 26% dos
+# quadros e a lateral em 100%. Em tres de cada quatro respostas da frontal, o
+# pulso foi medido contra uma origem que ninguem viu.
+#
+#     O ponto fixo de um erro diz onde ele mora. A estante mediu compressao a
+#     51% com ponto fixo EM CIMA DO QUADRIL — porque o quadril e a origem, e
+#     a origem estava errada.
+
+def test_sem_quadril_visivel_nao_ha_altura_da_mao():
+    """Nao se mede altura contra uma origem que nao foi vista."""
+    a = AnalisadorDeCorpo()
+    leitura = a.ler(1, corpo(mao_dir=(1.20, 0.30)),
+                    tudo_visivel(exceto=(QUADRIL_ESQ, QUADRIL_DIR)))
+
+    assert leitura.altura_mao_dir is None
+    assert leitura.altura_mao_esq is None
+
+
+def test_um_quadril_so_nao_basta():
+    """A origem e a MEDIA dos dois. Um visto e outro inventado inventa a media."""
+    a = AnalisadorDeCorpo()
+    leitura = a.ler(1, corpo(mao_dir=(1.20, 0.30)),
+                    tudo_visivel(exceto=(QUADRIL_DIR,)))
+
+    assert leitura.altura_mao_dir is None
+
+
+def test_o_estado_do_braco_sobrevive_sem_quadril():
+    """A guarda vale para a ALTURA, nao para o vocabulario.
+
+    `levantado` compara o pulso com o OMBRO — geometria interna que nao passa
+    pela origem. Calar isso junto jogaria fora um sinal que continua valido, e
+    o vocabulario fechado e justamente o que precisa sobreviver a vista ruim.
+    """
+    a = AnalisadorDeCorpo()
+    leitura = a.ler(1, corpo(mao_dir=(1.75, 0.10)),
+                    tudo_visivel(exceto=(QUADRIL_ESQ, QUADRIL_DIR)))
+
+    assert leitura.braco_direito == Braco.LEVANTADO
+    assert leitura.altura_mao_dir is None
+
+
+def test_a_vista_que_viu_o_quadril_responde_sem_lista_de_preferencia():
+    """A complementaridade passa a ser por MERITO, quadro a quadro.
+
+    Nao ha ordem a manter: quem viu a origem responde, quem nao viu se cala, e
+    `_combinar` fica com a resposta que existe. E a situacao real medida em
+    11/08 — frontal cega do quadril, lateral enxergando 100%.
+    """
+    a = AnalisadorDeCorpo()
+    esqueleto = corpo(mao_dir=(1.20, 0.30))
+
+    leitura = a.ler_varias(
+        1,
+        [(esqueleto, tudo_visivel(exceto=(QUADRIL_ESQ, QUADRIL_DIR))),
+         (esqueleto, tudo_visivel())],
+        nomes=["frontal", "lateral"])
+
+    assert leitura.altura_mao_dir is not None
+    assert abs(leitura.altura_mao_dir - 1.20) < 0.01
+    assert leitura.fonte_braco_dir == "lateral"

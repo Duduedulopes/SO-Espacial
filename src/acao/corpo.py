@@ -1047,16 +1047,47 @@ class AnalisadorDeCorpo:
         else:
             estado = Braco.AO_LADO
 
-        return estado, self._altura_da_mao(j, i_pulso, altura_quadril)
+        return estado, self._altura_da_mao(j, i_pulso, altura_quadril, visivel)
 
-    def _altura_da_mao(self, j, i_pulso, altura_quadril):
+    def _altura_da_mao(self, j, i_pulso, altura_quadril, visivel=None):
         """Metros do chao ate o pulso. `None` quando nao ha base para dizer.
 
         O quadril e a origem, entao a altura do pulso e a altura do quadril
         mais o quanto o pulso esta acima dele. Se a altura do quadril nunca
         foi medida, nao ha resposta — e o correto e dizer isso.
+
+        A ORIGEM TAMBEM PRECISA TER SIDO VISTA, 11/08
+
+        `j[i_pulso][2]` e medido contra o centro do quadril, que `pose3d`
+        subtrai de todas as juntas para ancorar o esqueleto. Isso acontece
+        SEMPRE, com quadril visto ou extrapolado — e a conta nao tinha como
+        saber a diferenca.
+
+        O laudo mostrou o tamanho do buraco:
+
+            frontal    quadris visiveis em  26% dos quadros
+            lateral    quadris visiveis em 100% dos quadros
+
+        Ou seja: em tres de cada quatro quadros em que a frontal respondeu a
+        altura da mao, ela mediu o pulso contra uma origem que ninguem viu. E
+        origem inventada nao desloca o resultado de forma constante — ela
+        deriva junto com o corpo, o que produz erro proporcional a distancia
+        do quadril. Foi exatamente o que a estante mediu: compressao a 51% com
+        ponto fixo EM CIMA DO QUADRIL.
+
+            O ponto fixo de um erro diz onde ele mora. Aqui o erro era zero no
+            quadril porque o quadril e a origem — a origem estava errada.
+
+        E ESTA GUARDA ESCOLHE A CAMERA SOZINHA
+
+        Nao ha lista de preferencia a manter: quem viu o quadril responde,
+        quem nao viu se cala, e `_combinar` pega a resposta que existe. A
+        lateral entra no lugar da frontal por MERITO, quadro a quadro, sem
+        ninguem ter decidido antes qual delas e a boa.
         """
         if altura_quadril is None:
+            return None
+        if not _visivel(visivel, QUADRIL_ESQ, QUADRIL_DIR):
             return None
 
         altura = altura_quadril + float(j[i_pulso][2])
@@ -1191,18 +1222,51 @@ class AnalisadorDeCorpo:
                     return v
             return invalido
 
-        # O braco vem junto com a altura DAQUELA MESMA vista. Separar os dois
-        # deixaria o estado vindo de uma camera e a altura de outra, e a altura
-        # e o que sustenta o estado.
+        # O BRACO VEM JUNTO COM A ALTURA DAQUELA MESMA VISTA — QUANDO DA.
+        #
+        # A regra original era so a primeira metade: estado e altura sempre da
+        # mesma camera, porque estado vindo de uma e altura de outra pode
+        # descrever duas poses diferentes do mesmo instante. Isso continua
+        # valendo e continua sendo a primeira escolha.
+        #
+        # O QUE FALTAVA: A PRIMEIRA VISTA A RESPONDER BLOQUEAVA AS OUTRAS
+        #
+        # As duas perguntas nao custam o mesmo. O ESTADO precisa de ombro e
+        # pulso. A ALTURA precisa de ombro, pulso E QUADRIL, porque o quadril
+        # e a origem contra a qual ela e medida. A exigencia da altura contem
+        # a do estado.
+        #
+        # Medido em 11/08:
+        #
+        #     frontal    quadris  26%   ->  classifica, nao mede
+        #     lateral    quadris 100%   ->  classifica E mede
+        #
+        # Com a regra antiga a frontal respondia primeiro, dizia o estado e
+        # entregava altura `None` — e a lateral, que tinha a resposta, nunca
+        # era consultada. Uma camera cega da origem calava a que enxergava.
+        #
+        #     Vista que responde MENOS nao pode ganhar de vista que responde
+        #     MAIS so por chegar antes na lista.
+        #
+        # Agora a busca e em dois passes: primeiro alguem que responda as
+        # DUAS, e so depois alguem que responda ao menos o estado. O
+        # emparelhamento e preservado nos dois casos — o que deixa de existir
+        # e o bloqueio.
         for lado, campo_altura, campo_fonte in (
                 ("braco_esquerdo", "altura_mao_esq", "fonte_braco_esq"),
                 ("braco_direito", "altura_mao_dir", "fonte_braco_dir")):
-            for nome, x in zip(nomes, leituras):
-                if getattr(x, lado) != Braco.DESCONHECIDO:
-                    setattr(final, lado, getattr(x, lado))
-                    setattr(final, campo_altura, getattr(x, campo_altura))
-                    setattr(final, campo_fonte, nome)
-                    break
+            candidatas = [(nome, x) for nome, x in zip(nomes, leituras)
+                          if getattr(x, lado) != Braco.DESCONHECIDO]
+            escolhida = next(
+                ((nome, x) for nome, x in candidatas
+                 if getattr(x, campo_altura) is not None),
+                candidatas[0] if candidatas else None)
+            if escolhida is None:
+                continue
+            nome, x = escolhida
+            setattr(final, lado, getattr(x, lado))
+            setattr(final, campo_altura, getattr(x, campo_altura))
+            setattr(final, campo_fonte, nome)
 
         if final.verticalidade_coxa is None:
             final.verticalidade_coxa = primeiro(
