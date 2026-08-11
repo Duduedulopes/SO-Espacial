@@ -319,6 +319,76 @@ def boletim(resultados, prateleiras):
     return linhas, vies_medio
 
 
+def chamada_das_cameras(app, espera_s=8.0):
+    """Quem esta de pe, ANTES do teste comecar — nao depois dele.
+
+    POR QUE ISTO PRECISOU EXISTIR, 11/08
+
+    O tablet caiu da rede no meio da sessao. O sistema fez tudo certo:
+    registrou a falha, agendou nova tentativa, dobrou o intervalo. Mas o
+    conferidor seguiu ate o `ENTER para comecar` como se nada tivesse
+    acontecido, e o rodape do log estava a doze linhas de distancia da
+    pergunta.
+
+    Se o ENTER fosse apertado ali, o teste inteiro rodaria com DUAS cameras e
+    o boletim so contaria isso no fim, depois de cinco prateleiras e alguns
+    minutos de agachamento. O numero sairia — e sairia sem a vista que existe
+    justamente para cobrir o que a frontal perde.
+
+        A hora de descobrir que falta uma camera e antes de a pessoa
+        agachar cinco vezes, nao depois.
+
+    E O TESTE DEGRADADO CONTINUA VALENDO — DESDE QUE SEJA ESCOLHIDO
+
+    Rodar com duas cameras nao e proibido: mede o que duas cameras medem, e as
+    vezes e exatamente o que se quer saber. O que nao pode e acontecer sozinho.
+    Por isso a falta nao aborta nada — ela troca o `ENTER` distraido por uma
+    palavra digitada de proposito.
+
+        Degradar em silencio produz um numero que ninguem sabe interpretar.
+        Degradar com consentimento produz uma medicao com escopo declarado.
+    """
+    def estados():
+        return {p: f.estado.value for p, f in app.cameras.fontes.items()}
+
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < espera_s:
+        app.passo()
+        if all(e == "online" for e in estados().values()):
+            break
+        time.sleep(0.05)
+    return estados()
+
+
+def _mostrar_chamada(estados):
+    """Imprime a chamada e devolve os papeis que nao responderam."""
+    fora = [p for p, e in estados.items() if e != "online"]
+
+    print("  CAMERAS:")
+    for papel, estado in estados.items():
+        marca = "" if estado == "online" else "   <<< NAO VAI RESPONDER NADA"
+        print(f"    {papel:10} {estado}{marca}")
+    print()
+
+    if not fora:
+        return fora
+
+    # O QUE CADA VISTA CUSTA, DITO PELO NOME. Um aviso generico ("camera
+    # offline") nao ajuda a decidir; saber QUAL pergunta fica sem resposta,
+    # sim.
+    perde = {
+        "alto": ("a posicao no chao, a estatura em metros e o rumo do corpo. "
+                 "Sem ela a altura da mao volta a sair estimada pelo tronco"),
+        "frontal": "a altura do pulso vista de frente — a fonte principal",
+        "lateral": ("a reserva que responde quando a frontal perde o pulso. "
+                    "Sem ela, complementaridade nenhuma e demonstrada"),
+    }
+    for papel in fora:
+        print(f"  SEM '{papel}' voce perde {perde.get(papel, 'essa vista')}.")
+    print()
+    return fora
+
+
 def main():
     p = argparse.ArgumentParser(description="Confere a altura da mao")
     p.add_argument("--estante", default="loja/estante.json")
@@ -345,7 +415,15 @@ def main():
 
     resultados = []
     try:
+        estados = chamada_das_cameras(app)
+
         print(f"{LIMPAR}CONFERIR A ALTURA DA MAO\n")
+        fora = _mostrar_chamada(estados)
+        if fora and input("  Digite CONTINUAR para medir assim mesmo, "
+                          "ou ENTER para sair. ").strip().upper() != "CONTINUAR":
+            print("\n  saindo. Ponha a camera de pe e rode de novo.")
+            return 1
+
         print(f"  {estante['nome']}, {len(prateleiras)} prateleiras.\n")
         print("  Fique DE LADO para a camera frontal, de frente para a estante.")
         print("  A cada pedido, pouse a mao na prateleira dita e SEGURE.")
