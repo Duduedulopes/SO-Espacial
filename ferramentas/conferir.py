@@ -673,7 +673,8 @@ def diagnostico_da_cascata(app):
     incl = app.espacial.inclinacao
 
     linhas = ["O QUE O SISTEMA APRENDEU NESTA SESSAO",
-              f"  azimute da camera   {e['corpo']}",
+              f"  rumo do corpo       {e['rumo']}",
+              f"  azimute (reserva)   {e['corpo']}",
               f"  inclinacao          {e['inclinacao']}",
               f"  altura de pessoa    {e['altura']}"]
 

@@ -505,6 +505,93 @@ def rumo_do_alto(juntas_2d, conf, para_metros, H, largura_minima=0.15):
     return float(np.arctan2(-dx, dy))
 
 
+class SinalDoRumo:
+    """Descobre se o rumo do alto sai certo ou invertido. UM BIT.
+
+    O DEFEITO QUE ISTO CONSERTA
+
+    MEDIDO EM 11/08: com o rumo vindo da camera do alto, quem andava para
+    frente era lido como `andando_tras` — 180 graus exatos, nao ruido.
+
+    A causa e uma suposicao minha que nao tinha como ser verificada. Deduzi
+    `frente = (dy, -dx)` assumindo que o sistema de coordenadas da homografia e
+    DESTRO com z para cima. Se a calibracao produziu um sistema canhoto — e
+    isso depende so da ordem em que os pontos foram clicados — o ombro esquerdo
+    aparece onde eu espero o direito, e o rumo sai virado.
+
+        Deduzi uma convencao que so o dado pode responder.
+
+    POR QUE UM BIT E DIFERENTE DE UM ANGULO
+
+    Todo o esforco anterior tentou aprender o azimute, que e um numero
+    continuo entre -180 e +180. Amostras ruidosas espalham, a moda escolhe o
+    grupo errado, e o resultado foi um dia inteiro de tentativas.
+
+    Aqui a pergunta e outra: certo ou invertido? Duas opcoes. Uma votacao por
+    maioria tolera muito mais ruido que uma media circular — cada amostra so
+    precisa acertar de que LADO esta, nao onde exatamente.
+
+        Uma pergunta binaria sobrevive a um dado que nao sustenta uma
+        pergunta continua.
+
+    Na pratica: quem anda para frente tem o corpo apontando para o mesmo lado
+    do deslocamento. Se o rumo lido concorda dentro de 90 graus, um voto para
+    `certo`; se discorda, um voto para `invertido`. A maioria decide.
+    """
+
+    def __init__(self, minimo_votos=15, maioria=0.7):
+        self.minimo = minimo_votos
+        self.maioria = maioria
+        self.certo = 0
+        self.invertido = 0
+
+    def votar(self, rumo_lido, rumo_andado):
+        if rumo_lido is None or rumo_andado is None:
+            return
+        if abs(diferenca_angular(rumo_lido, rumo_andado)) < np.pi / 2:
+            self.certo += 1
+        else:
+            self.invertido += 1
+
+    @property
+    def total(self):
+        return self.certo + self.invertido
+
+    @property
+    def decidido(self):
+        if self.total < self.minimo:
+            return False
+        return max(self.certo, self.invertido) / self.total >= self.maioria
+
+    @property
+    def sinal(self):
+        """+1 se o rumo do alto sai certo, -1 se sai invertido.
+
+        Antes de decidir devolve +1: e o palpite de que a deducao original
+        estava certa. Se estiver errada, o classificador vai reportar
+        frente/tras trocados por alguns segundos ate a votacao fechar — e isso
+        e melhor que nao responder nada, porque a votacao SO acontece com
+        alguem andando, que e o unico momento em que a resposta importa.
+        """
+        if not self.decidido:
+            return 1
+        return 1 if self.certo >= self.invertido else -1
+
+    def aplicar(self, rumo):
+        if rumo is None:
+            return None
+        return rumo if self.sinal > 0 else diferenca_angular(rumo + np.pi, 0.0)
+
+    @property
+    def diagnostico(self):
+        if self.total < self.minimo:
+            return f"sinal do rumo aprendendo ({self.total}/{self.minimo})"
+        estado = "INVERTIDO" if self.sinal < 0 else "direto"
+        return (f"sinal do rumo {estado} "
+                f"({self.certo} x {self.invertido} votos)"
+                + ("" if self.decidido else "  [sem maioria, usando direto]"))
+
+
 class DirecaoPorDeslocamento:
     """Para onde a pessoa ANDOU, medido por onde ela chegou.
 

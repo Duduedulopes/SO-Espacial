@@ -59,7 +59,7 @@ from percepcao.pose3d import (                              # noqa: E402
 )
 from src.acao.classificador import Descritor                 # noqa: E402
 from src.acao.corpo import (                                 # noqa: E402
-    AnalisadorDeCorpo, DirecaoPorDeslocamento, rumo_do_alto,
+    AnalisadorDeCorpo, DirecaoPorDeslocamento, SinalDoRumo, rumo_do_alto,
 )
 from src.acao.escala import EscalaVertical                   # noqa: E402
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
@@ -173,6 +173,16 @@ class SpatialEngine:
         # 0,23 m/s. Nao ha limiar de velocidade que separe os dois ali.
         # Em deslocamento liquido a diferenca e de dezessete vezes.
         self.direcao = DirecaoPorDeslocamento()
+
+        # UM BIT: o rumo do alto sai certo ou invertido?
+        #
+        # A formula `frente = (dy, -dx)` supoe um sistema de
+        # coordenadas DESTRO. Se a calibracao da homografia produziu um
+        # canhoto, o rumo sai 180 graus virado — foi o que aconteceu em
+        # 11/08. Uma votacao binaria contra o rumo de quem anda decide,
+        # e tolera muito mais ruido que a media circular que fracassou
+        # o dia inteiro tentando aprender o angulo.
+        self.sinal_do_rumo = SinalDoRumo()
 
         # A CAMERA DO ALTO E A UNICA QUE VE OS PES, E E ELA QUE DA A ESCALA.
         #
@@ -575,13 +585,21 @@ class SpatialEngine:
             pessoa.id, pessoa.x, pessoa.y, self._agora())
         self.direcao.esquecer({e.id for e in estados})
 
+        # O VOTO SO ACONTECE COM ALGUEM ANDANDO DE VERDADE.
+        #
+        # `rumo_andado` ja vem do deslocamento numa janela de 2 s, entao ele
+        # so existe quando houve caminhada — e caminhada e o unico momento em
+        # que corpo e deslocamento tem que concordar.
+        bruto = self._rumo_do_alto(pessoa, rastros or {})
+        self.sinal_do_rumo.votar(bruto, rumo_andado)
+
         return {pessoa.id: self.corpo.ler_varias(
             pessoa.id, vistas,
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=rumo_andado,
             velocidade=andou,
             quadril_do_alto=self.escala.altura_do_quadril(pessoa.id),
-            rumo_do_alto=self._rumo_do_alto(pessoa, rastros or {}))}
+            rumo_do_alto=self.sinal_do_rumo.aplicar(bruto))}
 
     def _rumo_do_alto(self, pessoa, rastros):
         """Rumo do corpo em coordenadas de MUNDO, da camera de cima.
@@ -622,5 +640,6 @@ class SpatialEngine:
                            f"({len(self.inclinacao.amostras)} amostras"
                            f"{'' if self.inclinacao.confiavel else ', aprendendo'})"),
             "corpo": self.corpo.diagnostico,
+            "rumo": self.sinal_do_rumo.diagnostico,
             "escala": self.escala.diagnostico,
         }

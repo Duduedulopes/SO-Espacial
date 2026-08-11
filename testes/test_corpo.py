@@ -1149,3 +1149,100 @@ def test_o_alto_manda_no_rumo_do_corpo():
                            rumo_do_alto=do_alto)
 
     assert abs(diferenca_angular(leitura.rumo_corpo, do_alto)) < 1e-9
+
+
+# ------------------------------------------------------ o sinal do rumo
+def test_o_sinal_aprende_que_o_rumo_esta_invertido():
+    """MEDIDO EM 11/08: com o rumo vindo do alto, quem andava para frente saiu
+    como `andando_tras` — 180 graus exatos, nao ruido.
+
+    A formula `frente = (dy, -dx)` supoe um sistema de coordenadas DESTRO. Se
+    a calibracao da homografia produziu um canhoto, o ombro esquerdo aparece
+    onde eu espero o direito e o rumo sai virado.
+
+        Deduzi uma convencao que so o dado pode responder.
+    """
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo()
+    for i in range(20):
+        andado = math.radians(30 + i)          # a pessoa anda para la
+        lido = diferenca_angular(andado + math.pi, 0)   # e o rumo sai virado
+        s.votar(lido, andado)
+
+    assert s.decidido
+    assert s.sinal == -1, s.diagnostico
+    assert "INVERTIDO" in s.diagnostico
+
+    corrigido = s.aplicar(math.radians(200))
+    assert abs(diferenca_angular(corrigido, math.radians(20))) < 1e-9
+
+
+def test_o_sinal_confirma_quando_esta_certo():
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo()
+    for i in range(20):
+        a = math.radians(10 * i)
+        s.votar(a, a)
+
+    assert s.decidido and s.sinal == 1
+    assert s.aplicar(0.7) == 0.7
+
+
+def test_um_BIT_sobrevive_a_ruido_que_derruba_um_angulo():
+    """A razao de a pergunta ter virado binaria.
+
+    Todo o esforco anterior tentou aprender o AZIMUTE, um numero continuo. Com
+    ruido, a moda escolheu o grupo errado e o dia inteiro se foi nisso.
+
+    Aqui cada amostra so precisa acertar de que LADO esta. Com 30% das
+    amostras completamente erradas, a maioria ainda decide certo.
+
+        Uma pergunta binaria sobrevive a um dado que nao sustenta uma
+        pergunta continua.
+    """
+    import random
+
+    from src.acao.corpo import SinalDoRumo
+
+    random.seed(9)
+    s = SinalDoRumo()
+    for i in range(60):
+        andado = random.uniform(-math.pi, math.pi)
+        if i % 10 < 3:                          # 30% de lixo total
+            s.votar(random.uniform(-math.pi, math.pi), andado)
+        else:
+            s.votar(diferenca_angular(andado + math.pi, 0), andado)
+
+    assert s.decidido and s.sinal == -1, s.diagnostico
+
+
+def test_sem_maioria_ele_usa_o_direto_e_avisa():
+    """Metade e metade nao decide nada. Usar o palpite original e melhor que
+    nao responder: a votacao SO acontece com alguem andando, que e o unico
+    momento em que a resposta importa."""
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo()
+    for i in range(20):
+        a = math.radians(10 * i)
+        s.votar(a if i % 2 else diferenca_angular(a + math.pi, 0), a)
+
+    assert not s.decidido
+    assert s.sinal == 1
+    assert "sem maioria" in s.diagnostico
+
+
+def test_nao_vota_sem_caminhada():
+    """`rumo_andado` so existe quando houve deslocamento na janela. Sem ele,
+    nao ha com o que comparar — e votar seria inventar."""
+    from src.acao.corpo import SinalDoRumo
+
+    s = SinalDoRumo()
+    for _ in range(30):
+        s.votar(0.5, None)
+        s.votar(None, 0.5)
+
+    assert s.total == 0
+    assert not s.decidido
