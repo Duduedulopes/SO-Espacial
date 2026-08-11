@@ -536,3 +536,81 @@ def test_todo_passo_cabe_em_140cm_acima_do_limiar():
         exigida = 1.40 / p.segundos
         assert exigida > 0.25 * 1.2, (
             f"{p.acao}: {p.segundos}s para 1,40 m exige {exigida:.2f} m/s")
+
+
+# ------------------------------------------------------------ modo travado
+def test_o_tempo_separa_lento_de_errado():
+    """Ideia do Eduardo, 11/08.
+
+    A nota responde "que fracao dos quadros estava certa" — e isso mistura um
+    sistema LENTO com um sistema ERRADO. Os dois dao 40%, e os consertos sao
+    opostos: um pede ajuste de estabilidade, o outro pede conserto de logica.
+
+        Nota baixa nao diz se o sistema e lento ou se esta errado.
+    """
+    p = Placar()
+    por = {x.acao: x for x in roteiro_padrao()}
+
+    for _ in range(10):
+        p.anotar(por["andar_frente"],
+                 acoes(locomocao=Locomocao.FRENTE), 999)
+    p.marcar_tempo(por["andar_frente"], 4.2, 5.0, 5.0)      # lento
+
+    for _ in range(10):
+        p.anotar(por["agachar"], acoes(postura=Postura.EM_PE), 999)
+    p.marcar_tempo(por["agachar"], None, None, 25.0)        # errado
+
+    texto = "\n".join(p.linhas_de_tempo())
+    assert "LENTO" in texto
+    assert "NAO RECONHECEU" in texto
+    assert "em_pe" in texto, "precisa dizer EM FAVOR DE QUE ele errou"
+
+
+def test_nunca_confirmar_e_registrado_como_falha_e_nao_como_zero():
+    p = Placar()
+    passo = next(x for x in roteiro_padrao() if x.acao == "agachar")
+    p.anotar(passo, acoes(postura=Postura.EM_PE), 999)
+    p.marcar_tempo(passo, None, None, 25.0)
+
+    c = p.contagens["agachar"]
+    assert not c.confirmou
+    assert c.espera_s == 25.0
+    assert "NUNCA" in "\n".join(p.linhas_de_tempo())
+
+
+def test_confirmar_exige_leitura_SUSTENTADA():
+    """Um unico quadro certo no meio do ruido nao e reconhecimento. E a mesma
+    regra do `Estavel` do classificador, aplicada ao gabarito."""
+    from ferramentas.conferir import _esta_certo
+
+    passo = next(x for x in roteiro_padrao() if x.acao == "agachar")
+    certo = {1: (Acao(postura=Postura.AGACHADO), {})}
+    errado = {1: (Acao(postura=Postura.EM_PE), {})}
+
+    assert _esta_certo(passo, certo, {})
+    assert not _esta_certo(passo, errado, {})
+    assert not _esta_certo(passo, {}, {}), "sem ninguem nao confirma"
+
+
+def test_posicao_prevista_nao_confirma():
+    """Prever onde alguem deveria estar nao e ve-lo ali. Confirmar um passo com
+    posicao prevista deixaria o roteiro avancar sobre um palpite."""
+    from ferramentas.conferir import _esta_certo
+
+    passo = next(x for x in roteiro_padrao() if x.acao == "agachar")
+    certo = {1: (Acao(postura=Postura.AGACHADO), {})}
+    coasting = {1: EstadoDePessoa(id=1, x=0, y=0, prevendo=4)}
+
+    assert _esta_certo(passo, certo, {})
+    assert not _esta_certo(passo, certo, coasting)
+
+
+def test_o_limite_existe_para_a_sessao_nao_travar():
+    """Sem limite, uma acao que o sistema nao sabe ler prende a sessao para
+    sempre e NADA e medido — nem os passos seguintes, que talvez funcionem."""
+    import inspect
+
+    from ferramentas.conferir import rodar_travado
+
+    assinatura = inspect.signature(rodar_travado)
+    assert assinatura.parameters["limite_s"].default > 0

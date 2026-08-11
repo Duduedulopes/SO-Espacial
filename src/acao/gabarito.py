@@ -268,6 +268,25 @@ class Contagem:
     velocidades: list = field(default_factory=list)
     posicoes: list = field(default_factory=list)
 
+    # MODO TRAVADO: O TEMPO ATE RECONHECER, EM VEZ DA FRACAO DE ACERTO.
+    #
+    # Ideia do Eduardo, 11/08. Com cronometro fixo, a pergunta e "que fracao
+    # dos quadros estava certa?" — e a resposta mistura duas coisas: quanto o
+    # sistema demorou para reconhecer, e se ele reconheceu.
+    #
+    # Travando, as duas se separam:
+    #
+    #     t_primeira    quando a resposta certa apareceu pela primeira vez
+    #     t_confirmada  quando ela se sustentou tempo suficiente
+    #     confirmou     se chegou a acontecer
+    #
+    # `nunca confirmou` e uma falha alta e clara. 40% de acerto e um numero
+    # que nao diz se o sistema e lento ou se esta errado.
+    t_primeira: float | None = None
+    t_confirmada: float | None = None
+    confirmou: bool = False
+    espera_s: float = 0.0
+
     @property
     def velocidade_mediana(self):
         if not self.velocidades:
@@ -414,6 +433,68 @@ class Placar:
                 c.alturas.append(v)
 
     # ------------------------------------------------------------- boletim
+    def marcar_tempo(self, passo, t_primeira, t_confirmada, espera_s):
+        """Registra o resultado de um passo TRAVADO."""
+        c = self.contagens.setdefault(passo.acao, Contagem(passo))
+        c.t_primeira = t_primeira
+        c.t_confirmada = t_confirmada
+        c.confirmou = t_confirmada is not None
+        c.espera_s = espera_s
+
+    def linhas_de_tempo(self, lento_acima_de=3.0):
+        """Quanto cada acao demorou para ser reconhecida.
+
+        POR QUE ESTA TABELA SUBSTITUI A NOTA NO MODO TRAVADO
+
+        A nota responde "que fracao dos quadros estava certa" — e isso mistura
+        um sistema LENTO com um sistema ERRADO. Os dois dao 40%, e os
+        consertos sao opostos: um pede ajuste de estabilidade, o outro pede
+        conserto de logica.
+
+        O tempo separa. E a coluna do lado direito — o que ele leu ENQUANTO
+        esperava — diz em favor de que ele errou, que e onde se mexe.
+        """
+        travados = [(a, c) for a, c in self.contagens.items()
+                    if c.espera_s or c.t_primeira is not None]
+        if not travados:
+            return []
+
+        linhas = ["TEMPO ATE RECONHECER",
+                  f"{'ACAO':22} {'PRIMEIRA':>9} {'CONFIRMOU':>10} "
+                  f"{'ESPERA':>8}   ENQUANTO ESPERAVA"]
+
+        for acao, c in travados:
+            confusao, frac = c.pior_confusao
+            texto = f"{confusao} ({frac:.0%})" if confusao else "-"
+
+            if not c.confirmou:
+                linhas.append(
+                    f"{acao:22} {'--':>9} {'NUNCA':>10} "
+                    f"{c.espera_s:7.1f}s   {texto}   <- NAO RECONHECEU")
+                continue
+
+            marca = "  <- LENTO" if c.t_confirmada > lento_acima_de else ""
+            primeira = ("--" if c.t_primeira is None
+                        else f"{c.t_primeira:.1f}s")
+            linhas.append(
+                f"{acao:22} {primeira:>9} {c.t_confirmada:9.1f}s "
+                f"{c.espera_s:7.1f}s   {texto}{marca}")
+
+        nunca = [a for a, c in travados if not c.confirmou]
+        lentos = [a for a, c in travados
+                  if c.confirmou and c.t_confirmada > lento_acima_de]
+        linhas.append("")
+        if nunca:
+            linhas.append(f"  NAO RECONHECEU: {', '.join(nunca)}")
+            linhas.append("  Estas nao sao lentidao — sao leitura errada. "
+                          "Olhe a coluna da direita.")
+        if lentos:
+            linhas.append(f"  LENTAS (> {lento_acima_de:.0f}s): "
+                          f"{', '.join(lentos)}")
+        if not nunca and not lentos:
+            linhas.append("  Todas reconhecidas dentro do esperado.")
+        return linhas
+
     def linhas(self, reprovar_abaixo_de=0.70):
         if not self.contagens:
             return ["Nenhum passo pontuado."]

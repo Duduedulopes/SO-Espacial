@@ -205,6 +205,156 @@ def rodar_roteiro(app, roteiro, placar, voz=None, esperar_enter=False,
         voz.dizer(_veredicto_falado(placar, passo))
 
 
+def rodar_travado(app, roteiro, placar, voz=None, limite_s=25.0,
+                  confirmar_s=0.8, preparo_s=3.0):
+    """Cada passo ESPERA ate o sistema reconhecer a acao. Sem cronometro.
+
+    IDEIA DO EDUARDO, 11/08, E ELA MUDA A PERGUNTA DO TESTE
+
+    Com cronometro fixo a pergunta e "que fracao dos quadros estava certa?".
+    Essa resposta mistura um sistema LENTO com um sistema ERRADO — os dois dao
+    40%, e os consertos sao opostos.
+
+    Travando, a pergunta vira "quanto tempo o sistema levou para reconhecer?".
+    E `nunca reconheceu` deixa de ser uma porcentagem baixa para virar uma
+    falha alta e clara.
+
+        Nota baixa nao diz se o sistema e lento ou se esta errado. O tempo diz.
+
+    E ha um ganho pratico: quem executa nao precisa mais adivinhar quanto tempo
+    segurar a posicao. Segura ate ouvir que confirmou.
+
+    POR QUE HA LIMITE MESMO ASSIM
+
+    Sem limite, uma acao que o sistema nao sabe ler trava a sessao para sempre
+    e nada e medido. O limite generoso deixa a acao falhar e o roteiro seguir —
+    e o tempo gasto ate desistir vira o proprio dado.
+    """
+    voz = voz or Voz(ligada=False)
+
+    for n, passo in enumerate(roteiro, 1):
+        voz.dizer(f"Passo {n}. {passo.instrucao}")
+
+        if passo.reposiciona or passo.eixo is None:
+            _contar(app, passo, passo.segundos, placar, n, len(roteiro))
+            continue
+
+        _preparo_curto(n, len(roteiro), passo, preparo_s)
+        apito_de_inicio()
+
+        t0 = time.monotonic()
+        t_primeira = t_confirmada = None
+        acumulado = 0.0
+        ultimo = t0
+
+        while True:
+            decorrido = time.monotonic() - t0
+            if decorrido > limite_s:
+                break
+            if app.passo() is None:
+                time.sleep(0.005)
+                continue
+
+            agora = time.monotonic()
+            dt, ultimo = agora - ultimo, agora
+
+            acoes = app.espacial.acoes
+            pessoas = dict(app.gemeo.pessoas)
+            # `acomodacao_s=0` porque a espera JA e a acomodacao: nao ha janela
+            # a descontar quando o passo so termina depois de dar certo.
+            placar.anotar(passo, acoes, decorrido + 999, pessoas)
+
+            certo = _esta_certo(passo, acoes, pessoas)
+            if certo:
+                if t_primeira is None:
+                    t_primeira = decorrido
+                acumulado += dt
+                if acumulado >= confirmar_s:
+                    t_confirmada = decorrido
+                    break
+            else:
+                # SUSTENTAR, E NAO SO ACERTAR UM QUADRO.
+                #
+                # Um unico quadro certo no meio do ruido nao e reconhecimento.
+                # Zerar o acumulo a cada discordancia e a mesma regra do
+                # `Estavel` do classificador, aplicada aqui.
+                acumulado = 0.0
+
+            _tela_travada(n, len(roteiro), passo, decorrido, acoes, pessoas,
+                          certo, acumulado, confirmar_s, limite_s)
+
+        espera = time.monotonic() - t0
+        placar.marcar_tempo(passo, t_primeira, t_confirmada, espera)
+        apito_de_fim()
+        voz.dizer(_veredicto_travado(passo, placar, t_confirmada))
+
+
+def _esta_certo(passo, acoes, pessoas):
+    if not acoes:
+        return False
+    pid = sorted(acoes)[0]
+    if getattr(pessoas.get(pid), "prevendo", 0):
+        return False          # posicao prevista nao confirma nada
+    return getattr(acoes[pid][0], passo.eixo, None) in passo.certo
+
+
+def _contar(app, passo, segundos, placar, n, total):
+    """Passo sem nota: so espera o tempo declarado."""
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < segundos:
+        if app.passo() is None:
+            time.sleep(0.005)
+            continue
+        _tela(n, total, passo, time.monotonic() - t0,
+              app.espacial.acoes, dict(app.gemeo.pessoas))
+
+
+def _preparo_curto(n, total, passo, preparo_s):
+    print(f"{LIMPAR}  PASSO {n} de {total}\n")
+    print(f"      >>> {passo.instrucao} <<<")
+    print("          SEGURE ate ouvir que confirmou\n")
+    for falta in range(int(preparo_s), 0, -1):
+        print(f"\r      comeca em {falta}...   ", end="", flush=True)
+        time.sleep(1.0)
+    print()
+
+
+def _tela_travada(n, total, passo, decorrido, acoes, pessoas, certo,
+                  acumulado, confirmar_s, limite_s):
+    print(f"{LIMPAR}  PASSO {n} de {total}      {decorrido:5.1f}s / "
+          f"{limite_s:.0f}s\n")
+    print(f"      >>> {passo.instrucao} <<<")
+    print("          SEGURE ate ouvir que confirmou\n")
+
+    if certo:
+        barras = int(20 * min(1.0, acumulado / confirmar_s))
+        print(f"      CERTO  [{'#' * barras}{'.' * (20 - barras)}]  "
+              f"segurando {acumulado:.1f}s de {confirmar_s:.1f}s")
+    else:
+        print("      ainda nao...")
+    print()
+
+    if not acoes:
+        print("      lendo agora:  NINGUEM DETECTADO")
+        return
+    for pid, (a, _) in sorted(acoes.items()):
+        atual = getattr(a, passo.eixo, "?")
+        print(f"      lendo agora:  #{pid}  {passo.eixo} = {atual}")
+        print(f"                    esperado: "
+              f"{' ou '.join(passo.certo)}")
+
+
+def _veredicto_travado(passo, placar, t_confirmada):
+    if t_confirmada is not None:
+        return f"Confirmado em {t_confirmada:.0f} segundos."
+
+    c = placar.contagens.get(passo.acao)
+    confusao = c.pior_confusao[0] if c else None
+    if confusao:
+        return f"Nao reconheceu. Leu {confusao.replace('_', ' ')}."
+    return "Nao reconheceu."
+
+
 def _preparar(n, total, passo, esperar_enter, preparo_s, voz):
     """Tempo entre ouvir a instrucao e a contagem comecar."""
     print(f"{LIMPAR}  PASSO {n} de {total}\n")
@@ -462,6 +612,15 @@ def main():
     p.add_argument("--preparo", type=float, default=4.0,
                    help="segundos entre ouvir a instrucao e comecar a contar")
     p.add_argument("--sem-voz", action="store_true")
+
+    p.add_argument("--cronometrado", action="store_true",
+                   help="modo antigo: cada passo dura um tempo fixo e a nota e "
+                        "a fracao de quadros certos. O padrao e TRAVADO — "
+                        "espera reconhecer e mede quanto demorou")
+    p.add_argument("--limite", type=float, default=25.0,
+                   help="segundos ate desistir de um passo travado")
+    p.add_argument("--confirmar", type=float, default=0.8,
+                   help="segundos de leitura certa SUSTENTADA para confirmar")
     args = p.parse_args()
 
     if args.listar:
@@ -495,18 +654,29 @@ def main():
         if args.so_cameras:
             return
 
-        total = sum(p.segundos + args.preparo for p in roteiro)
-        print(f"\n  {len(roteiro)} passo(s), cerca de {total / 60:.0f} min.")
+        print(f"\n  {len(roteiro)} passo(s).")
         print("  As instrucoes sao FALADAS — voce nao precisa olhar a tela.")
-        print("  Um apito comeca a contagem; dois apitos terminam.")
+        if args.cronometrado:
+            total = sum(p.segundos + args.preparo for p in roteiro)
+            print(f"  Modo CRONOMETRADO: cada passo dura um tempo fixo. "
+                  f"~{total / 60:.0f} min.")
+            print("  Um apito comeca a contagem; dois apitos terminam.")
+        else:
+            print("  Modo TRAVADO: cada passo espera ate o sistema RECONHECER.")
+            print("  Segure a posicao ate ouvir que confirmou. Nao ha pressa —")
+            print(f"  ele desiste sozinho depois de {args.limite:.0f}s.")
         if ruins:
-            print("  Com camera ruim, a nota mede o hardware e nao o sistema.")
+            print("  Com camera ruim, o resultado mede o hardware, nao o sistema.")
         input("\n  ENTER para comecar, Ctrl+C para sair. ")
 
         voz.dizer("Comecando. Pode se afastar do computador.", esperar=True)
-        rodar_roteiro(app, roteiro, placar, voz,
-                      esperar_enter=args.passo_a_passo,
-                      preparo_s=args.preparo)
+        if args.cronometrado:
+            rodar_roteiro(app, roteiro, placar, voz,
+                          esperar_enter=args.passo_a_passo,
+                          preparo_s=args.preparo)
+        else:
+            rodar_travado(app, roteiro, placar, voz,
+                          limite_s=args.limite, confirmar_s=args.confirmar)
         voz.dizer("Terminado.")
     except KeyboardInterrupt:
         print("\n\n  interrompido — o boletim vale so ate aqui")
@@ -517,6 +687,10 @@ def main():
     print(f"{LIMPAR}BOLETIM\n")
     print("\n".join(diagnostico_da_cascata(app)))
     print()
+    tempos = placar.linhas_de_tempo()
+    if tempos:
+        print("\n".join(tempos))
+        print()
     print("\n".join(placar.linhas()))
 
     if laudo:
