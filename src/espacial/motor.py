@@ -66,6 +66,63 @@ from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
 
+def _ler_config(nome, extrair):
+    """Le um arquivo de `config/`. ARQUIVO AUSENTE E SILENCIO; ARQUIVO QUEBRADO GRITA.
+
+    A DIFERENCA ENTRE OS DOIS CASOS CUSTOU UM DIA INTEIRO, 11/08
+
+    As tres leitoras de config tinham a mesma forma: `try / except Exception:
+    return None`. Ler isso parece prudente — o sistema roda sem a calibracao,
+    entao por que derrubar tudo por causa de um arquivo?
+
+    Porque `None` significa DUAS coisas incompativeis:
+
+        arquivo nao existe        nunca calibrei          esperado
+        arquivo existe e quebrou  calibrei e voce perdeu  defeito
+
+    E o `except` calava as duas com a mesma cara. Em 11/08 a escala vertical
+    foi calibrada com 148 amostras e 5% de dispersao, gravada em
+    `config/escala.json`, e NUNCA FOI APLICADA — nem uma vez, o dia todo.
+    O painel dizia "escala NAO CALIBRADA" e a frase estava tecnicamente certa
+    do ponto de vista do objeto, que de fato recebeu `fator=None`.
+
+    O defeito real era uma linha:
+
+        return float(d.get("fator", d["altura_camera_m"]))
+
+    Python avalia o argumento default ANTES de chamar `.get`. O arquivo novo
+    nao tem a chave antiga, entao `d["altura_camera_m"]` levantava `KeyError`
+    antes de o `.get` sequer rodar — e o `except Exception` engolia. O codigo
+    de COMPATIBILIDADE quebrava exatamente o caminho que devia funcionar.
+
+        Um bloco `except` que nao registra nada nao trata o erro: apaga o
+        erro. E um erro apagado e um dia de medicao que nao vale nada.
+
+    Agora arquivo ausente devolve None calado, e arquivo presente e ilegivel
+    aparece no log com o nome da excecao. O sistema segue rodando nos dois
+    casos — o que muda e que o segundo caso deixa rastro.
+    """
+    import json
+
+    caminho = RAIZ / "config" / nome
+    if not caminho.exists():
+        return None
+    try:
+        return extrair(json.loads(caminho.read_text(encoding="utf-8")))
+    except Exception as e:
+        # O NOME DO ARQUIVO VAI NA MENSAGEM, NAO SO NOS DADOS.
+        #
+        # Os campos estruturados dependem do formatador da sessao, e a linha
+        # precisa se explicar sozinha em qualquer lugar onde ela apareca —
+        # inclusive num terminal com o formato curto, que e onde ela vai ser
+        # lida de verdade. Aviso que nao diz QUAL arquivo nao aponta conserto.
+        Log("config").aviso(
+            f"config/{nome} existe mas nao pode ser lida "
+            f"({type(e).__name__}: {e}) — seguindo SEM ela",
+            arquivo=nome, erro=f"{type(e).__name__}: {e}")
+        return None
+
+
 def _sinal_do_rumo_fixado():
     """Le `config/rumo.json`: +1 direto, -1 invertido, None = aprender.
 
@@ -73,15 +130,7 @@ def _sinal_do_rumo_fixado():
     lado justamente para poder DISCORDAR do arquivo — se alguem mexer na
     camera do alto, o painel acusa.
     """
-    import json
-
-    caminho = RAIZ / "config" / "rumo.json"
-    if not caminho.exists():
-        return None
-    try:
-        return int(json.loads(caminho.read_text(encoding="utf-8"))["sinal"])
-    except Exception:
-        return None
+    return _ler_config("rumo.json", lambda d: int(d["sinal"]))
 
 
 def _azimute_calibrado():
@@ -91,16 +140,7 @@ def _azimute_calibrado():
     verdade a hipotese "quem anda olha para onde vai" volta a valer, e la nao
     havera ninguem para calibrar. Aqui ele e reserva.
     """
-    import json
-
-    caminho = RAIZ / "config" / "azimute.json"
-    if not caminho.exists():
-        return None
-    try:
-        return float(json.loads(caminho.read_text(encoding="utf-8"))
-                     ["azimute_rad"])
-    except Exception:
-        return None
+    return _ler_config("azimute.json", lambda d: float(d["azimute_rad"]))
 
 
 def _fator_de_escala():
@@ -110,17 +150,17 @@ def _fator_de_escala():
     Aceita a chave antiga `altura_camera_m` por compatibilidade. O nome mudou
     porque estava errado — o numero nao e a altura da camera, e sim o fator
     empirico que converte razao em metros. Ver `src/acao/escala.py`.
-    """
-    import json
 
-    caminho = RAIZ / "config" / "escala.json"
-    if not caminho.exists():
-        return None
-    try:
-        d = json.loads(caminho.read_text(encoding="utf-8"))
-        return float(d.get("fator", d["altura_camera_m"]))
-    except Exception:
-        return None
+    O `if` explicito em vez de `d.get(novo, d[antigo])` NAO e questao de
+    estilo: a segunda forma avalia `d[antigo]` sempre, inclusive quando a
+    chave nova esta la. Ver `_ler_config` acima.
+    """
+    def extrair(d):
+        if "fator" in d:
+            return float(d["fator"])
+        return float(d["altura_camera_m"])      # nome antigo, ainda aceito
+
+    return _ler_config("escala.json", extrair)
 
 
 class SpatialEngine:

@@ -46,6 +46,65 @@ URL_MODELO = ("https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
               "pose_landmarker_lite/float16/1/pose_landmarker_lite.task")
 
 
+def dentro_do_quadro(px2d, forma):
+    """Quais juntas cairam DENTRO da imagem que a camera realmente capturou.
+
+    O DEFEITO QUE ISTO CORRIGE, MEDIDO CONTRA A ESTANTE EM 11/08
+
+    Gabarito fisico, prateleira do topo a 1,90 m. O sistema leu 1,15 m em 27
+    quadros seguidos, com dispersao de 5 cm. Setenta e cinco centimetros de
+    erro, entregues com a estabilidade de uma medicao boa.
+
+    A prateleira do chao, a 0,15 m, leu 0,93 m. Erro de +78 cm — na direcao
+    oposta. E as duas prateleiras faceis do meio (0,95 m e 1,35 m), que a
+    camera enxerga sem esforco, deram SEM LEITURA.
+
+        As faceis falharam e as impossiveis responderam com confianca. Quando
+        o padrao do erro se inverte assim, a causa nao e ruido: e um sinal
+        sendo lido de um lugar que nao existe.
+
+    A CAUSA: `visibility` DO MEDIAPIPE NAO SIGNIFICA O QUE PARECE
+
+    O `visibility` de cada landmark modela OCLUSAO — a chance de a junta estar
+    escondida por outro objeto ou pelo proprio corpo. Ele NAO modela
+    ENQUADRAMENTO. Para uma junta que saiu pela borda da imagem, a rede
+    extrapola a posicao a partir do resto do esqueleto e devolve visibility
+    ALTA, porque nada a esta ocultando: ela simplesmente nao esta la.
+
+    Os dois comportamentos ficaram visiveis lado a lado no mesmo teste:
+
+        pulso ESCONDIDO dentro da prateleira   visibility baixa   recusou
+        pulso FORA do quadro (acima, abaixo)   visibility alta    inventou
+
+    Por isso as prateleiras do meio deram SEM LEITURA — recusa correta, o
+    braco estava dentro da estante — e as extremas deram numero — invencao
+    confiante, o pulso estava fora da imagem.
+
+    O TESTE E GEOMETRICO, E POR ISSO NAO TEM COMO DISCORDAR DA REALIDADE
+
+    A projecao 2D da junta cai dentro do retangulo capturado, ou nao cai. Isso
+    nao e opiniao de modelo nenhum: e a definicao de o que a lente viu.
+
+        Quando existe um teste geometrico para a pergunta, ele ganha do
+        palpite do modelo — inclusive quando o modelo esta seguro. Ainda
+        mais quando esta seguro.
+
+    Uma junta fora do quadro nao vira erro: vira ausencia. E o resto do
+    sistema ja sabe lidar com ausencia — `_visivel` recusa, `LeituraDoCorpo`
+    devolve None, o boletim escreve SEM LEITURA. O que ele nao sabia fazer era
+    desconfiar de um numero que chegou com cara de medido.
+
+    O PRECO, DECLARADO ANTES DE ALGUEM RECLAMAR
+
+    Vao aparecer MAIS quadros sem leitura, e a faixa util medida vai encolher.
+    Isso nao e piora: e a faixa util verdadeira, que ate agora estava
+    escondida atras de numeros inventados nas pontas.
+    """
+    altura, largura = forma[:2]
+    x, y = px2d[:, 0], px2d[:, 1]
+    return (x >= 0) & (x < largura) & (y >= 0) & (y < altura)
+
+
 def _baixar_modelo():
     MODELOS.mkdir(exist_ok=True)
     destino = MODELOS / "pose_landmarker_lite.task"
@@ -151,6 +210,11 @@ class Pose3D:
             p[:, 0] += origem_x
             p[:, 1] += origem_y
             px2d = p
+
+        # O ENQUADRAMENTO TEM VOTO DE VETO SOBRE A VISIBILIDADE.
+        # Ver `dentro_do_quadro` — e a correcao mais importante de 11/08.
+        if px2d is not None:
+            v = v & dentro_do_quadro(px2d, frame_bgr.shape)
 
         return juntas, v, px2d
 

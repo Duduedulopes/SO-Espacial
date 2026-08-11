@@ -80,7 +80,26 @@ def medir_uma(app, voz, prateleira, segundos, n, total, lado):
     voz.dizer("Ja!")
     apito_de_inicio()
 
-    lidas, medidas, sem_leitura = [], 0, 0
+    # OS DOIS SILENCIOS NAO SAO O MESMO SILENCIO.
+    #
+    # Em 11/08 a prateleira 4 saiu como SEM LEITURA com `sem_leitura = 0`, e o
+    # boletim nao tinha como explicar a contradicao: se ninguem ficou sem ser
+    # detectado, por que nao houve nenhuma amostra?
+    #
+    # Porque ha duas maneiras de nao sair numero, e elas pedem consertos
+    # OPOSTOS:
+    #
+    #     sem_pessoa   a camera do alto perdeu a pessoa      -> enquadramento
+    #     sem_braco    a pessoa foi lida, o pulso foi        -> alcance, luz,
+    #                  recusado por nao ter sido visto          oclusao
+    #
+    # A primeira e uma falha do rastreio. A segunda e a recusa funcionando
+    # como projetada — e recusa funcionando nao devia aparecer com a mesma
+    # cara de falha.
+    #
+    #     Somar dois motivos diferentes num contador so nao simplifica o
+    #     relatorio: apaga a pergunta seguinte.
+    lidas, medidas, sem_pessoa, sem_braco = [], 0, 0, 0
     # DE ONDE VEIO CADA LEITURA. Sem isso o boletim entrega um numero sem
     # procedencia, e nao ha como saber se as tres cameras trabalharam ou se
     # so uma respondeu enquanto as outras estavam cegas.
@@ -94,11 +113,13 @@ def medir_uma(app, voz, prateleira, segundos, n, total, lado):
 
         acoes = app.espacial.acoes
         if not acoes:
-            sem_leitura += 1
+            sem_pessoa += 1
             continue
         acao = acoes[sorted(acoes)[0]][0]
         v = getattr(acao, campo)
-        if v is not None:
+        if v is None:
+            sem_braco += 1
+        else:
             lidas.append(v)
             medidas += int(acao.altura_medida)
             leitura = app.espacial.leituras.get(sorted(acoes)[0])
@@ -129,7 +150,8 @@ def medir_uma(app, voz, prateleira, segundos, n, total, lado):
         "nome": nome,
         "verdade": verdade,
         "lidas": lidas,
-        "sem_leitura": sem_leitura,
+        "sem_pessoa": sem_pessoa,
+        "sem_braco": sem_braco,
         "fracao_medida": (medidas / len(lidas)) if lidas else 0.0,
         "fontes": fontes,
         "escalas": escalas,
@@ -145,8 +167,17 @@ def boletim(resultados, prateleiras):
 
     for r in resultados:
         if len(r["lidas"]) < 5:
+            # SEM LEITURA precisa dizer QUAL dos dois silencios foi.
+            pessoa, braco = r.get("sem_pessoa", 0), r.get("sem_braco", 0)
+            if pessoa > braco:
+                motivo = "perdeu a pessoa"
+            elif braco:
+                motivo = "nao viu o pulso"
+            else:
+                motivo = "sem quadro"
             linhas.append(f"{r['nome']:22} {r['verdade']:7.2f}m "
-                          f"{'--':>8} {'--':>8} {'--':>10}  SEM LEITURA")
+                          f"{'--':>8} {'--':>8} {'--':>10}  "
+                          f"SEM LEITURA ({motivo}: {pessoa}p/{braco}b)")
             continue
 
         validos += 1
