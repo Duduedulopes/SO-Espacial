@@ -75,6 +75,54 @@ erro em vez de uma esperança.
 
 ---
 
+## Lições da câmera — medido, não suposto
+
+**Hardware: Logitech C920, USB 2.0, PC do Eduardo, 07/08/2026.**
+
+Pedimos 1280×720 a 30 fps. A câmera respondeu que daria 30. Entregou 10.
+
+Sequência do diagnóstico:
+
+| Resolução | Exposição | fps medido |
+|---|---|---|
+| 1280×720 | automática (−4) | 10,0 |
+| 640×480  | automática (−5) | 15,8 |
+| 640×480  | **manual (−6)** | **30,0** |
+
+**Causa:** exposição automática. Em luz fraca a C920 expõe o sensor por mais
+tempo e, para isso, **reduz a taxa de quadros em degraus fixos** — 30, 15, 10,
+7,5. Ela não avisa; `CAP_PROP_FPS` continua respondendo 30.
+
+**Descartadas pelo caminho:**
+
+- *Custo do laço* — sem gravar e sem prévia, ainda eram 10 fps.
+- *Banda USB* — a 640×480 o consumo caiu à metade e o fps não subiu.
+- *Codec* — `CAP_PROP_FOURCC` sempre retorna `YUY2`; o backend DSHOW ignora o
+  pedido de MJPG nas duas ordens de chamada. Fica pendente testar MSMF, caso
+  algum dia precisemos de 720p.
+
+**Decisão:** capturar em **640×480, exposição manual −6**.
+
+Perder resolução não custa quase nada agora: a entrada padrão do YOLO é 640 px,
+então capturar em 1280 e deixar o modelo encolher seria gastar banda para
+descartar depois. Quando chegarmos na interação mão-produto, onde detalhe fino
+importa, revisitamos — e provavelmente a resposta será uma câmera USB 3.0, não
+configuração.
+
+**Por que travar exposição vale além do fps**
+
+No automático, o brilho muda sozinho quando alguém passa na frente, quando o sol
+entra, quando a cena tem mais branco. O modelo aprende a associar coisas sem
+relação e você nunca descobre por quê.
+
+Com exposição travada, o mesmo objeto sob a mesma luz produz sempre os mesmos
+pixels. É reprodutibilidade — a mesma razão pela qual gravamos dois relógios.
+
+O `meta.json` registra `exposicao_pedida`, `exposicao_real` e
+`auto_exposicao_real` justamente para que nenhuma sessão fique ambígua depois.
+
+---
+
 ## Estrutura de uma sessão
 
 Cada gravação vira uma pasta em `dados/sessoes/`:

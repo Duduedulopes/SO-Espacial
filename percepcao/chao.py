@@ -1,0 +1,327 @@
+"""
+Nucleo compartilhado: do pixel ao chao.
+
+POR QUE ESTE ARQUIVO EXISTE
+
+Ate 08/08, tudo isto morava dentro de `percepcao/mapa.py` — que era um
+PROGRAMA e uma BIBLIOTECA ao mesmo tempo. O `gemeo3d.py` importava classes de
+dentro de um executavel, o que significa que rodar o gemeo carregava o codigo
+de desenho do mapa, e mexer num quebrava o outro.
+
+Programa e biblioteca sao coisas diferentes. Biblioteca nao tem `main()`.
+
+Aqui mora tudo que responde "onde esta o chao e quem esta em pe nele":
+
+    carregar_homografia   le a calibracao
+    para_metros           pixel -> metros
+    EstimadorDePe         ponto do pe, sem teletransporte
+    FiltroDeTornozelo     o rastro ja provou ser gente?
+    FiltroDePlausibilidade a caixa tem o tamanho de uma pessoa ali?
+"""
+
+import json
+from pathlib import Path
+
+import numpy as np
+
+RAIZ = Path(__file__).resolve().parent.parent
+CALIB = RAIZ / "calibracao" / "homografia.json"
+
+TORNOZELO_ESQ, TORNOZELO_DIR = 15, 16
+
+
+def carregar_homografia(caminho=None):
+    p = Path(caminho) if caminho else CALIB
+    if not p.exists():
+        raise SystemExit(
+            f"nao achei {p}\n"
+            "Rode antes:  python calibracao/homografia.py --largura-m X --altura-m Y\n"
+            "e aperte 's' para salvar."
+        )
+    d = json.loads(p.read_text(encoding="utf-8"))
+    return np.array(d["H"]), d
+
+
+def para_metros(H, x, y):
+    v = H @ np.array([x, y, 1.0])
+    return float(v[0] / v[2]), float(v[1] / v[2])
+
+
+class EstimadorDePe:
+    """Combina tornozelo e base da caixa SEM criar teletransporte.
+
+    MEDIDO EM 07/08 (mapa_2026-08-07_235041.jsonl):
+
+        tornozelo -> tornozelo   mediana  3,7 cm por quadro
+        caixa     -> caixa       mediana  0,9 cm
+        TROCA entre os dois      mediana ~28   cm
+
+        100% dos saltos acima de 50 cm aconteceram numa troca de estimador.
+
+    Causa: a base da caixa fica ~97 px abaixo dos tornozelos, sistematicamente.
+    Ao alternar, a pessoa "anda" 28 cm sem sair do lugar.
+
+    CORRECAO: enquanto os dois existem, mede-se o desvio entre eles. Quando o
+    tornozelo some, aplica-se esse desvio na caixa. A troca fica invisivel.
+    O desvio e por ID e suavizado, porque muda com a distancia a camera.
+
+    Resultado apos a correcao: saltos > 50 cm cairam de 5 para 0.
+    """
+
+    def __init__(self, suavizacao=0.15):
+        self.desvio: dict[int, np.ndarray] = {}
+        self.alfa = suavizacao
+
+    def estimar(self, tid, caixa, kp_xy, kp_conf, minimo=0.5):
+        x1, y1, x2, y2 = caixa
+        pe_caixa = np.array([(x1 + x2) / 2.0, float(y2)])
+
+        pe_tornozelo = None
+        if kp_xy is not None:
+            validos = [kp_xy[i] for i in (TORNOZELO_ESQ, TORNOZELO_DIR)
+                       if kp_conf[i] >= minimo]
+            if validos:
+                pe_tornozelo = np.mean(validos, axis=0)
+
+        if pe_tornozelo is not None:
+            d = pe_tornozelo - pe_caixa
+            if tid in self.desvio:
+                self.desvio[tid] = (1 - self.alfa) * self.desvio[tid] + self.alfa * d
+            else:
+                self.desvio[tid] = d
+            return (int(pe_tornozelo[0]), int(pe_tornozelo[1])), "tornozelo"
+
+        if tid in self.desvio:
+            p = pe_caixa + self.desvio[tid]
+            return (int(p[0]), int(p[1])), "caixa+correcao"
+
+        return (int(pe_caixa[0]), int(pe_caixa[1])), "caixa"
+
+    def esquecer(self, vivos):
+        for tid in list(self.desvio):
+            if tid not in vivos:
+                del self.desvio[tid]
+
+
+class FiltroDeTornozelo:
+    """Um rastro so e gente depois de mostrar tornozelo o bastante.
+
+    EVIDENCIA (07 e 08/08): um objeto fantasma teve 0 tornozelos em 79 quadros
+    somados, enquanto a pessoa real teve 96%.
+
+    Exige contagem minima E proporcao. So contagem nao basta: em 08/08 um
+    objeto arranhou 3 tornozelos em 55 quadros (5%) e ganhou passe vitalicio.
+
+    Regra e "ja mostrou o bastante", nao "esta mostrando agora": quem esta
+    atras de uma gondola tem os pes ocultos e continua sendo cliente.
+
+    LIMITE CONHECIDO: o MediaPipe SEMPRE devolve um esqueleto completo quando
+    acha que ha gente, inclusive tornozelos inventados. Por isso este filtro
+    sozinho nao basta — ver FiltroDePlausibilidade.
+    """
+
+    def __init__(self, minimo=3, proporcao=0.20):
+        self.minimo = minimo
+        self.proporcao = proporcao
+        self.com: dict[int, int] = {}
+        self.total: dict[int, int] = {}
+
+    def ver(self, tid, origem):
+        if tid < 0:
+            return False
+        self.total[tid] = self.total.get(tid, 0) + 1
+        if origem == "tornozelo":
+            self.com[tid] = self.com.get(tid, 0) + 1
+
+        com = self.com.get(tid, 0)
+        if com < self.minimo:
+            return False
+        if self.total[tid] < 15:
+            return True
+        return com / self.total[tid] >= self.proporcao
+
+    def esquecer(self, vivos):
+        for d in (self.com, self.total):
+            for tid in list(d):
+                if tid not in vivos:
+                    del d[tid]
+
+
+class FiltroDePlausibilidade:
+    """A caixa tem o tamanho de uma pessoa NAQUELE lugar do chao?
+
+    O PROBLEMA QUE ISTO RESOLVE
+
+    Uma cadeira com roupas e detectada como pessoa com confianca alta, e o
+    MediaPipe obedientemente desenha um esqueleto nela. Nem a confianca do
+    detector nem a presenca de tornozelos denunciam a fraude.
+
+    Mas a GEOMETRIA denuncia.
+
+    A IDEIA, e ela vem do bloco 1
+
+    Numa imagem de um plano, existe uma LINHA DO HORIZONTE: onde o plano some
+    no infinito. A homografia ja carrega essa linha — sao os coeficientes da
+    terceira linha da matriz, os que produzem a divisao por w:
+
+        h31*u + h32*v + h33 = 0
+
+    E ha um fato classico de geometria projetiva: para objetos de mesma altura
+    apoiados no plano, a altura APARENTE em pixels e proporcional a distancia
+    vertical entre o pe e o horizonte.
+
+        altura_px = k * (v_pe - v_horizonte)
+
+    Ou seja: sabendo onde os pes estao, da para PREVER quantos pixels de altura
+    uma pessoa deveria ter ali. Quem foge muito da previsao nao e pessoa.
+
+    AUTOCALIBRACAO — E O ERRO QUE ELA QUASE CAUSOU
+
+    A constante k depende da altura tipica das pessoas e da lente. Em vez de
+    chutar, aprendemos: cada pessoa contribui com uma amostra de
+    altura_px / (v_pe - v_horizonte), e usamos a MEDIANA.
+
+    A PRIMEIRA VERSAO APRENDIA COM QUEM ELA MESMA ACEITAVA. Medido em 08/08:
+    uma cadeira com roupas foi aceita, virou amostra, e ensinou o filtro que
+    "pessoa aqui tem esse tamanho". Resultado: k=0,207 com dispersao de 61%.
+
+        Um filtro que aprende com o que ele aceita valida os proprios erros.
+
+    A CORRECAO exige um sinal que um movel nao consiga falsificar:
+    MOVIMENTO. Cadeira nao anda. Agora `observar()` so aceita amostras de
+    rastros que ja percorreram uma distancia minima de verdade.
+
+    Isso torna o aprendizado imune a mobilia — ao custo de precisar que alguem
+    caminhe pela cena antes de o filtro entrar em acao.
+
+    LIMITES HONESTOS
+
+    - Nao funciona com a camera quase perpendicular ao chao: sem perspectiva,
+      nao ha horizonte utilizavel. Detectamos isso e desligamos o filtro.
+    - Uma crianca ou alguem agachado tem altura menor de verdade. Por isso a
+      tolerancia e larga (fator 1,7 por padrao) — o objetivo e cortar o
+      absurdo, nao afinar.
+    - Precisa de amostras antes de julgar.
+    """
+
+    def __init__(self, H, tolerancia=1.7, minimo_amostras=25, memoria=400,
+                 percurso_minimo_m=1.0, dispersao_maxima=0.30):
+        from collections import deque
+
+        self.tol = tolerancia
+        self.minimo = minimo_amostras
+        self.percurso_minimo = percurso_minimo_m
+        self.dispersao_maxima = dispersao_maxima
+        self.amostras = deque(maxlen=memoria)
+        self.k = None
+        self.recusadas_por_imobilidade = 0
+        self.desistiu = False
+
+        # Terceira linha da homografia: e ela que define o horizonte.
+        self.h31, self.h32, self.h33 = (float(H[2, 0]), float(H[2, 1]),
+                                        float(H[2, 2]))
+
+        # Sem inclinacao suficiente, h32 tende a zero e o horizonte vai para o
+        # infinito. Nesse caso o filtro nao tem base e fica desligado.
+        self.utilizavel = abs(self.h32) > 1e-7
+
+    def v_horizonte(self, u):
+        """Altura (em pixels) da linha do horizonte na coluna u."""
+        return -(self.h31 * u + self.h33) / self.h32
+
+    def razao(self, caixa):
+        """altura_px / distancia_ao_horizonte. Constante para pessoas reais."""
+        x1, y1, x2, y2 = caixa
+        u = (x1 + x2) / 2.0
+        d = y2 - self.v_horizonte(u)
+        if d <= 1e-6:
+            return None            # pe acima do horizonte: impossivel
+        return (y2 - y1) / d
+
+    def observar(self, caixa, percorrido_m):
+        """Alimenta uma amostra — SO de quem ja andou de verdade.
+
+        `percorrido_m` e a distancia total que o rastro percorreu. Mobilia
+        nunca alcanca o limiar, entao nunca entra no aprendizado.
+        """
+        if not self.utilizavel:
+            return False
+        if percorrido_m < self.percurso_minimo:
+            self.recusadas_por_imobilidade += 1
+            return False
+
+        r = self.razao(caixa)
+        if r is not None and r > 0:
+            self.amostras.append(r)
+            if len(self.amostras) >= self.minimo:
+                self.k = float(np.median(self.amostras))
+                self._julgar_o_proprio_ajuste()
+            return True
+        return False
+
+    def _julgar_o_proprio_ajuste(self):
+        """O modelo descreve ESTA cena? Se nao, o filtro se cala.
+
+        MEDIDO EM 10/08. O filtro aprendeu k=0,149 com dispersao de 48% e
+        passou a recusar 358 de 650 deteccoes de uma pessoa real. O rastro
+        durou 3 s em 60. Com o filtro desligado, a mesma pessoa foi seguida a
+        execucao inteira, sem uma unica perda.
+
+            Nao era o limiar. Era o modelo.
+
+        `altura_px = k * (v_pe - v_horizonte)` vale para gente em pe, vista de
+        longe, com horizonte na imagem. Numa camera inclinada sobre uma area
+        pequena, a caixa e cortada pela borda do quadro e a altura aparente
+        deixa de seguir a distancia ao horizonte. Dispersao de 48% e o modelo
+        avisando que nao serve ali.
+
+        O guarda que existia — `abs(h32) > 1e-7` — nunca pegou isso, porque
+        testa se ha horizonte, nao se o horizonte EXPLICA as medidas. Um
+        numero diferente de zero nao e um ajuste bom.
+
+            Um filtro que nao consegue ajustar o proprio modelo deve se
+            ABSTER, nao recusar. Recusar sem base derruba o que era para
+            proteger.
+
+        Continua aprendendo: se a cena melhorar (camera mais longe, pessoa
+        inteira no quadro), a dispersao cai e ele volta sozinho.
+        """
+        a = np.array(self.amostras)
+        disp = (np.percentile(a, 75) - np.percentile(a, 25)) / self.k
+        ruim = disp > self.dispersao_maxima
+        if ruim != self.desistiu:
+            self.desistiu = ruim
+        return not ruim
+
+    def plausivel(self, caixa):
+        """(aceita, motivo). Aceita por padrao enquanto nao houver base.
+
+        `desistiu` entra aqui com o mesmo peso de `k is None`: sem modelo que
+        sirva, nao ha julgamento a fazer.
+        """
+        if not self.utilizavel or self.k is None or self.desistiu:
+            return True, ""
+
+        r = self.razao(caixa)
+        if r is None:
+            return False, "acima do horizonte"
+
+        if r > self.k * self.tol:
+            return False, f"alta demais ({r/self.k:.1f}x)"
+        if r < self.k / self.tol:
+            return False, f"baixa demais ({self.k/r:.1f}x)"
+        return True, ""
+
+    @property
+    def pronto(self):
+        return self.utilizavel and self.k is not None and not self.desistiu
+
+    def diagnostico(self):
+        if not self.utilizavel:
+            return "sem horizonte (camera perpendicular)"
+        if self.k is None:
+            return f"aprendendo ({len(self.amostras)}/{self.minimo})"
+        a = np.array(self.amostras)
+        disp = (np.percentile(a, 75) - np.percentile(a, 25)) / self.k
+        estado = "ABSTIDO" if self.desistiu else "ativo"
+        return f"k={self.k:.3f} disp={disp*100:.0f}% {estado}"

@@ -1,0 +1,355 @@
+"""
+SpatialEngine — de observacoes para posicoes e esqueletos no mundo.
+
+O QUE ELE FAZ
+
+Recebe Observacoes (hipoteses do que cada camera viu) e devolve
+EstadoDePessoa (o que o sistema conclui). Entre uma coisa e outra estao todos
+os filtros, a geometria e o Kalman.
+
+REAPROVEITAMENTO
+
+Nada aqui e novo. Cada peca ja foi escrita, medida e registrada no caderno:
+
+    chao.EstimadorDePe            saltos > 50 cm: 5 -> 0
+    chao.FiltroDeTornozelo        0 tornozelos em 79 quadros de mobilia
+    chao.FiltroDePlausibilidade   rejeita cadeira e poste, aceita crianca
+    rastreio.GerenciadorDeRastros recostura testada a 30 e 4 fps
+    fusao.Fusor                   33 cm -> 1,3 cm em simulacao
+    pose3d.SuavizadorDeEsqueleto  corta metade do tremor, acompanha 170/200 mm
+
+O que muda e a ORGANIZACAO: antes tudo isso vivia solto dentro de um laco de
+317 linhas que tambem abria camera e desenhava. Aqui esta um objeto com uma
+entrada e uma saida.
+
+A ORDEM IMPORTA, E ESTA E A RAZAO DE CADA POSICAO
+
+    1. plausibilidade   e GRATIS. Vem antes de gastar 30 ms de pose numa cadeira.
+    2. ponto do pe      tornozelo quando ha; caixa corrigida pelo vies quando nao.
+    3. homografia       pixel -> metros.
+    4. tornozelo        o rastro ja provou ser gente?
+    5. Kalman           suaviza o ruido e sobrevive a sumicos.
+    6. fusao            frontal da largura e altura; lateral da profundidade.
+    7. ancoragem        esqueleto em pe no ponto do chao, virado para o rumo.
+
+NOTA DE MIGRACAO
+
+Os modulos importados ainda vivem em `percepcao/` e `estado/`. Sao os mesmos
+arquivos que os programas antigos usam. Movê-los agora quebraria o
+`gemeo_multi.py`, que continua sendo a unica versao que roda de ponta a ponta.
+A mudanca de lugar acontece quando o orquestrador novo substituir o antigo.
+"""
+
+import sys
+from pathlib import Path
+
+import numpy as np
+
+RAIZ = Path(__file__).resolve().parent.parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
+from estado.rastreio import GerenciadorDeRastros            # noqa: E402
+from percepcao.chao import (                                # noqa: E402
+    EstimadorDePe, FiltroDePlausibilidade, FiltroDeTornozelo, para_metros,
+)
+from percepcao.fusao import Fusor                          # noqa: E402
+from percepcao.pose3d import (                              # noqa: E402
+    EstimadorDeInclinacao, SuavizadorDeEsqueleto, ancorar_no_chao,
+)
+from src.acao.classificador import Descritor                 # noqa: E402
+from src.espacial.estado import EstadoDePessoa              # noqa: E402
+from src.nucleo.log import Log                              # noqa: E402
+
+
+class SpatialEngine:
+    def __init__(self, H, resolucao_calibracao=None, resolucao_captura=None,
+                 papel_chao="alto", lado_lateral="direita",
+                 min_tornozelo=3, usar_plausibilidade=True,
+                 ruido_processo=0.6, max_coasting_s=3.0):
+        # o log vem ANTES de qualquer coisa que possa registrar algo
+        self.log = Log("espacial")
+
+        # Guardamos a homografia ORIGINAL e a resolucao em que ela foi
+        # medida. A resolucao de captura configurada e um PEDIDO; a camera
+        # responde o que quiser. Quando a real chegar, reajustamos a partir
+        # do original — nunca compondo escala sobre escala.
+        self.H_original = H
+        self.resolucao_calibracao = resolucao_calibracao
+        self.H = self._ajustar_escala(H, resolucao_calibracao,
+                                      resolucao_captura)
+        self.papel_chao = papel_chao
+        self.usar_plausibilidade = usar_plausibilidade
+
+        self.estimador_pe = EstimadorDePe()
+        self.filtro_tornozelo = FiltroDeTornozelo(minimo=min_tornozelo)
+        self.plausibilidade = FiltroDePlausibilidade(self.H)
+        self.rastros = GerenciadorDeRastros(ruido_processo=ruido_processo,
+                                            max_coasting_s=max_coasting_s)
+        self.suavizador = SuavizadorDeEsqueleto()
+        self.fusor = Fusor(lado_lateral=lado_lateral)
+
+        # A INCLINACAO DA CAMERA NAO E DETALHE: E O QUE MANTEM O BONECO EM PE.
+        #
+        # O MediaPipe devolve coordenadas alinhadas com a CAMERA, nao com a
+        # gravidade. Com a lente inclinada olhando o chao, o esqueleto sai
+        # tombado exatamente por esse angulo.
+        #
+        # REGRESSAO DE MIGRACAO, 10/08: este estimador ja existia e ja tinha
+        # medido -42 graus sozinho. Ao montar o SpatialEngine eu chamei
+        # `para_o_mundo`, que faz tudo o que `ancorar_no_chao` faz MENOS
+        # desfazer a inclinacao. Duas funcoes quase iguais, e eu peguei a
+        # errada — o resultado foi um boneco deitado por uma sessao inteira.
+        #
+        #     Codigo duplicado nao e so feio: ele deixa escolher a versao
+        #     incompleta sem perceber.
+        self.inclinacao = EstimadorDeInclinacao()
+
+        # CAMADA DE ACAO (arquitetura v3, etapa A).
+        #
+        # Roda DENTRO do ciclo, a cada quadro, sobre numeros que ja estao
+        # calculados. Custa aritmetica — microssegundos contra os 156 ms do
+        # detector. Nao e ela que deixa o sistema lento.
+        self.descritor = Descritor()
+        self.acoes = {}                # id -> Acao, para o painel e o desenho
+
+        self.log = Log("espacial")
+        self._rumos = {}
+        self._caixas = {}
+        # FUNIL, nao so rejeicoes.
+        #
+        # Em 10/08 o painel disse `rejeitadas plausibilidade 358`. Numero solto
+        # nao responde a pergunta que importa: 358 de quantas? De 400 e um
+        # filtro quebrado; de 100 mil e ruido. Sem o total, a unica saida seria
+        # adivinhar — e adivinhar com trabalho ja custou caro duas vezes.
+        self._dt_atual = 1 / 30
+        self.funil = {"observadas": 0, "sem_id": 0, "plausibilidade": 0,
+                      "tornozelo": 0, "medidas": 0}
+        self.rejeitadas = {"plausibilidade": 0, "tornozelo": 0}
+
+    # ------------------------------------------------------------ geometria
+    def _ajustar_escala(self, H, calib, captura):
+        """A homografia vale para UMA resolucao.
+
+        Se a captura mudar, os pixels mudam de escala e a calibracao deixa de
+        valer. Em vez de exigir recalibracao, compomos com a mudanca de escala
+        — que e exatamente o que uma matriz sabe fazer.
+        """
+        if not calib or not captura or tuple(calib) == tuple(captura):
+            return H
+        cw, ch = calib
+        pw, ph = captura
+        S = np.array([[cw / pw, 0, 0], [0, ch / ph, 0], [0, 0, 1.0]])
+        self.log.info("homografia reescalada",
+                      de=f"{cw}x{ch}", para=f"{pw}x{ph}")
+        return H @ S
+
+    def ajustar_para_resolucao(self, largura, altura):
+        """Reajusta a homografia para a resolucao que a camera DE FATO entregou.
+
+        Pedir 1280x720 e receber 640x480 acontece — a camera decide. Se o
+        sistema seguir usando a resolucao pedida, cada pixel vale o dobro do
+        que deveria e a posicao sai com o dobro do erro, sem nenhum sintoma
+        alem de numeros errados.
+
+        Recalcula sempre a partir de `H_original`. Compor escala sobre escala
+        ja ajustada acumularia erro a cada chamada.
+        """
+        nova = self._ajustar_escala(self.H_original, self.resolucao_calibracao,
+                                    (largura, altura))
+        mudou = not np.allclose(nova, self.H)
+        self.H = nova
+        self.plausibilidade = FiltroDePlausibilidade(self.H)
+        return mudou
+
+    # ------------------------------------------------------------ ciclo
+    def atualizar(self, observacoes, dt):
+        self._dt_atual = dt
+        chao = [o for o in observacoes if o.papel == self.papel_chao
+                and o.tem_caixa]
+        poses = [o for o in observacoes if o.tem_pose]
+
+        medidas = self._medir_no_chao(chao)
+        self._alimentar_fusor(poses)
+
+        rastros = self.rastros.atualizar(medidas, dt)
+        self._observar_inclinacao(
+            poses, [float(np.hypot(*r.kf.vel)) for r in rastros.values()])
+        return self._montar_estados(rastros)
+
+    # ------------------------------------------------------------ 1 a 4
+    def _medir_no_chao(self, observacoes):
+        """Observacoes da camera do alto -> (id_externo, x_m, y_m)."""
+        medidas = []
+        vivos = set()
+
+        for o in observacoes:
+            self.funil["observadas"] += 1
+            tid = o.id_externo
+            if tid < 0:
+                self.funil["sem_id"] += 1
+                continue
+            vivos.add(tid)
+
+            # 1. plausibilidade — geometria, gratis, antes de tudo
+            if self.usar_plausibilidade:
+                ok, _motivo = self.plausibilidade.plausivel(o.caixa)
+                if not ok:
+                    self.rejeitadas["plausibilidade"] += 1
+                    self.funil["plausibilidade"] += 1
+                    continue
+
+            # 2. ponto do pe
+            pe, origem = self.estimador_pe.estimar(
+                tid, o.caixa, o.juntas_2d, o.conf_2d)
+
+            # 4. o rastro ja provou ser gente?
+            if not self.filtro_tornozelo.ver(tid, origem):
+                self.rejeitadas["tornozelo"] += 1
+                self.funil["tornozelo"] += 1
+                continue
+
+            # 3. homografia
+            mx, my = para_metros(self.H, *pe)
+            medidas.append((tid, mx, my))
+            self.funil["medidas"] += 1
+            self._caixas[tid] = o.caixa
+
+        self.estimador_pe.esquecer(vivos)
+        self.filtro_tornozelo.esquecer(vivos)
+        for tid in list(self._caixas):
+            if tid not in vivos:
+                del self._caixas[tid]
+        return medidas
+
+    # ------------------------------------------------------------ 6
+    def _observar_inclinacao(self, poses, velocidades):
+        """So aprende com quem esta ANDANDO — parado, o corpo mente.
+
+        Ninguem caminha inclinado. O vetor quadril->ombros de quem anda e
+        vertical no mundo, entao o giro que ele mostra na imagem E a
+        inclinacao da lente.
+        """
+        if not velocidades:
+            return
+        v = max(velocidades)
+        for o in poses:
+            if o.juntas_3d is not None:
+                self.inclinacao.observar(o.juntas_3d, v, o.conf_2d)
+
+    def _alimentar_fusor(self, poses):
+        """Guarda a ultima pose de cada vista.
+
+        LIMITE DECLARADO: um fusor so. Com duas pessoas em cena, o sistema nao
+        sabe qual pose da frontal pertence a qual pessoa do alto. Resolver
+        exige re-identificacao por aparencia — bloco 5 do plano de estudo.
+        """
+        for o in poses:
+            if o.papel == "frontal":
+                self.fusor.ver_frontal(o.juntas_3d, o.t_mono, o.conf_2d)
+            elif o.papel == "lateral":
+                self.fusor.ver_lateral(o.juntas_3d, o.t_mono, o.conf_2d)
+
+    # ------------------------------------------------------------ 5 e 7
+    def _montar_estados(self, rastros):
+        agora = max((r.kf and 0 for r in rastros.values()), default=0)
+        juntas_pessoa, visiveis = self.fusor.esqueleto(self._agora())
+        varias = len(rastros) > 1
+
+        estados = []
+        for meu, r in rastros.items():
+            vx, vy = r.kf.vel
+            if np.hypot(vx, vy) > 0.15:
+                self._rumos[meu] = float(np.arctan2(vy, vx))
+            rumo = self._rumos.get(meu, -np.pi / 2)
+
+            # o filtro de altura so aprende com quem ANDOU. Mobilia nao anda.
+            ext = [e for e in r.ids_externos if e in self._caixas]
+            if ext and self.usar_plausibilidade:
+                self.plausibilidade.observar(self._caixas[ext[-1]],
+                                             r.percorrido)
+
+            esqueleto = None
+            if juntas_pessoa is not None and not varias:
+                esqueleto = ancorar_no_chao(
+                    juntas_pessoa, r.pos[0], r.pos[1], rumo,
+                    inclinacao_rad=self.inclinacao.valor)
+                esqueleto = self.suavizador.suavizar(meu, esqueleto)
+
+            estados.append(EstadoDePessoa(
+                id=meu, x=r.pos[0], y=r.pos[1], vx=vx, vy=vy,
+                incerteza=r.kf.incerteza, rumo=rumo,
+                esqueleto=esqueleto,
+                juntas_visiveis=visiveis if esqueleto is not None else None,
+                prevendo=r.sem_medicao,
+                percorrido=r.percorrido, quadros=r.quadros,
+                visto_por=self._vistas_ativas(),
+                associacao_confiavel=not varias,
+                t_mono=self._agora(),
+            ))
+
+        self._descrever(estados, rastros)
+
+        self.suavizador.esquecer(set(rastros))
+        for meu in list(self._rumos):
+            if meu not in rastros:
+                del self._rumos[meu]
+        return estados
+
+    def _descrever(self, estados, rastros):
+        """Traduz numeros medidos em vocabulario fechado, e pendura na pessoa.
+
+        A postura reaproveita o `k` do filtro de altura: ele ja aprendeu
+        quanto mede uma pessoa EM PE naquele ponto do chao, corrigido pela
+        perspectiva. Quem encolhe em relacao a isso, agachou.
+
+        Quando o filtro esta ABSTIDO, `k` nao vale e a postura sai
+        DESCONHECIDA — sem base, nao se opina.
+        """
+        k = self.plausibilidade.k if self.plausibilidade.pronto else None
+
+        razoes = {}
+        if k:
+            for e in estados:
+                r = rastros.get(e.id)
+                ext = [x for x in (r.ids_externos if r else ()) 
+                       if x in self._caixas]
+                if ext:
+                    razoes[e.id] = self.plausibilidade.razao(
+                        self._caixas[ext[-1]])
+
+        resultado = self.descritor.atualizar(
+            estados, self._dt_atual, razoes=razoes, k_referencia=k)
+
+        self.acoes = {}
+        for e in estados:
+            acao, mudou_loc, mudou_pos = resultado[e.id]
+            e.acao = acao
+            self.acoes[e.id] = (acao, mudou_loc, mudou_pos)
+
+    def _vistas_ativas(self):
+        v = {self.papel_chao}
+        if self.fusor.frontal is not None:
+            v.add("frontal")
+        if self.fusor.lateral is not None:
+            v.add("lateral")
+        return v
+
+    @staticmethod
+    def _agora():
+        import time
+        return time.monotonic()
+
+    # ------------------------------------------------------------ metricas
+    def resumo(self):
+        return {
+            "funil": dict(self.funil),
+            "rastros": len(self.rastros.rastros),
+            "recosturas": self.rastros.recosturas,
+            "rejeitadas": dict(self.rejeitadas),
+            "altura": self.plausibilidade.diagnostico(),
+            "vistas": self.fusor.diagnostico,
+            "inclinacao": (f"{np.degrees(self.inclinacao.valor):+.0f}deg "
+                           f"({len(self.inclinacao.amostras)} amostras"
+                           f"{'' if self.inclinacao.confiavel else ', aprendendo'})"),
+        }

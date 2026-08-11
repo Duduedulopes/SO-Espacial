@@ -111,14 +111,36 @@ que é a promessa de privacidade do projeto.
 
 ```
 SO-Espacial/
-├─ captura/          grava vídeo e eventos — código estável
-├─ calibracao/       imagem → coordenada de planta baixa
-├─ dados/
-│  ├─ bruto/         originais, SOMENTE ESCRITA
-│  └─ sessoes/       uma pasta por gravação
-├─ notebooks/        experimentos exploratórios
-└─ docs/             plano de estudo, esquema de dados, decisões
+├─ captura/          fonte de vídeo e gravação — código estável
+│    fonte.py          câmera em thread, descarta quadros velhos
+│    gravar.py         grava sessões com carimbo de tempo
+│    diagnostico.py    mede fps, brilho, codec da câmera
+├─ calibracao/       imagem → metros no chão
+│    homografia.py     calibração interativa (bloco 1)
+├─ percepcao/        do pixel ao mundo
+│    chao.py           BIBLIOTECA: homografia, ponto do pé, filtros
+│    pose3d.py         BIBLIOTECA: pose 3D relativa, inclinação
+│    mapa.py           programa: vista 2D de cima
+│    gemeo3d.py        programa: o gêmeo completo
+├─ estado/           o mundo, sem desenho
+│    rastreio.py       Kalman 2D e recostura de identidade
+│    ocupacao.py       mapa de calor e zonas
+│    planta.py         loja lida de JSON, estado publicado
+├─ visual/           só desenho, não sabe de câmera
+│    cena2d.py         vista de cima
+│    cena3d.py         esqueletos numa cena 3D
+├─ loja/             plantas em JSON — loja nova, arquivo novo
+├─ experimentos/     programas superados, citados no caderno
+├─ dados/            sessões, registros, estado_atual.json
+└─ docs/             plano de estudo, esquema de dados, caderno
 ```
+
+**Regra que organiza tudo isso:** um arquivo é biblioteca **ou** programa,
+nunca os dois. Biblioteca não tem `main()`; programa não é importado.
+
+Até 08/08 o `mapa.py` era os dois, e o `gemeo3d.py` importava classes de dentro
+dele — então rodar o gêmeo carregava o código de desenho do mapa, e mexer num
+quebrava o outro. O núcleo foi para `percepcao/chao.py`.
 
 **Regra do `dados/bruto`: somente escrita.** Nada é corrigido, limpo ou
 sobrescrito ali. Todo processamento gera arquivo novo em outro lugar. Parece

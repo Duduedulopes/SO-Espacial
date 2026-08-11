@@ -37,9 +37,26 @@ def agora_iso() -> str:
 def main() -> None:
     p = argparse.ArgumentParser(description="Grava uma sessao de captura.")
     p.add_argument("--camera", type=int, default=0, help="indice da camera")
-    p.add_argument("--largura", type=int, default=1280)
-    p.add_argument("--altura", type=int, default=720)
+    p.add_argument("--largura", type=int, default=640)
+    p.add_argument("--altura", type=int, default=480)
     p.add_argument("--fps", type=int, default=30)
+    p.add_argument(
+        "--exposicao",
+        type=float,
+        default=-6,
+        help="exposicao manual em log2 segundos (-6 = 1/64s). Menor = mais escuro e mais rapido.",
+    )
+    p.add_argument(
+        "--ganho",
+        type=float,
+        default=None,
+        help="amplifica o sinal do sensor. Clareia sem perder fps, mas amplifica ruido junto.",
+    )
+    p.add_argument(
+        "--auto-exposicao",
+        action="store_true",
+        help="deixa a camera escolher. NAO recomendado: derruba o fps e muda o brilho sozinho.",
+    )
     p.add_argument("--nota", type=str, default="", help="anotacao livre sobre a cena")
     p.add_argument("--local", type=str, default="", help="onde a camera esta")
     args = p.parse_args()
@@ -55,10 +72,23 @@ def main() -> None:
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, args.altura)
     cam.set(cv2.CAP_PROP_FPS, args.fps)
 
+    # Exposicao manual. Isto nao e detalhe: no automatico a C920 derruba a taxa
+    # de quadros em luz fraca (30 -> 15 -> 10 -> 7,5) sem avisar, e o brilho da
+    # cena muda sozinho ao longo da gravacao. Dataset com brilho instavel ensina
+    # o modelo a associar coisas que nao tem relacao.
+    if not args.auto_exposicao:
+        cam.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # 0.25 = manual, 0.75 = auto
+        cam.set(cv2.CAP_PROP_EXPOSURE, args.exposicao)
+
+    if args.ganho is not None:
+        cam.set(cv2.CAP_PROP_GAIN, args.ganho)
+
     # O que a camera REALMENTE aceitou. Pedido != obtido.
     largura_real = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
     altura_real = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps_real = float(cam.get(cv2.CAP_PROP_FPS))
+    exposicao_real = float(cam.get(cv2.CAP_PROP_EXPOSURE))
+    auto_exp_real = float(cam.get(cv2.CAP_PROP_AUTO_EXPOSURE))
 
     # ---------- criar a pasta da sessao ----------
     sessao_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -85,7 +115,15 @@ def main() -> None:
             "largura_real": largura_real,
             "altura_real": altura_real,
             "fps_real": fps_real,
-            "fourcc": "MJPG",
+            "fourcc_pedido": "MJPG",
+            "fourcc_real": "".join(
+                chr((int(cam.get(cv2.CAP_PROP_FOURCC)) >> (8 * k)) & 0xFF)
+                for k in range(4)
+            ),
+            "auto_exposicao": args.auto_exposicao,
+            "exposicao_pedida": args.exposicao,
+            "exposicao_real": exposicao_real,
+            "auto_exposicao_real": auto_exp_real,
         },
         "cena": {"local": args.local, "descricao": args.nota},
         "notas": args.nota,
@@ -129,10 +167,16 @@ def main() -> None:
                 # Previa com indicador de gravacao.
                 previa = frame.copy()
                 decorrido = time.monotonic() - t0
+
+                # Brilho medio, para voce ver na hora se a cena esta escura
+                # demais. Abaixo de ~60 o video fica praticamente inutilizavel;
+                # entre 90 e 140 e uma faixa saudavel.
+                brilho = float(frame.mean())
+
                 cv2.circle(previa, (30, 30), 10, (0, 0, 255), -1)
                 cv2.putText(
                     previa,
-                    f"REC {decorrido:6.1f}s  quadro {i}",
+                    f"REC {decorrido:6.1f}s  q{i}  brilho {brilho:3.0f}",
                     (50, 38),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,

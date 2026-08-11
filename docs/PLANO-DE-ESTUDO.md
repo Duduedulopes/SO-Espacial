@@ -29,7 +29,16 @@ vetorizada equivalente. Aprender a *pensar em arrays* é o pulo do gato.
 
 ---
 
-## Bloco 1 — Geometria de câmeras
+## Bloco 1 — Geometria de câmeras ✅ CONCLUÍDO 07/08/2026
+
+> Critério cumprido: previsto 222 mm → trena 220 mm; previsto 370 mm → trena
+> 370 mm. Detalhes em `caderno/2026-08-07.md`.
+>
+> Ferramenta: `calibracao/homografia.py`.
+>
+> Pendente para o local da loja: erro em função da distância. O piso daqui é
+> assentado na diagonal e não permite o experimento.
+
 
 **Não pule este bloco.** É o alicerce de tudo que é "espacial". Sem ele,
 "gêmeo digital" continua sendo metáfora; com ele, vira coordenada.
@@ -61,6 +70,12 @@ Quando isso funcionar, você terá o gêmeo digital em sua forma mais simples �
 terá entendido por que ele funciona.
 
 ---
+
+> **Nota de percurso (07/08/2026):** decidimos fazer o bloco 3 antes do 2.
+> Rastreadores modernos são Kalman + associação, mas entender *por que* eles
+> precisam disso é muito mais fácil depois de ver um detector perdendo a
+> identidade de uma pessoa na prática. Sentir o problema antes de estudar a
+> solução. Voltamos ao bloco 2 quando o rastreamento começar a falhar.
 
 ## Bloco 2 — Estimação de estado
 

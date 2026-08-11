@@ -1,0 +1,14 @@
+{
+  "alto": {
+    "fonte": "HD Pro Webcam C920",
+    "captura": "640x480"
+  },
+  "frontal": {
+    "fonte": "VGA camera",
+    "captura": "640x480"
+  },
+  "lateral": {
+    "fonte": "http://192.168.1.2:8080/video",
+    "captura": "640x480"
+  }
+}

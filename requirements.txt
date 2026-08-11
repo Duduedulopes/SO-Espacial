@@ -4,10 +4,14 @@ opencv-python>=4.10
 numpy>=1.26
 pyyaml>=6.0
 
+# Nomes das cameras no Windows. Sem isto so ha indices numericos, que mudam
+# sozinhos e ja custaram uma sessao inteira de depuracao.
+pygrabber>=0.2 ; sys_platform == "win32"
+
 # --- detecção e rastreamento (degraus 1 e 2) ---
 # Descomente quando chegar lá. Puxa o PyTorch junto: ~2,5 GB de download.
 # Licença AGPL-3.0 — ótima para pesquisa, exige atenção se virar produto fechado.
-# ultralytics>=8.3
+ ultralytics>=8.3
 
 # --- análise e gráficos (quando começar a medir) ---
 # matplotlib>=3.9
