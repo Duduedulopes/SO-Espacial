@@ -59,7 +59,7 @@ from percepcao.pose3d import (                              # noqa: E402
 )
 from src.acao.classificador import Descritor                 # noqa: E402
 from src.acao.corpo import (                                 # noqa: E402
-    AnalisadorDeCorpo, DirecaoPorDeslocamento,
+    AnalisadorDeCorpo, DirecaoPorDeslocamento, rumo_do_alto,
 )
 from src.acao.escala import EscalaVertical                   # noqa: E402
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
@@ -189,6 +189,7 @@ class SpatialEngine:
         self.log = Log("espacial")
         self._rumos = {}
         self._caixas = {}
+        self._ombros = {}
         # Ultima pose relativa de cada papel, guardada CRUA. O fusor guarda a
         # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
         # justamente para nao herdar o erro da combinacao.
@@ -347,12 +348,19 @@ class SpatialEngine:
             medidas.append((tid, mx, my))
             self.funil["medidas"] += 1
             self._caixas[tid] = o.caixa
+            # Os ombros vistos DE CIMA sao a fonte do rumo do corpo:
+            # de cima a linha dos ombros deita no plano do chao, e o
+            # plano do chao e o que a homografia sabe converter.
+            self._ombros[tid] = (o.juntas_2d, o.conf_2d)
 
         self.estimador_pe.esquecer(vivos)
         self.filtro_tornozelo.esquecer(vivos)
         for tid in list(self._caixas):
             if tid not in vivos:
                 del self._caixas[tid]
+        for tid in list(self._ombros):
+            if tid not in vivos:
+                del self._ombros[tid]
         return medidas
 
     # ------------------------------------------------------------ 6
@@ -453,7 +461,7 @@ class SpatialEngine:
                         self._caixas[ext[-1]])
 
         self._medir_estaturas(estados, rastros)
-        self.leituras = self._ler_corpos(estados)
+        self.leituras = self._ler_corpos(estados, rastros)
 
         resultado = self.descritor.atualizar(
             estados, self._dt_atual, leituras=self.leituras,
@@ -491,7 +499,7 @@ class SpatialEngine:
                 em_pe=em_pe)
         self.escala.esquecer({e.id for e in estados})
 
-    def _ler_corpos(self, estados, validade_s=0.5):
+    def _ler_corpos(self, estados, rastros=None, validade_s=0.5):
         """Le o CORPO de cada pessoa a partir de UMA vista de pose.
 
         POR QUE UMA VISTA E NAO A FUSAO
@@ -572,7 +580,21 @@ class SpatialEngine:
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=rumo_andado,
             velocidade=andou,
-            quadril_do_alto=self.escala.altura_do_quadril(pessoa.id))}
+            quadril_do_alto=self.escala.altura_do_quadril(pessoa.id),
+            rumo_do_alto=self._rumo_do_alto(pessoa, rastros or {}))}
+
+    def _rumo_do_alto(self, pessoa, rastros):
+        """Rumo do corpo em coordenadas de MUNDO, da camera de cima.
+
+        Substitui o caminho pela frontal + azimute, que nao convergiu por dois
+        caminhos independentes em 11/08. Ver `corpo.rumo_do_alto`.
+        """
+        r = rastros.get(pessoa.id)
+        ext = [x for x in (r.ids_externos if r else ()) if x in self._ombros]
+        if not ext:
+            return None
+        juntas, conf = self._ombros[ext[-1]]
+        return rumo_do_alto(juntas, conf, para_metros, self.H)
 
     def _vistas_ativas(self):
         v = {self.papel_chao}

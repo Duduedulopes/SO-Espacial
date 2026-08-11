@@ -1065,3 +1065,87 @@ def test_sem_discordancia_o_painel_nao_alarma():
     e.calibrado = math.radians(32)
 
     assert "camera foi movida" not in e.diagnostico
+
+
+# ------------------------------------------- rumo do corpo pela camera do alto
+def _ombros_no_chao(rumo_mundo, x=1.0, y=1.0, largura=0.38, px_por_m=100.0):
+    """Juntas 2D como a camera do alto veria: ombros deitados no chao."""
+    lado = np.array([-math.sin(rumo_mundo), math.cos(rumo_mundo)])
+    centro = np.array([x, y])
+    esq = (centro + lado * largura / 2) * px_por_m
+    dir_ = (centro - lado * largura / 2) * px_por_m
+
+    j = np.tile(centro * px_por_m, (17, 1)).astype(float)
+    j[5], j[6] = esq, dir_
+    return j
+
+
+def test_o_rumo_do_corpo_sai_direto_da_camera_do_alto():
+    """A simplificacao que apaga o problema inteiro.
+
+    O caminho pela frontal precisava do azimute — e ele nao convergiu por dois
+    caminhos independentes em 11/08: aprendido sozinho caiu no grupo errado
+    (180 graus fora), e calibrado a mao teve tres travessias discordando em
+    105 e 148 graus.
+
+    A causa da segunda e geometrica: no referencial da lente, a linha dos
+    ombros de quem esta DE PERFIL deita sobre o eixo de PROFUNDIDADE, que e o
+    mais fraco do MediaPipe. O rumo virava ruido justamente no caso que se
+    queria medir.
+
+    De cima, a linha dos ombros esta DEITADA NO PLANO DO CHAO — o mesmo plano
+    que a homografia converte em metros desde o bloco 1.
+
+        Quando uma constante nao converge por dois caminhos diferentes, vale
+        perguntar se ela precisa existir.
+    """
+    from percepcao.chao import para_metros
+    from src.acao.corpo import rumo_do_alto
+
+    H = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 1.0]])
+
+    for graus in range(0, 360, 30):
+        alvo = math.radians(graus)
+        j = _ombros_no_chao(alvo)
+        lido = rumo_do_alto(j, tudo_visivel(), para_metros, H)
+
+        assert lido is not None, graus
+        assert abs(diferenca_angular(lido, alvo)) < math.radians(2), (
+            f"pedido {graus}, lido {math.degrees(lido):.0f}")
+
+
+def test_sem_ombros_no_alto_nao_ha_rumo():
+    from percepcao.chao import para_metros
+    from src.acao.corpo import rumo_do_alto
+
+    H = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 1.0]])
+    j = _ombros_no_chao(0.0)
+
+    assert rumo_do_alto(j, tudo_visivel(exceto=(5, 6)), para_metros, H) is None
+    assert rumo_do_alto(None, tudo_visivel(), para_metros, H) is None
+
+
+def test_ombros_colados_no_alto_nao_produzem_rumo():
+    """Largura no chao nao pode encolher, so girar. Ombros colados sao
+    reconstrucao ruim — e vetor curto tem angulo mal definido."""
+    from percepcao.chao import para_metros
+    from src.acao.corpo import rumo_do_alto
+
+    H = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 1.0]])
+    j = _ombros_no_chao(0.0, largura=0.02)
+
+    assert rumo_do_alto(j, tudo_visivel(), para_metros, H) is None
+
+
+def test_o_alto_manda_no_rumo_do_corpo():
+    """A frontal continua como reserva, para quando o alto perder os ombros —
+    mas quando os dois respondem, quem manda e quem nao precisa de constante
+    nenhuma."""
+    a = AnalisadorDeCorpo()
+    convergir_azimute(a, offset_graus=40)          # a frontal aprendeu algo
+
+    do_alto = math.radians(-77)
+    leitura = a.ler_varias(1, [(corpo(), tudo_visivel())],
+                           rumo_do_alto=do_alto)
+
+    assert abs(diferenca_angular(leitura.rumo_corpo, do_alto)) < 1e-9

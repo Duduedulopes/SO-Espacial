@@ -442,6 +442,69 @@ class EstimadorDeAzimute:
         return texto
 
 
+def rumo_do_alto(juntas_2d, conf, para_metros, H, largura_minima=0.15):
+    """Rumo do corpo NO MUNDO, direto da camera de cima. Sem azimute.
+
+    A SIMPLIFICACAO QUE APAGA O PROBLEMA INTEIRO
+
+    Ate 11/08 o rumo do corpo saia da linha dos ombros do MediaPipe, medida no
+    referencial da LENTE frontal. Para virar rumo de mundo faltava uma
+    constante — o azimute — e ela nunca convergiu:
+
+        aprendida sozinha    convergiu para o grupo errado, 180 graus fora
+        calibrada a mao      tres travessias discordaram em 105 e 148 graus
+
+    A causa da segunda e geometrica. No referencial da camera, a linha dos
+    ombros de quem esta DE PERFIL deita sobre o eixo de PROFUNDIDADE — e a
+    profundidade e o eixo mais fraco do MediaPipe, o mesmo que em 10/08
+    desenhou o esqueleto deitado. O rumo virava ruido justamente quando a
+    pessoa andava de lado, que e o caso que se queria medir.
+
+    VISTA DE CIMA, ESSE PROBLEMA NAO EXISTE
+
+    A camera do alto ja roda `yolo11n-pose.pt` e entrega os dois ombros em
+    pixels. De cima, a linha dos ombros esta DEITADA NO PLANO DO CHAO — e o
+    plano do chao e exatamente o que a homografia sabe converter em metros.
+
+        Nao ha eixo de profundidade envolvido. Nao ha constante a aprender.
+        Nao ha calibracao a fazer.
+
+    O rumo sai em coordenadas de mundo direto, do mesmo jeito que a POSICAO já
+    saía desde o bloco 1.
+
+        Quando uma constante nao converge por dois caminhos diferentes, vale
+        perguntar se ela precisa existir.
+
+    O QUE SE PAGA, DECLARADO
+
+    Os ombros ficam cerca de 1,4 m ACIMA do chao, e a homografia mapeia o
+    CHAO. Cada ombro sai deslocado radialmente a partir do ponto sob a camera.
+    Como os dois se deslocam quase igual, a DIRECAO do segmento sobrevive; o
+    erro cresce conforme a pessoa se afasta do centro do quadro.
+
+    Numa area de 1,4 m sob a camera, isso e pequeno. Numa loja grande, teria
+    que ser conferido — e a forma de conferir e a que ja existe: comparar com
+    o rumo do deslocamento de quem anda em linha reta.
+    """
+    if juntas_2d is None or not _visivel(conf, OMBRO_ESQ, OMBRO_DIR):
+        return None
+
+    esq = para_metros(H, *juntas_2d[OMBRO_ESQ])
+    dir_ = para_metros(H, *juntas_2d[OMBRO_DIR])
+    dx, dy = esq[0] - dir_[0], esq[1] - dir_[1]
+
+    # Ombros colados sao reconstrucao ruim: a largura no chao nao pode
+    # encolher, so girar. Mesma guarda do caminho antigo, mesma razao — vetor
+    # curto tem angulo mal definido.
+    if float(np.hypot(dx, dy)) < largura_minima:
+        return None
+
+    # O corpo aponta perpendicular a linha dos ombros. Conferindo com o caso
+    # obvio: pessoa virada para +x tem o ombro esquerdo em +y, entao
+    # (dx, dy) = (0, +1) e o giro de -90 graus devolve (+1, 0). Correto.
+    return float(np.arctan2(-dx, dy))
+
+
 class DirecaoPorDeslocamento:
     """Para onde a pessoa ANDOU, medido por onde ela chegou.
 
@@ -851,7 +914,8 @@ class AnalisadorDeCorpo:
 
     # ------------------------------------------------------------ varias vistas
     def ler_varias(self, pessoa_id, vistas, inclinacao_rad=0.0,
-                   rumo_mundo=None, velocidade=0.0, quadril_do_alto=None):
+                   rumo_mundo=None, velocidade=0.0, quadril_do_alto=None,
+                   rumo_do_alto=None):
         """Le TODAS as vistas e combina cada resposta com quem conseguiu da-la.
 
         O PROBLEMA MEDIDO EM 11/08
@@ -896,6 +960,18 @@ class AnalisadorDeCorpo:
         if not leituras:
             return LeituraDoCorpo(motivo="sem pose")
         final = leituras[0] if len(leituras) == 1 else self._combinar(leituras)
+
+        # A CAMERA DO ALTO MANDA NO RUMO DO CORPO.
+        #
+        # O caminho pela frontal precisa do azimute, e o azimute nao convergiu
+        # por dois caminhos independentes em 11/08 — nem aprendido nem
+        # calibrado a mao. De cima nao ha constante a descobrir: a linha dos
+        # ombros ja esta no plano que a homografia converte.
+        #
+        # O caminho antigo continua como reserva, para quando a camera de cima
+        # perder os ombros.
+        if rumo_do_alto is not None:
+            final.rumo_corpo = rumo_do_alto
         return self._aplicar_escala(final, quadril_do_alto)
 
     def _aplicar_escala(self, leitura, quadril_do_alto):
