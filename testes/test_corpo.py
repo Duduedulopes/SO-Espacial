@@ -1365,3 +1365,73 @@ def test_a_vista_que_viu_o_quadril_responde_sem_lista_de_preferencia():
     assert leitura.altura_mao_dir is not None
     assert abs(leitura.altura_mao_dir - 1.20) < 0.01
     assert leitura.fonte_braco_dir == "lateral"
+
+
+# ------------------------------------------------- de onde vem a ancora
+#
+# A altura da mao e `altura_quadril + z_do_pulso`. Quando as duas parcelas
+# saem da MESMA vista, elas carregam o mesmo erro de escala vertical — e erro
+# comum nao se cancela, dobra.
+#
+#     Uma referencia medida no mesmo espaco do erro nao corrige o erro:
+#     herda o erro. Independencia vale mais que precisao nominal.
+#
+# E o motivo de existirem tres cameras: complementar nao e ver a mesma coisa
+# duas vezes, e errar de maneiras diferentes.
+
+def test_medida_significa_visto_AGORA_e_nao_visto_um_dia():
+    """A fila do quadril e limitada por CONTAGEM, nao por tempo.
+
+    Sem novas amostras as velhas nunca saem, entao `bool(fila)` continuava
+    verdadeiro para sempre. Medido em 11/08: a frontal ve tornozelo em 9% dos
+    quadros, e quatro avistamentos na borda de baixo da imagem bastaram para
+    ela reivindicar medicao em 99% do teste — bloqueando a camera do alto.
+    """
+    a = AnalisadorDeCorpo()
+
+    for _ in range(5):
+        com_pe = a.ler(1, corpo(), tudo_visivel())
+    assert com_pe.altura_medida, "com o tornozelo a vista, e medicao"
+
+    sem_pe = a.ler(1, corpo(), tudo_visivel(exceto=(15, 16)))
+    assert not sem_pe.altura_medida, (
+        "o valor guardado continua util; o que ele nao pode e se apresentar "
+        "como medicao do instante")
+    assert sem_pe.altura_quadril is not None, "o valor guardado ainda serve"
+
+
+def test_a_camera_do_alto_ganha_do_proprio_tornozelo():
+    """Ordem invertida em 11/08, e a inversao foi medida, nao deduzida.
+
+    A ordem antiga dizia `tornozelo ~2 cm, alto ~3 cm` — margens que eu
+    escrevi e nunca medi.
+    """
+    a = AnalisadorDeCorpo()
+    esqueleto = corpo(mao_dir=(1.20, 0.30))
+
+    leitura = a.ler_varias(1, [(esqueleto, tudo_visivel())],
+                           quadril_do_alto=0.99, nomes=["frontal"])
+
+    assert leitura.fonte_escala == "camera do alto"
+    assert abs(leitura.altura_quadril - 0.99) < 1e-6
+
+
+def test_sem_a_camera_do_alto_o_tornozelo_ainda_responde():
+    """Trocar a preferencia nao pode APAGAR a fonte preterida."""
+    a = AnalisadorDeCorpo()
+    esqueleto = corpo(mao_dir=(1.20, 0.30))
+
+    leitura = a.ler_varias(1, [(esqueleto, tudo_visivel())],
+                           quadril_do_alto=None, nomes=["frontal"])
+
+    assert leitura.fonte_escala == "tornozelo visto"
+    assert abs(leitura.altura_quadril - QUADRIL) < 0.01
+
+
+def test_sem_alto_e_sem_tornozelo_sobra_o_tronco_e_ele_se_declara():
+    a = AnalisadorDeCorpo()
+    leitura = a.ler_varias(1, [(corpo(), tudo_visivel(exceto=(15, 16)))],
+                           quadril_do_alto=None, nomes=["frontal"])
+
+    assert leitura.fonte_escala == "tronco (proporcao)"
+    assert not leitura.altura_medida

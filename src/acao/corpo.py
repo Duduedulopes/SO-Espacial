@@ -805,7 +805,22 @@ class AnalisadorDeCorpo:
 
         altura_quadril, quadril_agora = self._altura_do_quadril(
             pessoa_id, j, visivel)
-        medida = bool(self._quadris.get(pessoa_id))
+        # VISTO AGORA, NAO VISTO UMA VEZ. (medido em 11/08)
+        #
+        # Era `bool(self._quadris.get(pessoa_id))`: bastava UM quadro com
+        # tornozelo a vista, em qualquer momento do rastro, para todos os
+        # quadros seguintes se declararem medidos. A fila e limitada por
+        # CONTAGEM, nao por tempo — sem novas amostras, as velhas nunca saem.
+        #
+        # A frontal ve tornozelo em 9% dos quadros. Quatro avistamentos ruins,
+        # na borda de baixo da imagem, bastavam para ela reivindicar medicao
+        # em 99% do teste e bloquear a camera do alto, que tinha resposta
+        # melhor e independente. A escala do boletim virou
+        # `tornozelo visto 99%` da noite para o dia.
+        #
+        #     Valor guardado continua util como valor. O que ele nao pode
+        #     fazer e continuar se apresentando como medicao do instante.
+        medida = quadril_agora is not None
 
         leitura = LeituraDoCorpo(
             rumo_corpo=self.azimute.para_o_mundo(rumo_cam),
@@ -1175,23 +1190,46 @@ class AnalisadorDeCorpo:
     def _aplicar_escala(self, leitura, quadril_do_alto):
         """A camera do ALTO manda no quadril quando nenhuma pose viu o pe.
 
-        TRES FONTES, E A ORDEM E POR QUALIDADE DA EVIDENCIA:
+        TRES FONTES, E A ORDEM MUDOU DEPOIS DE SER MEDIDA (11/08)
 
-            1. tornozelo VISTO numa vista de pose   medido, ~2 cm
-            2. estatura medida pela camera do alto  proporcao sobre MEDIDA, ~3 cm
-            3. proporcao sobre o tronco             proporcao sobre proporcao, ~8 cm
+            1. estatura medida pela camera do alto  INDEPENDENTE, ~3 cm
+            2. tornozelo visto na propria vista     mesmo espaco do erro
+            3. proporcao sobre o tronco             proporcao sobre proporcao
 
-        A 2 so entra quando a 1 falha, e a 3 so quando as duas falham. Nenhuma
-        substitui uma melhor que exista — e so a 1 sai sem o aviso de estimada.
+        A ordem original era 1=tornozelo, 2=alto, com margens de erro que eu
+        ESCREVI e nunca medi: "tornozelo ~2 cm, alto ~3 cm". Parecia obvio —
+        junta vista ganha de proporcao antropometrica.
+
+        POR QUE O OBVIO ESTAVA ERRADO
+
+        A altura da mao e `altura_quadril + z_do_pulso`, e o `z` vem dos
+        landmarks 3D da MESMA vista. Quando o quadril tambem vem dali, a
+        ancora e o valor ancorado carregam o mesmo erro de escala vertical, e
+        o erro comum nao se cancela: ele dobra.
+
+        A camera do alto mede a estatura por outro caminho inteiro — altura da
+        caixa contra a linha do horizonte, geometria projetiva, sem MediaPipe
+        nenhum no meio. Ela erra, mas erra SOZINHA.
+
+            Uma referencia medida no mesmo espaco do erro nao corrige o erro:
+            herda o erro. Independencia vale mais que precisao nominal.
+
+        E e literalmente o motivo de existirem tres cameras. Complementar nao
+        e ver a mesma coisa duas vezes: e errar de maneiras diferentes.
 
             Cada camera responde o que enxerga. Nenhuma precisa enxergar tudo.
                                                         — Eduardo, 11/08
+
+        O QUE ISTO AINDA NAO RESOLVE, DITO ANTES DE ALGUEM PERGUNTAR
+
+        Trocar a ancora conserta a ANCORA. A extensao do braco em relacao ao
+        quadril continua saindo comprimida, porque continua vindo do mesmo
+        estimador. O ponto fixo da reta medida vai deixar de andar; a
+        inclinacao dela, nao. Isso e a proxima medicao, nao esta.
         """
-        if leitura.altura_medida:
-            leitura.fonte_escala = "tornozelo visto"
-            return leitura
         if quadril_do_alto is None:
-            leitura.fonte_escala = "tronco (proporcao)"
+            leitura.fonte_escala = ("tornozelo visto" if leitura.altura_medida
+                                    else "tronco (proporcao)")
             return leitura
         leitura.fonte_escala = "camera do alto"
 
