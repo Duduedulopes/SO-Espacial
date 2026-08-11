@@ -277,6 +277,32 @@ def boletim(resultados, prateleiras):
             linhas.append("  frontal nessas alturas. Nao e defeito de codigo:")
             linhas.append("  e o alcance da camera onde ela esta.")
 
+        # QUANTOS QUADROS RESPONDERAM, POR PRATELEIRA.
+        #
+        # "Teve leitura" e "foi medida" nao sao a mesma coisa. Em 11/08 a
+        # prateleira 4 entregou 5 amostras e recusou 35 — 12% de resposta — e
+        # entrou na faixa util com a mesma cara de uma prateleira que
+        # respondeu 82%.
+        #
+        # E a amostra que sobra nao e aleatoria: sobrevivem os quadros em que
+        # o pulso estava DENTRO do quadro, ou seja, os menos extremos do
+        # gesto. Recusar o que saiu da imagem esta certo; tratar o resto como
+        # amostra imparcial, nao.
+        #
+        #     Taxa de recusa alta nao encolhe a amostra: enviesa a amostra,
+        #     e o vies aponta sempre para o centro do quadro.
+        linhas.append("")
+        linhas.append("  QUANTO CADA ALTURA RESPONDEU:")
+        for r in resultados:
+            tentativas = (len(r["lidas"]) + r.get("sem_braco", 0)
+                          + r.get("sem_pessoa", 0))
+            if not tentativas:
+                continue
+            taxa = len(r["lidas"]) / tentativas
+            alerta = "   <<< amostra enviesada" if taxa < 0.4 else ""
+            linhas.append(f"    {r['nome']:22} {taxa:4.0%} "
+                          f"({len(r['lidas'])} de {tentativas}){alerta}")
+
     if not validos:
         linhas += ["", "  Nenhuma prateleira medida. A camera frontal precisa",
                    "  ver seu PULSO enquanto voce pousa a mao — nao a",
@@ -308,15 +334,137 @@ def boletim(resultados, prateleiras):
                        "  a mesma em cima e embaixo, provavelmente porque a",
                        "  postura do braco muda."]
 
+    linhas += _reta_medida(resultados)
+
     if acertos == validos:
         linhas += ["", "  A ETAPA D E VIAVEL com estes numeros: cada prateleira",
                    "  foi identificada corretamente. Declarar as faixas na",
                    "  planta e comparar passa a ser aritmetica."]
     else:
-        linhas += ["", f"  {validos - acertos} prateleira(s) confundida(s). Olhe",
-                   "  a coluna VIES: se ele for grande e constante, corrigir e",
-                   "  trivial. Se variar, o problema e outro."]
+        linhas += ["", f"  {validos - acertos} prateleira(s) confundida(s).",
+                   "  Antes de concluir que falhou, olhe a RETA acima: leitura",
+                   "  ERRADA e leitura INUTIL sao coisas diferentes."]
     return linhas, vies_medio
+
+
+def _reta_medida(resultados, minimo=3):
+    """A leitura nao precisa estar CERTA. Precisa ser SEPARAVEL.
+
+    O QUE A ESTANTE MOSTROU EM 11/08, DEPOIS DE AS CAMERAS FUNCIONAREM
+
+        verdade   0,15   0,55   0,95   1,35   1,90
+        lido      0,40   0,95   0,97   1,13   1,41
+
+    O bloco do VIES olhou isso e disse a coisa certa pela razao certa: o vies
+    varia 0,89 m entre prateleiras, logo nao ha constante a subtrair. Verdade.
+
+    Mas ele parou cedo. Ajustando uma reta:
+
+        lido = 0,509 x verdade + 0,473        ponto fixo em 0,96 m
+
+    O ponto fixo cai em cima do QUADRIL. Ou seja: a ancora esta certa, e o que
+    esta comprimido — pela metade — e o deslocamento do pulso EM RELACAO ao
+    quadril. Erro que cresce proporcional a distancia do quadril, para cima e
+    para baixo, com a mesma inclinacao dos dois lados.
+
+    Isso e assinatura de estimador de pose regredindo para a media: a pose
+    neutra (mao na altura do quadril) e a mais comum no treino e sai exata; as
+    poses extremas sao raras e saem puxadas para o centro. Explica tambem a
+    dispersao BAIXA nas pontas — estimativa colapsada e muito repetivel.
+
+    E AQUI O QUE IMPORTA PARA A ETAPA D
+
+    Nao precisamos do centimetro. Precisamos saber QUAL PRATELEIRA. Uma funcao
+    monotona e repetivel entre a verdade e a leitura e invertivel, e uma
+    compressao uniforme nao apaga a ordem: encolhe os vaos, e a pergunta passa
+    a ser se o vao encolhido ainda cabe fora do ruido.
+
+        Um instrumento errado e util quando o erro e estavel. Um instrumento
+        instavel nao serve nem quando acerta a media.
+
+    E o mesmo argumento que ja tinha sido aceito para o fator 5,25 da escala:
+    constante empirica nao precisa ter nome fisico, precisa ser estavel e ser
+    medida do mesmo jeito que sera usada.
+
+    Por isso o veredicto final desta ferramenta NAO pode ser "acertou o
+    centimetro". Tem que ser a margem: vao entre prateleiras vizinhas, ja
+    comprimido, dividido pela dispersao tipica.
+    """
+    pontos = [(r["verdade"], statistics.median(r["lidas"]),
+               _dispersao(r["lidas"]))
+              for r in resultados if len(r["lidas"]) >= 5]
+    if len(pontos) < minimo:
+        return []
+
+    xs = [p[0] for p in pontos]
+    ys = [p[1] for p in pontos]
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    if sxx < 1e-9:
+        return []
+
+    a = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+    b = my - a * mx
+
+    # R2 diz se a RETA descreve o que aconteceu. Sem isso, inverter a reta
+    # seria aplicar um modelo a dados que nao sao uma reta — e o resultado
+    # sairia com a mesma aparencia de rigor.
+    ss_tot = sum((y - my) ** 2 for y in ys)
+    ss_res = sum((y - (a * x + b)) ** 2 for x, y in zip(xs, ys))
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else 0.0
+
+    linhas = ["", "  A RETA MEDIDA (leitura em funcao da verdade):",
+              f"    lido = {a:.3f} x verdade {b:+.3f}     R2 = {r2:.3f}"]
+
+    if abs(1 - a) > 1e-6:
+        linhas.append(f"    ponto fixo (onde acerta sozinho): {b/(1-a):.2f} m")
+    if a < 0.85:
+        linhas += [f"    o deslocamento do pulso sai COMPRIMIDO a {a:.0%} do real,",
+                   "    e o ponto fixo tende a cair no quadril: a ancora esta",
+                   "    certa e a extensao do braco e que encolhe."]
+
+    # A MARGEM: O UNICO NUMERO QUE DECIDE A ETAPA D.
+    ordenados = sorted(zip(xs, ys))
+    vaos = [ordenados[i + 1][1] - ordenados[i][1]
+            for i in range(len(ordenados) - 1)]
+    dispersoes = [p[2] for p in pontos if p[2] > 0]
+    if not vaos or not dispersoes:
+        return linhas
+
+    menor_vao = min(vaos)
+    tipica = statistics.median(dispersoes)
+    margem = menor_vao / tipica if tipica > 1e-9 else float("inf")
+
+    linhas += ["",
+               f"    menor vao entre prateleiras vizinhas, NA LEITURA:"
+               f" {menor_vao:.2f} m",
+               f"    dispersao tipica da leitura:            {tipica:.2f} m",
+               f"    MARGEM = {margem:.1f}x"]
+
+    if r2 < 0.9:
+        linhas += ["", "    R2 baixo: isto NAO e uma reta. Nao inverta — a",
+                   "    relacao entre verdade e leitura ainda nao esta",
+                   "    descrita, e um ajuste ruim so daria aparencia de rigor."]
+    elif margem >= 3:
+        linhas += ["", "    Margem folgada. A leitura esta errada e SERVE:",
+                   "    inverter a reta poe cada prateleira no lugar. O que",
+                   "    falta e repetir a medicao para saber se a reta e",
+                   "    ESTAVEL entre sessoes — uma reta medida uma vez e uma",
+                   "    coincidencia com dois parametros."]
+    else:
+        linhas += ["", "    Margem apertada: o vao comprimido nao cabe fora do",
+                   "    ruido. Inverter a reta nao salva — prateleiras vizinhas",
+                   "    continuariam se confundindo. Faltam vaos maiores, menos",
+                   "    dispersao, ou uma vista que nao comprima."]
+    return linhas
+
+
+def _dispersao(lidas):
+    if len(lidas) < 4:
+        return 0.0
+    q = statistics.quantiles(lidas, n=4)
+    return q[2] - q[0]
 
 
 def chamada_das_cameras(app, espera_s=8.0):

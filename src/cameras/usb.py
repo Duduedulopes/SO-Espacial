@@ -56,8 +56,27 @@ class UsbCameraSource(FonteDeVideo):
         cap = cv2.VideoCapture(self._indice, cv2.CAP_DSHOW)
         if not cap.isOpened():
             cap.release()
-            raise CameraNaoAbriu(f"'{self.nome}' nao abriu",
-                                 indice=self._indice, backend="DSHOW")
+            # O NOME FOI ENCONTRADO E MESMO ASSIM NAO ABRIU. ISSO E ESPECIFICO.
+            #
+            # `exigir_indice` ja resolveu o nome, entao o Windows ENXERGA o
+            # dispositivo: nao e cabo solto, nao e driver faltando, nao e o
+            # indice errado. O DirectShow da acesso EXCLUSIVO a uma camera, e
+            # a causa quase unica que sobra e outro processo com ela aberta.
+            #
+            # MEDIDO EM 11/08: uma execucao anterior deste mesmo programa
+            # ficou segurando as duas webcams, e a execucao seguinte falhou
+            # com "nao abriu" — mensagem verdadeira e que nao aponta conserto
+            # nenhum. O tempo foi gasto procurando defeito no codigo de
+            # captura, que estava certo.
+            #
+            #     Erro que nao distingue as proprias causas manda procurar
+            #     no lugar errado, e faz isso com autoridade.
+            raise CameraNaoAbriu(
+                f"'{self.nome}' foi encontrada mas nao abriu",
+                indice=self._indice, backend="DSHOW",
+                dica="DirectShow da acesso exclusivo — outro programa "
+                     "provavelmente esta com ela: execucao anterior deste "
+                     "sistema que nao morreu, navegador, Camera, Teams, Meet")
 
         # ordem importa: codec antes da resolucao (regra 4)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
