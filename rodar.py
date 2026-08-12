@@ -113,8 +113,19 @@ def main():
                 marcadores = [(p.id, p.x, p.y, bool(p.prevendo))
                               for p in app.gemeo.pessoas.values()
                               if not p.tem_esqueleto]
+                # DE QUAL PRATELEIRA A MAO VEIO, NO TITULO DA CENA.
+                #
+                # O palpite tem que ficar ao lado do boneco, no mesmo instante
+                # em que ele se mexe. Em painel separado, a correspondencia
+                # entre o gesto e a resposta depende da memoria de quem olha —
+                # foi a mesma razao pela qual o mosaico das cameras nasceu.
+                palpites = [f"#{p} {v.prateleira}"
+                            f"{'' if v.firme else '?'}"
+                            for p, v in sorted(app.espacial.palpites.items())
+                            if v]
                 titulo = (f"q{app.quadros}  {len(app.gemeo.pessoas)}p  "
-                          f"defasagem {instante.defasagem_ms:.0f}ms")
+                          f"defasagem {instante.defasagem_ms:.0f}ms"
+                          + ("   " + "  ".join(palpites) if palpites else ""))
                 cv2.imshow("gemeo 3D", cena.desenhar(
                     esqueletos, titulo, calor=app.gemeo.calor,
                     zonas=app.planta.zonas, marcadores=marcadores))

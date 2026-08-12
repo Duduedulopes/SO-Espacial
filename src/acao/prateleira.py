@@ -448,6 +448,46 @@ class ClassificadorDePrateleira:
         self._historico.pop(pessoa_id, None)
 
 
+def carregar_assinaturas(dados):
+    """De `config/prateleiras.json` para objetos `Assinatura`.
+
+    Tolera campo ausente: um arquivo gravado por uma versao anterior nao tem
+    os sinais que nasceram depois, e isso nao pode impedir o sistema de subir.
+    O sinal que falta simplesmente nao vota — que ja e a regra da casa.
+    """
+    def faixa(v):
+        return tuple(v) if v else None
+
+    return [Assinatura(
+        id=d["id"], nome=d.get("nome", d["id"]), altura=d.get("altura"),
+        alcance=faixa(d.get("alcance")),
+        alcance_2d=faixa(d.get("alcance_2d")),
+        coxa=faixa(d.get("coxa")), tronco=faixa(d.get("tronco")),
+        quadril_na_caixa=faixa(d.get("quadril_na_caixa")),
+        encolhimento=faixa(d.get("encolhimento")),
+        bracos=d.get("bracos") or {},
+        visto_frontal=d.get("visto_frontal"),
+        visto_lateral=d.get("visto_lateral"),
+        amostras=d.get("amostras", 0),
+    ) for d in dados.get("prateleiras", [])]
+
+
+def lado_que_alcanca(leitura):
+    """Qual braco esta fazendo alguma coisa. Quem pega usa UM braco.
+
+    Escolhe o de maior deslocamento em relacao ao quadril — o que se afastou
+    da posicao de repouso. Empate ou silencio devolve a direita, que e o lado
+    em que as assinaturas foram aprendidas.
+    """
+    esq = leitura.alcance_2d_esq if leitura.alcance_2d_esq is not None else leitura.alcance_esq
+    dir_ = leitura.alcance_2d_dir if leitura.alcance_2d_dir is not None else leitura.alcance_dir
+    if esq is None:
+        return "direita"
+    if dir_ is None:
+        return "esquerda"
+    return "esquerda" if abs(esq) > abs(dir_) else "direita"
+
+
 def evidencia_de(leitura, lado="direita", encolhimento=None,
                  quadril_na_caixa=None):
     """Extrai a `Evidencia` de uma `LeituraDoCorpo` ja combinada.

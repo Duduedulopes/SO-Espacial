@@ -64,6 +64,10 @@ from src.acao.corpo import (                                 # noqa: E402
 from src.acao.escala import (                                # noqa: E402
     EscalaVertical, altura_do_quadril_vista_de_cima, quadril_na_caixa,
 )
+from src.acao.prateleira import (                            # noqa: E402
+    ClassificadorDePrateleira, carregar_assinaturas, evidencia_de,
+    lado_que_alcanca,
+)
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
@@ -143,6 +147,16 @@ def _azimute_calibrado():
     havera ninguem para calibrar. Aqui ele e reserva.
     """
     return _ler_config("azimute.json", lambda d: float(d["azimute_rad"]))
+
+
+def _assinaturas_de_prateleira():
+    """Le `config/prateleiras.json`, produzido por `aprender_prateleiras.py`.
+
+    Ausente significa que ninguem ensinou as prateleiras ainda — o sistema
+    sobe igual, so nao responde de qual delas a mao veio. Nao e erro: e uma
+    capacidade que depende de um treino que pode nao ter acontecido.
+    """
+    return _ler_config("prateleiras.json", carregar_assinaturas)
 
 
 def _fator_de_escala():
@@ -256,6 +270,11 @@ class SpatialEngine:
         #     finalidade: recusar movel.
         self.escala = EscalaVertical(fator=_fator_de_escala())
 
+        # DE QUAL PRATELEIRA A MAO VEIO. Vocabulario fechado, evidencia das
+        # tres cameras, sempre a mais provavel. Ver `src/acao/prateleira.py`.
+        self.prateleiras = ClassificadorDePrateleira(
+            _assinaturas_de_prateleira() or [])
+
         self.log = Log("espacial")
         self._rumos = {}
         self._caixas = {}
@@ -346,6 +365,17 @@ class SpatialEngine:
     def caixas_por_id(self):
         """Indexado pelo id do RASTREADOR, nao pelo da pessoa."""
         return dict(self._caixas)
+
+    @property
+    def palpites(self):
+        """De qual prateleira cada pessoa esta pegando, agora.
+
+        Vazio quando ninguem ensinou as prateleiras — nao quando o sistema
+        nao sabe. Sem assinatura nao ha pergunta a responder; com assinatura,
+        sempre ha resposta, ainda que marcada como provavel.
+        """
+        return {pid: self.prateleiras.palpite(pid)
+                for pid in self.prateleiras._historico}
 
     @property
     def quadris_na_caixa(self):
@@ -674,14 +704,38 @@ class SpatialEngine:
         bruto = self._rumo_do_alto(pessoa, rastros or {})
         self.sinal_do_rumo.votar(bruto, rumo_andado)
 
-        return {pessoa.id: self.corpo.ler_varias(
+        leitura = self.corpo.ler_varias(
             pessoa.id, vistas,
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=rumo_andado,
             velocidade=andou,
             quadril_do_alto=self._quadril_do_alto(pessoa, rastros or {}),
             rumo_do_alto=self.sinal_do_rumo.aplicar(bruto),
-            nomes=nomes)}
+            nomes=nomes)
+
+        self._palpitar(pessoa.id, leitura)
+        return {pessoa.id: leitura}
+
+    def _palpitar(self, pessoa_id, leitura):
+        """De qual prateleira a mao veio, em tempo real.
+
+        Sem assinaturas aprendidas ele nao faz nada — e o sistema segue igual.
+        O palpite e uma capacidade a mais, nao um pre-requisito.
+
+        O LADO E ESCOLHIDO PELO GESTO, NAO POR CONFIGURACAO.
+
+        Quem pega usa UM braco, e nao da para saber qual antes de olhar. Fixar
+        "direita" faria o sistema ignorar metade dos clientes — e a escolha
+        e barata: o braco que mais se afastou do quadril e o que esta fazendo
+        alguma coisa.
+        """
+        if not self.prateleiras.pronto or leitura is None:
+            return
+        lado = lado_que_alcanca(leitura)
+        self.prateleiras.observar(pessoa_id, evidencia_de(
+            leitura, lado=lado,
+            encolhimento=self._encolhimento.get(pessoa_id),
+            quadril_na_caixa=self._quadril_na_caixa.get(pessoa_id)))
 
     def _quadril_do_alto(self, pessoa, rastros):
         """Onde o quadril desta pessoa esta, em metros acima do chao.
@@ -787,4 +841,14 @@ class SpatialEngine:
             "corpo": self.corpo.diagnostico,
             "rumo": self.sinal_do_rumo.diagnostico,
             "escala": self.escala.diagnostico,
+            "prateleira": self._diagnostico_de_prateleira(),
         }
+
+    def _diagnostico_de_prateleira(self):
+        if not self.prateleiras.pronto:
+            return ("prateleiras NAO APRENDIDAS — rode "
+                    "ferramentas/aprender_prateleiras.py")
+        vivos = {p: v for p, v in self.palpites.items() if v}
+        if not vivos:
+            return f"{len(self.prateleiras.assinaturas)} prateleiras, ninguem alcancando"
+        return "   ".join(f"#{p} {v}" for p, v in sorted(vivos.items()))
