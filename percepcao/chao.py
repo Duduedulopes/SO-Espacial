@@ -226,7 +226,29 @@ class FiltroDePlausibilidade:
         self.utilizavel = abs(self.h32) > 1e-7
 
     def v_horizonte(self, u):
-        """Altura (em pixels) da linha do horizonte na coluna u."""
+        """Altura (em pixels) da linha do horizonte na coluna u. `None` sem base.
+
+        SEGUNDA VEZ QUE ESTE MESMO DEFEITO APARECE NESTE ARQUIVO.
+
+        Em 11/08 foi `razao()`: ela dividia por `h32` sem checar `utilizavel`,
+        e so nao explodia porque `plausivel()` checava antes. Quando a escala
+        vertical passou a chamar `razao()` direto, a divisao por zero apareceu.
+        A guarda foi movida para dentro do objeto.
+
+        `v_horizonte` ficou de fora — era chamada so por `razao()`, que ja
+        estava protegida. Em 12/08 a altura do quadril passou a chama-la
+        direto, e o ZeroDivisionError voltou, no mesmo arquivo, pelo mesmo
+        motivo.
+
+            Guardar a invariante em UM caminho protege aquele caminho. Guardar
+            dentro do objeto protege todos os que ainda nao existem.
+
+        Devolver `None` em vez de levantar e deliberado: horizonte no infinito
+        e uma configuracao legitima de camera (lente sem inclinacao), nao um
+        erro. Quem chama decide se consegue seguir sem ele.
+        """
+        if not self.utilizavel:
+            return None
         return -(self.h31 * u + self.h33) / self.h32
 
     def razao(self, caixa):

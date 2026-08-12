@@ -61,7 +61,9 @@ from src.acao.classificador import Descritor                 # noqa: E402
 from src.acao.corpo import (                                 # noqa: E402
     AnalisadorDeCorpo, DirecaoPorDeslocamento, SinalDoRumo, rumo_do_alto,
 )
-from src.acao.escala import EscalaVertical                   # noqa: E402
+from src.acao.escala import (                                # noqa: E402
+    EscalaVertical, altura_do_quadril_vista_de_cima,
+)
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
 
@@ -657,9 +659,39 @@ class SpatialEngine:
             inclinacao_rad=self.inclinacao.valor,
             rumo_mundo=rumo_andado,
             velocidade=andou,
-            quadril_do_alto=self.escala.altura_do_quadril(pessoa.id),
+            quadril_do_alto=self._quadril_do_alto(pessoa, rastros or {}),
             rumo_do_alto=self.sinal_do_rumo.aplicar(bruto),
             nomes=nomes)}
+
+    def _quadril_do_alto(self, pessoa, rastros):
+        """Onde o quadril desta pessoa esta, em metros acima do chao.
+
+        DUAS FONTES, E A MEDIDA GANHA DA CONSTANTE
+
+            1. os pontos 2D da camera do alto, NESTE quadro   mede a postura
+            2. estatura x 0,53                                constante da pessoa
+
+        A 2 continua valendo e continua boa — para quem esta EM PE. Ela e uma
+        propriedade da pessoa, aprendida quando ela caminhava ereta, e nao tem
+        como saber que o corpo agachou.
+
+        A 1 nao assume postura nenhuma: le o quadril e o pe no quadro atual.
+        Quando os dois aparecem, ela e a resposta; quando nao aparecem — pessoa
+        parcialmente fora do campo do alto — a constante segura o caso.
+
+            Constante de pessoa descreve a pessoa. Ela nao descreve o instante,
+            e quem agacha muda o instante, nao a pessoa.
+        """
+        r = rastros.get(pessoa.id)
+        ext = [x for x in (r.ids_externos if r else ()) if x in self._ombros]
+        if ext and self.plausibilidade is not None:
+            juntas, conf = self._ombros[ext[-1]]
+            medida = altura_do_quadril_vista_de_cima(
+                juntas, conf, self.plausibilidade.v_horizonte,
+                self.escala.fator)
+            if medida is not None:
+                return medida
+        return self.escala.altura_do_quadril(pessoa.id)
 
     def _rumo_do_alto(self, pessoa, rastros):
         """Rumo do corpo em coordenadas de MUNDO, da camera de cima.

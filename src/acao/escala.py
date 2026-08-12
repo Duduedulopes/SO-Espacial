@@ -108,6 +108,101 @@ QUADRIL_POR_ESTATURA = 0.53
 ESTATURA_MIN = 0.80
 ESTATURA_MAX = 2.20
 
+# COCO-17, os pontos que a camera do alto entrega junto com a caixa.
+QUADRIL_ESQ, QUADRIL_DIR = 11, 12
+TORNOZELO_ESQ, TORNOZELO_DIR = 15, 16
+
+
+def altura_do_quadril_vista_de_cima(juntas_2d, conf, v_horizonte, fator,
+                                    minimo=0.10, maximo=1.45, limiar=0.5):
+    """Altura do quadril acima do chao, medida DIRETO pela camera do alto.
+
+    A OBJECAO DO EDUARDO, 12/08, E ELA ESTAVA CERTA
+
+        A camera superior consegue captar SIM a imagem da primeira
+        prateleira. O que nao esta acontecendo e as tres trabalharem juntas.
+
+    Eu tinha escrito, no dia anterior, que "agachado sem tornozelo a vista nao
+    ha resposta" — e apresentei isso como recusa honesta. Nao era. Era eu
+    olhando so para as duas cameras de mesa e chamando de principio o limite
+    delas. A pergunta certa e sempre a mesma: QUAL CAMERA ENXERGA ISSO.
+
+    A do alto enxerga. Ela roda `yolo11n-pose`, entrega tornozelo e quadril em
+    2D, e o motor ja guarda esses 17 pontos por rastro.
+
+    A GEOMETRIA, QUE JA ESTAVA NO PROJETO DESDE O BLOCO 1
+
+    Metrologia de vista unica: para um ponto na vertical que passa pelo pe de
+    quem esta apoiado no chao,
+
+        (v_pe - v_ponto) / (v_pe - v_horizonte) = altura_do_ponto / Hc
+
+    `percepcao/chao.py` ja usa exatamente isso com o TOPO DA CAIXA, para achar
+    a estatura. Aqui o unico ponto que muda e o numerador: em vez do topo da
+    cabeca, o quadril.
+
+        altura_do_quadril = fator x (v_pe - v_quadril) / (v_pe - v_horizonte)
+
+    Mesma relacao, mesma constante `fator = 5,25` ja calibrada, nenhum numero
+    novo a medir. O que faltava nao era informacao: era aplicar a formula ao
+    par de pontos certo.
+
+    E POR QUE ISTO SERVE JUSTAMENTE PARA QUEM AGACHA
+
+    A alternativa em uso — `estatura x 0,53` — e uma CONSTANTE da pessoa, e a
+    estatura so e amostrada em pe. Quem agacha desce o quadril meio metro e a
+    ancora fica parada la em cima. Medido em 11/08: erro de 1 cm na prateleira
+    de 1,90 m, e de 75 cm na de 0,15 m.
+
+    Esta formula nao assume postura nenhuma. Ela mede onde o quadril ESTA, no
+    quadro, seja de pe ou agachado.
+
+    O QUE ELA COBRA, DECLARADO
+
+    Visto quase de cima, `v_pe - v_quadril` sao poucos pixels, e todo o erro
+    de deteccao das duas juntas cai direto no resultado. Pode sair ruidosa —
+    e o gabarito da estante vai dizer quanto, com numero, que e como as
+    outras decisoes deste projeto foram tomadas.
+
+    `v_horizonte` chega como funcao da coluna: a linha do horizonte nao e
+    horizontal na imagem quando a lente esta girada.
+    """
+    if not fator or juntas_2d is None or conf is None:
+        return None
+
+    p = np.asarray(juntas_2d, dtype=float)
+    c = np.asarray(conf, dtype=float)
+
+    # QUADRIL: os DOIS pontos. Um visto e outro extrapolado produz uma media
+    # que parece medida e nao e — mesmo defeito que custou o dia 11/08.
+    if not (c[QUADRIL_ESQ] > limiar and c[QUADRIL_DIR] > limiar):
+        return None
+    v_quadril = float((p[QUADRIL_ESQ][1] + p[QUADRIL_DIR][1]) / 2)
+    u_quadril = float((p[QUADRIL_ESQ][0] + p[QUADRIL_DIR][0]) / 2)
+
+    # PE: o mais BAIXO na imagem entre os visiveis — e o que esta no chao.
+    # Exigir os dois recusaria toda passada, em que um pe esta no ar; e o pe
+    # no ar mentiria sobre onde o plano do chao esta.
+    pes = [float(p[i][1]) for i in (TORNOZELO_ESQ, TORNOZELO_DIR)
+           if c[i] > limiar]
+    if not pes:
+        return None
+    v_pe = max(pes)
+
+    # `v_horizonte` devolve None quando a lente nao tem inclinacao suficiente
+    # e o horizonte vai para o infinito. E configuracao legitima de camera,
+    # nao erro — e sem horizonte esta conta nao existe.
+    vh = v_horizonte(u_quadril)
+    if vh is None:
+        return None
+
+    d = v_pe - vh
+    if d <= 1.0:            # pe na altura do horizonte, ou acima: impossivel
+        return None
+
+    altura = fator * (v_pe - v_quadril) / d
+    return altura if minimo <= altura <= maximo else None
+
 
 class EscalaVertical:
     """Converte a razao geometrica da camera do alto em metros.

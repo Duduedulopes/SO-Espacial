@@ -165,3 +165,123 @@ def test_camera_perpendicular_nao_derruba_a_escala():
         e.observar(1, None)
 
     assert e.estatura(1) is None
+
+
+# ----------------------------------------- a camera do alto mede o quadril
+#
+#     A camera superior consegue captar SIM a imagem da primeira prateleira.
+#     O que nao esta acontecendo e as tres trabalharem juntas.
+#                                                       — Eduardo, 12/08
+#
+# No dia anterior eu tinha escrito que "agachado sem tornozelo a vista nao ha
+# resposta", e apresentei como recusa honesta. Nao era: era o limite das duas
+# cameras de mesa sendo chamado de principio.
+#
+# A formula e a mesma metrologia de vista unica que `chao.py` ja usa para a
+# estatura, aplicada a outro par de pontos — e nao assume postura nenhuma.
+
+import numpy as np                                              # noqa: E402
+
+from src.acao.escala import (                                   # noqa: E402
+    altura_do_quadril_vista_de_cima as altura_do_alto,
+)
+
+FATOR = 5.25
+HORIZONTE = -400.0          # acima do topo da imagem, como numa camera de teto
+
+
+def cena(quadril_m, v_pe=460.0, fator=FATOR, horizonte=HORIZONTE):
+    """Monta juntas 2D coerentes com um quadril `quadril_m` acima do chao.
+
+    Inverte a propria formula para gerar a entrada: se a conta estiver certa,
+    ela devolve exatamente o valor pedido. Gerar com a formula e conferir com
+    ela testaria tautologia — por isso os testes seguintes mexem em UMA coisa
+    de cada vez e olham o SENTIDO da mudanca, nao so o valor.
+    """
+    v_quadril = v_pe - quadril_m * (v_pe - horizonte) / fator
+    p = np.zeros((17, 2))
+    p[11] = [300.0, v_quadril]
+    p[12] = [340.0, v_quadril]
+    p[15] = [310.0, v_pe]
+    p[16] = [330.0, v_pe - 20]      # o outro pe mais alto: o de baixo manda
+    return p, np.ones(17)
+
+
+def horizonte_fixo(u):
+    return HORIZONTE
+
+
+def test_mede_o_quadril_de_quem_esta_em_pe():
+    p, c = cena(0.95)
+    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.95) < 0.01
+
+
+def test_mede_o_quadril_de_quem_agachou():
+    """O caso que a constante `estatura x 0,53` nao consegue ver.
+
+    Medido em 11/08: 1 cm de erro na prateleira de 1,90 m e 75 cm na de 0,15 m,
+    porque a ancora era uma constante de pessoa em pe.
+    """
+    p, c = cena(0.45)
+    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.45) < 0.01
+
+
+def test_quadril_mais_alto_na_imagem_significa_pessoa_mais_ereta():
+    """Sentido da relacao, sem depender do valor exato."""
+    p_agachado, c = cena(0.45)
+    p_em_pe, _ = cena(0.95)
+    assert p_em_pe[11][1] < p_agachado[11][1], "em pe, o quadril sobe na imagem"
+    assert (altura_do_alto(p_em_pe, c, horizonte_fixo, FATOR)
+            > altura_do_alto(p_agachado, c, horizonte_fixo, FATOR))
+
+
+def test_usa_o_pe_mais_BAIXO_na_imagem():
+    """O pe no ar mentiria sobre onde o plano do chao esta.
+
+    Exigir os dois pes recusaria toda passada; usar o errado deslocaria o
+    chao. O mais baixo na imagem e o que esta apoiado.
+    """
+    p, c = cena(0.95)
+    p[16][1] = 200.0                      # pe no ar, bem alto na imagem
+    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.95) < 0.01
+
+
+def test_sem_os_dois_quadris_nao_responde():
+    """Um visto e outro extrapolado da uma media com cara de medida."""
+    p, c = cena(0.95)
+    c[12] = 0.0
+    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None
+
+
+def test_sem_nenhum_pe_nao_responde():
+    p, c = cena(0.95)
+    c[15] = c[16] = 0.0
+    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None
+
+
+def test_sem_calibracao_nao_responde():
+    """Sem o fator nao ha metro nenhum a devolver."""
+    p, c = cena(0.95)
+    assert altura_do_alto(p, c, horizonte_fixo, None) is None
+
+
+def test_horizonte_no_infinito_nao_responde():
+    """Lente sem inclinacao e configuracao legitima, nao erro.
+
+    `FiltroDePlausibilidade.v_horizonte` devolve None nesse caso — e foi
+    exatamente o ZeroDivisionError que apareceu ao ligar esta funcao.
+    """
+    p, c = cena(0.95)
+    assert altura_do_alto(p, c, lambda u: None, FATOR) is None
+
+
+def test_pe_acima_do_horizonte_e_impossivel():
+    p, c = cena(0.95)
+    assert altura_do_alto(p, c, lambda u: 9999.0, FATOR) is None
+
+
+def test_resultado_fora_da_faixa_humana_e_recusado():
+    """Reconstrucao ruim nao vira quadril de tres metros."""
+    p, c = cena(0.95)
+    p[11][1] = p[12][1] = -5000.0        # quadril absurdamente alto
+    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None

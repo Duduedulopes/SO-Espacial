@@ -156,10 +156,22 @@ pegada. O que a posição no chão resolve é o **evento** (a mão entrou na
 estante, e não um braço levantado em outro canto). O nível continua sendo
 pergunta de altura, e por isso o passo 1 vem antes.
 
-### 5. Três sistemas (decisão de arquitetura, aberta)
+### 5. Três sistemas — DECIDIDO EM 12/08: Java
 
-Eduardo quer interligar Python (gêmeo), C# (LOJA AUTÔNOMA PRO) e um ambiente
-virtual — considerando Java.
+Eduardo interliga Python (gêmeo), C# (LOJA AUTÔNOMA PRO) e um ambiente virtual
+em **Java**.
+
+**O motivo é de recurso, medido, e é o que torna a decisão defensável:** Unity
+Hub mais um editor passa de 10 GB. A máquina tinha 12,8 GB livres depois da
+faxina de 12/08, e precisa rodar três câmeras em tempo real. Java resolve em
+centenas de megabytes, e o JDK 24 já estava instalado.
+
+    Escolher a ferramenta pelo recurso que ela cobra, e não pela que parece
+    mais moderna, é a mesma disciplina que o resto do projeto usa com número.
+
+Registrado também o que NÃO é motivo: "Java é bom com objetos" não distingue
+nada — Python e C# também são. Se alguém perguntar na banca, a resposta é o
+orçamento de disco e a independência do runtime, não o paradigma.
 
 A regra que mantém isso são: **o mundo é declarado em dados, e nenhum dos três
 é dono dele.**
