@@ -159,6 +159,15 @@ def _assinaturas_de_prateleira():
     return _ler_config("prateleiras.json", carregar_assinaturas)
 
 
+def _razao_de_referencia():
+    """A razao observada no dia da calibracao, para detectar que ela envelheceu.
+
+    Ver `EscalaVertical.divergiu`: sem isto, uma camera movida continua sendo
+    convertida pelo fator antigo, em silencio.
+    """
+    return _ler_config("escala.json", lambda d: float(d["razao_mediana"]))
+
+
 def _fator_de_escala():
     """Le `config/escala.json`. Ausente significa nao calibrado, e tudo bem:
     a altura da mao sai estimada pelo tronco e marcada como tal.
@@ -268,7 +277,9 @@ class SpatialEngine:
         #
         #     O dado que faltava ja estava sendo calculado para outra
         #     finalidade: recusar movel.
-        self.escala = EscalaVertical(fator=_fator_de_escala())
+        self.escala = EscalaVertical(
+            fator=_fator_de_escala(),
+            razao_de_referencia=_razao_de_referencia())
 
         # DE QUAL PRATELEIRA A MAO VEIO. Vocabulario fechado, evidencia das
         # tres cameras, sempre a mais provavel. Ver `src/acao/prateleira.py`.
@@ -839,10 +850,22 @@ class SpatialEngine:
                            f"({len(self.inclinacao.amostras)} amostras"
                            f"{'' if self.inclinacao.confiavel else ', aprendendo'})"),
             "corpo": self.corpo.diagnostico,
+            "rumo_fonte": self._diagnostico_do_rumo(),
             "rumo": self.sinal_do_rumo.diagnostico,
             "escala": self.escala.diagnostico,
             "prateleira": self._diagnostico_de_prateleira(),
         }
+
+    def _diagnostico_do_rumo(self):
+        """De onde o rumo de cada pessoa esta vindo, agora.
+
+        Sem isto, `azimute abstido` no painel nao distinguia "o rumo veio da
+        camera do alto" de "nao ha rumo nenhum" — e so o segundo caso trava o
+        boneco virado para um lado so.
+        """
+        fontes = [f"#{p} {getattr(l, 'fonte_rumo', '') or 'nenhuma'}"
+                  for p, l in sorted(self.leituras.items()) if l]
+        return "   ".join(fontes) if fontes else "ninguem em cena"
 
     def _diagnostico_de_prateleira(self):
         if not self.prateleiras.pronto:

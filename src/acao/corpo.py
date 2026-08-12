@@ -177,6 +177,20 @@ class LeituraDoCorpo:
     fonte_braco_dir: str = ""
     fonte_escala: str = ""
 
+    # DE ONDE VEIO O RUMO DO CORPO.
+    #
+    # MEDIDO EM 12/08: o painel mostrou `azimute abstido` em todos os quadros
+    # de uma sessao inteira, e ficou impossivel saber se o rumo estava vindo
+    # da camera do alto (que nao depende de caminhada) ou de lugar nenhum.
+    #
+    # `rumo_do_alto` existe desde 11/08 e sobrepoe o azimute quando responde.
+    # Mas sem procedencia, "abstido" e "veio do alto" tinham a mesma cara no
+    # relatorio — e a diferenca decide se o boneco gira ou fica travado.
+    #
+    #     Campo que nao diz de onde veio nao pode ser depurado, so trocado.
+    fonte_rumo: str = ""
+
+
     motivo: str = ""
 
     # VERTICALIDADE DA COXA: quanto o vetor quadril->joelho aponta para baixo.
@@ -1360,6 +1374,11 @@ class AnalisadorDeCorpo:
         # perder os ombros.
         if rumo_do_alto is not None:
             final.rumo_corpo = rumo_do_alto
+            final.fonte_rumo = "camera do alto"
+        elif final.rumo_corpo is not None:
+            final.fonte_rumo = "azimute"
+        else:
+            final.fonte_rumo = "nenhuma"
         return self._aplicar_escala(final, quadril_do_alto)
 
     def _aplicar_escala(self, leitura, quadril_do_alto):

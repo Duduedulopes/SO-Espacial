@@ -81,6 +81,10 @@ class ClassificadorDeAcao:
     def __init__(self, parar_abaixo_de=0.15, andar_acima_de=0.25,
                  girar_acima_de=45.0, meia_volta_graus=150.0,
                  janela_giro_s=1.2, agachado_abaixo_de=0.78,
+                 # Limite fisico da rotacao humana, em rad/s. Uma volta
+                 # completa por segundo ja e um giro brusco; o dobro
+                 # disso e folga para nao recusar gesto real.
+                 giro_maximo=4 * math.pi,
                  estabilidade_s=0.35, estabilidade_braco_s=0.20):
         # HISTERESE: dois limiares, nao um.
         #
@@ -92,6 +96,7 @@ class ClassificadorDeAcao:
         self.girar_acima = math.radians(girar_acima_de)
         self.meia_volta = math.radians(meia_volta_graus)
         self.janela_giro = janela_giro_s
+        self.giro_maximo = giro_maximo
         self.agachado_abaixo = agachado_abaixo_de
 
         self.locomocao = Estavel(Locomocao.DESCONHECIDA,
@@ -210,6 +215,25 @@ class ClassificadorDeAcao:
 
         d = _diferenca_angular(pessoa.rumo, self._rumo_anterior)
         self._rumo_anterior = pessoa.rumo
+
+        # GIRO QUE A FISICA PROIBE NAO E GIRO: E O RUMO PULANDO.
+        #
+        # MEDIDO EM 12/08, no painel ao vivo:
+        #
+        #     #1  parado  em_pe  0.41 m/s  +1077 graus/s  [propondo meia_volta]
+        #
+        # Tres voltas por segundo. Ninguem gira assim, e o pior nao e o numero
+        # absurdo: e que ele virou ACAO. O `meia_volta` foi proposto por causa
+        # de ruido do rumo, e chegou ao vocabulario fechado com cara de gesto.
+        #
+        # Uma pessoa girando depressa faz cerca de 360 graus/s. Acima disso a
+        # medicao esta descrevendo o estimador, nao a pessoa.
+        #
+        #     Descartar o impossivel na ENTRADA e mais barato que explicar o
+        #     absurdo na saida — e impede que ele contamine o acumulado, que e
+        #     o que decide `meia_volta`.
+        if abs(d) > self.giro_maximo * dt:
+            return 0.0
 
         self._giro_acumulado += d
         self._tempo_na_janela += dt

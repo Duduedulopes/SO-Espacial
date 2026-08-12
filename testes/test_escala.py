@@ -316,3 +316,64 @@ def test_resultado_fora_da_faixa_humana_e_recusado():
     p, c, caixa = cena(0.95)
     p[11][1] = p[12][1] = -5000.0        # quadril absurdamente alto
     assert altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) is None
+
+
+# ------------------------------------- a calibracao precisa saber que envelheceu
+#
+# MEDIDO EM 12/08, no painel ao vivo:
+#
+#     altura[k=0.212 disp=30% ABSTIDO]
+#
+# A calibracao de 11/08 registrou `razao_mediana = 0.343`. No dia seguinte, a
+# mesma pessoa na mesma sala produz 0.212 — 62% da referencia. A camera do alto
+# mudou de altura ou de angulo, e o `fator = 5,25` continuou sendo aplicado.
+#
+# O proprio `escala.json` avisa: "vale enquanto a camera do alto NAO for
+# movida". Mas aviso escrito em configuracao nao e verificacao.
+#
+#     Constante empirica precisa saber dizer quando parou de valer. Senao ela
+#     nao envelhece: mente com a mesma cara de sempre.
+
+from src.acao.escala import EscalaVertical as _EV               # noqa: E402
+
+
+def _observar(e, razao, n=40):
+    for i in range(n):
+        e.observar(pessoa_id=i, razao=razao, em_pe=True)
+    return e
+
+
+def test_camera_no_mesmo_lugar_nao_reclama():
+    e = _observar(_EV(fator=5.25, razao_de_referencia=0.343), 0.340)
+    assert e.divergiu is None
+    assert "CALIBRACAO VELHA" not in e.diagnostico
+
+
+def test_camera_movida_e_denunciada_com_numero():
+    """O caso real: 0,212 contra 0,343 de referencia."""
+    e = _observar(_EV(fator=5.25, razao_de_referencia=0.343), 0.212)
+
+    atual, desvio = e.divergiu
+    assert abs(atual - 0.212) < 0.01
+    assert desvio > 0.35, f"desvio de {desvio:.0%} deveria ser gritante"
+    assert "CALIBRACAO VELHA" in e.diagnostico
+    assert "calibrar_escala" in e.diagnostico, "o aviso tem que dizer o conserto"
+
+
+def test_poucas_amostras_nao_acusam_nada():
+    """Tres quadros nao provam que a camera mexeu — provam que ainda nao ha base."""
+    e = _observar(_EV(fator=5.25, razao_de_referencia=0.343), 0.212, n=5)
+    assert e.divergiu is None
+
+
+def test_sem_referencia_nao_ha_o_que_comparar():
+    """Calibracao antiga, sem `razao_mediana` gravada, nao pode acusar nada."""
+    e = _observar(_EV(fator=5.25, razao_de_referencia=None), 0.212)
+    assert e.divergiu is None
+    assert "CALIBRACAO VELHA" not in e.diagnostico
+
+
+def test_desvio_pequeno_e_tolerado():
+    """Ninguem para no mesmo pixel duas vezes. Reclamar de 10% seria ruido."""
+    e = _observar(_EV(fator=5.25, razao_de_referencia=0.343), 0.320)
+    assert e.divergiu is None

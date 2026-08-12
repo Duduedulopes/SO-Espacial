@@ -280,10 +280,19 @@ class EscalaVertical:
     rastro dela.
     """
 
-    def __init__(self, fator=None, memoria=90):
+    def __init__(self, fator=None, memoria=90, razao_de_referencia=None,
+                 divergencia_maxima=0.20):
         self.fator = fator
         self.memoria = memoria
+        # A RAZAO OBSERVADA NO DIA DA CALIBRACAO.
+        #
+        # `config/escala.json` sempre a gravou, com o aviso "este numero vale
+        # enquanto a camera do alto NAO for movida" — e nada verificava.
+        # Ver `divergiu`.
+        self.razao_de_referencia = razao_de_referencia
+        self.divergencia_maxima = divergencia_maxima
         self._razoes = {}
+        self._observadas = deque(maxlen=200)
 
     # ------------------------------------------------------------ calibracao
     @staticmethod
@@ -315,6 +324,8 @@ class EscalaVertical:
         if not self.calibrada or razao is None or not em_pe:
             return self.estatura(pessoa_id)
 
+        self._observadas.append(razao)
+
         alta = razao * self.fator
         if ESTATURA_MIN <= alta <= ESTATURA_MAX:
             self._razoes.setdefault(
@@ -335,6 +346,40 @@ class EscalaVertical:
             if pid not in vivos:
                 del self._razoes[pid]
 
+    # ---------------------------------------------------- a calibracao envelheceu?
+    @property
+    def divergiu(self):
+        """A camera do alto mexeu depois da calibracao? Devolve a razao, ou None.
+
+        MEDIDO EM 12/08, no painel ao vivo:
+
+            altura[k=0.212 disp=30% ABSTIDO]
+
+        A calibracao de 11/08 registrou `razao_mediana = 0.343`. Hoje a mesma
+        pessoa, na mesma sala, produz 0.212 — 62% do valor de referencia. A
+        camera do alto mudou de altura ou de angulo entre um dia e o outro.
+
+        E o `fator = 5,25` continuou sendo aplicado como se nada tivesse
+        acontecido, porque nada o verificava. O proprio `escala.json` avisa —
+
+            Este numero vale enquanto a camera do alto NAO for movida.
+
+        — mas aviso escrito em arquivo de configuracao nao e verificacao: e
+        um bilhete para alguem que talvez leia.
+
+            Constante empirica precisa saber dizer quando parou de valer.
+            Senao ela nao envelhece: ela mente com a mesma cara de sempre.
+
+        Nao ha conserto automatico aqui de proposito. Recalibrar exige uma
+        pessoa de estatura conhecida caminhando, e adivinhar o fator novo a
+        partir do desvio seria trocar uma medicao por uma extrapolacao.
+        """
+        if not self.razao_de_referencia or len(self._observadas) < 30:
+            return None
+        atual = float(np.median(self._observadas))
+        desvio = abs(atual - self.razao_de_referencia) / self.razao_de_referencia
+        return (atual, desvio) if desvio > self.divergencia_maxima else None
+
     # ------------------------------------------------------------ diagnostico
     @property
     def diagnostico(self):
@@ -342,5 +387,16 @@ class EscalaVertical:
             return ("escala NAO CALIBRADA — altura da mao sai estimada pelo "
                     "tronco. Rode ferramentas/calibrar_escala.py")
         medidos = {p: round(self.estatura(p), 2) for p in self._razoes}
-        return (f"escala fator {self.fator:.2f}   "
+        base = (f"escala fator {self.fator:.2f}   "
                 f"estaturas {medidos or '-'}")
+
+        velha = self.divergiu
+        if velha is None:
+            return base
+        atual, desvio = velha
+        return (f"{base}\n"
+                f"    CALIBRACAO VELHA: razao {atual:.3f} contra "
+                f"{self.razao_de_referencia:.3f} de referencia ({desvio:.0%} "
+                f"de desvio).\n"
+                f"    A camera do alto mexeu. Rode "
+                f"ferramentas/calibrar_escala.py --estatura <a sua>")

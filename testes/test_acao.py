@@ -286,3 +286,65 @@ if __name__ == "__main__":
             print(f"  ERRO  {t.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(testes) - falhas}/{len(testes)} passaram")
     sys.exit(1 if falhas else 0)
+
+
+# ------------------------------------------- giro que a fisica proibe nao e giro
+#
+# MEDIDO EM 12/08, no painel ao vivo:
+#
+#     #1  parado  em_pe  0.41 m/s  +1077 graus/s  [propondo meia_volta]
+#
+# Tres voltas por segundo. E o pior nao e o numero absurdo: e que ele virou
+# ACAO — `meia_volta` chegou ao vocabulario fechado por causa de ruido do rumo.
+#
+#     Descartar o impossivel na ENTRADA e mais barato que explicar o absurdo
+#     na saida — e impede que ele contamine o acumulado.
+
+import math as _math                                            # noqa: E402
+
+
+class _PessoaGirando:
+    def __init__(self, rumo, v=1.0):
+        self.id = 1
+        self.rumo = rumo
+        self.vx, self.vy = v, 0.0
+        self.x = self.y = 0.0
+        self.velocidade = v
+        self.prevendo = False
+        self.altura_m = 1.75
+        self.esqueleto = None
+        self.juntas_visiveis = None
+        self.tem_esqueleto = False
+
+
+def test_rumo_pulando_nao_vira_meia_volta():
+    """Salto de 180 graus entre dois quadros e o estimador, nao a pessoa."""
+    from src.acao.classificador import ClassificadorDeAcao
+
+    c = ClassificadorDeAcao()
+    for i in range(20):
+        # O rumo alterna entre 0 e pi a cada quadro: 180 graus em 0,1 s,
+        # ou seja, 1800 graus/s. Nenhuma pessoa faz isso.
+        acao, _ = c.classificar(
+            _PessoaGirando(0.0 if i % 2 else _math.pi), dt=0.1)
+
+    assert acao.locomocao != "meia_volta", (
+        f"{acao.giro_graus_s:.0f} graus/s viraram acao")
+    assert abs(acao.giro_graus_s) < 800, acao.giro_graus_s
+
+
+def test_giro_humano_continua_sendo_reconhecido():
+    """Recusar o impossivel nao pode recusar o real.
+
+    Uma meia volta em 1 segundo e brusca, mas acontece — e tem que passar.
+    """
+    from src.acao.classificador import ClassificadorDeAcao
+
+    c = ClassificadorDeAcao()
+    rumo, acao = 0.0, None
+    for _ in range(12):
+        rumo += _math.pi / 12          # 15 graus por quadro, dt 0,08 s
+        acao, _ = c.classificar(_PessoaGirando(rumo), dt=0.08)
+
+    assert abs(acao.giro_graus_s) > 100, (
+        f"giro humano de ~190 graus/s foi recusado: {acao.giro_graus_s:.0f}")
