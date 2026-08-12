@@ -3,2652 +3,2874 @@
   "_nao_e": "faixa de altura. Nenhum campo aqui e metrico — ver src/acao/prateleira.py",
   "estante": "estante-aco-teste",
   "lado": "direita",
-  "quando": "2026-08-12T13:01:31",
-  "acerto_fora_do_treino": 0.455,
+  "quando": "2026-08-12T13:38:21",
+  "voltas": 2,
+  "acerto_fora_do_treino": 0.738,
   "cruas": {
     "p1": [
       {
-        "alcance": -0.05739537591700774,
-        "alcance_2d": -0.5193664291147686,
-        "coxa": 0.9492165149219438,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
+        "encolhimento": 0.9546064082906712
       },
       {
-        "alcance": -0.14512488474855506,
-        "alcance_2d": -0.8108380802195,
-        "coxa": 0.8388159072539285,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
+        "encolhimento": 1.1555713886344763
       },
       {
-        "alcance": -0.4355520954848045,
-        "alcance_2d": -1.5316792693696037,
-        "coxa": 0.8358233026548892,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
+        "encolhimento": 1.1869893674315977
       },
       {
-        "alcance": -0.44500332766628686,
-        "alcance_2d": -1.4365375466359516,
-        "coxa": 0.8396880821986294,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
+        "encolhimento": 1.1625775260617506
       },
       {
-        "alcance": -0.4540090979316336,
-        "alcance_2d": -1.3835771746796728,
-        "coxa": 0.8730979695647711,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.34313212841595186,
-        "alcance_2d": -1.2713869237492623,
-        "coxa": 0.9026423844029793,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.23748104138207857,
-        "alcance_2d": -1.274161297880849,
-        "coxa": 0.8765022921703595,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.6718269665285082,
-        "alcance_2d": -1.8399531509606417,
-        "coxa": 0.9663645248925853,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.6718269665285082,
-        "alcance_2d": -1.8399531509606417,
-        "coxa": 0.9663645248925853,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.11339436597110494,
-        "alcance_2d": -0.2594567644196981,
-        "coxa": 0.9865805829061681,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.12986433098273897,
-        "alcance_2d": -0.45706372975443316,
-        "coxa": 0.9830906653074633,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.1741417520476364,
-        "alcance_2d": -0.7976023979764734,
-        "coxa": 0.8957709663514719,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance_2d": -2.484275252846567,
-        "coxa": 0.876208323551724,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance_2d": -2.4781105030787884,
-        "coxa": 0.8931195515360367,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance_2d": -2.4781105030787884,
-        "coxa": 0.8931195515360367,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance_2d": -2.4781105030787884,
-        "coxa": 0.8931195515360367,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance_2d": -2.4781105030787884,
-        "coxa": 0.8931195515360367,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.9798178032407924,
-        "alcance_2d": -1.2871392920442513,
-        "coxa": 0.7732900581202681,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.9798178032407924,
-        "alcance_2d": -1.2871392920442513,
-        "coxa": 0.7732900581202681,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.6247561771515326,
-        "alcance_2d": -0.693378126338434,
-        "coxa": 0.9721254259733849,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.6141090032631531,
-        "alcance_2d": -0.7472876431201078,
-        "coxa": 0.9620688869297777,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.4337369177245389,
-        "alcance_2d": -0.5131001612157984,
-        "coxa": 0.948970190580429,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": -0.43352826963448593,
-        "alcance_2d": -0.4634051937127602,
-        "coxa": 0.9215712863110849,
-        "braco": "ao_lado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7960025456746032,
-        "alcance_2d": 1.7380594915093182,
-        "coxa": 0.9727361853492434,
+        "alcance": 1.9283260428529367,
+        "alcance_2d": 2.305647062783734,
+        "coxa": 0.429135964694779,
         "braco": "levantado",
+        "encolhimento": 1.1092881696754155,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 1.5820084110295662,
-        "alcance_2d": 1.6279764788682112,
-        "coxa": 0.9676161173452303,
-        "braco": "levantado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.7580961654927312,
+        "encolhimento": 1.0739388789851505
       },
       {
-        "alcance": 1.0790152385684244,
-        "alcance_2d": 1.0507953006120074,
-        "coxa": 0.9912408468223219,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.4746348890311471,
-        "alcance_2d": 1.681290966958239,
-        "coxa": 0.9910281452741847,
-        "braco": "levantado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.4746348890311471,
-        "alcance_2d": 1.681290966958239,
-        "coxa": 0.9866590304324647,
-        "braco": "levantado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.0277186813184944,
-        "alcance_2d": 1.1873417554936445,
-        "coxa": 0.9882725812664209,
+        "alcance": -0.9590857369748832,
+        "alcance_2d": -0.35270140410114886,
+        "coxa": 0.7931326486982826,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.8149494417836965,
-        "alcance_2d": 0.7975095100102088,
-        "coxa": 0.9874752361069511,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.8928311011228699,
-        "alcance_2d": 0.896709840320532,
-        "coxa": 0.98551041798073,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.04584996911444345,
-        "alcance_2d": -0.03476263899514263,
-        "coxa": 0.9783843399595793,
-        "braco": "ao_lado",
+        "encolhimento": 1.0582197384427117,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05067078438259428,
-        "alcance_2d": -0.008247768727514627,
-        "coxa": 0.9763599225156192,
+        "alcance": -0.9143382070862974,
+        "alcance_2d": -0.3522667197512958,
+        "coxa": 0.9036935365040673,
         "braco": "ao_lado",
+        "encolhimento": 1.048196821405954,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04241706251698311,
-        "alcance_2d": -0.020729908133465456,
-        "coxa": 0.9820563887197186,
+        "alcance": -1.0885092677040376,
+        "alcance_2d": -0.5492273282473514,
+        "coxa": 0.9036935365040673,
         "braco": "ao_lado",
+        "encolhimento": 1.073106490693213,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.03097878981205803,
-        "alcance_2d": 0.012647079701528131,
-        "coxa": 0.9857858761568048,
+        "coxa": 0.9036935365040673,
+        "encolhimento": 1.0802440718623496
+      },
+      {
+        "coxa": 0.9036935365040673,
+        "encolhimento": 1.0799079792691095
+      },
+      {
+        "coxa": 0.9711925352792553,
+        "encolhimento": 1.0869517821592163
+      },
+      {
+        "coxa": 0.9790906164815647,
+        "encolhimento": 1.0783578266957836
+      },
+      {
+        "coxa": 0.9777863550750099,
+        "encolhimento": 1.0752054434146974
+      },
+      {
+        "coxa": 0.9831203415883872,
+        "encolhimento": 1.0684426825034499
+      },
+      {
+        "coxa": 0.9860966284823353,
+        "encolhimento": 1.0593840823636056
+      },
+      {
+        "coxa": 0.9861738758590661,
+        "encolhimento": 1.0530431862748695
+      },
+      {
+        "coxa": 0.9830845760941516,
+        "encolhimento": 1.0468407251920562
+      },
+      {
+        "coxa": 0.9833659677219504,
+        "encolhimento": 1.0355266019106357
+      },
+      {
+        "coxa": 0.9827242096439641,
+        "encolhimento": 1.0220742286781321
+      },
+      {
+        "coxa": 0.9818048440674111,
+        "encolhimento": 1.0103618449621246
+      },
+      {
+        "coxa": 0.9802848316064096,
+        "encolhimento": 1.0000430256877466
+      },
+      {
+        "coxa": 0.9818724304240066,
+        "encolhimento": 1.0006058162715006
+      },
+      {
+        "alcance": -0.1922010834637611,
+        "alcance_2d": -0.10209522271714747,
+        "coxa": 0.9814337692751192,
         "braco": "ao_lado",
+        "encolhimento": 1.0004618265655127,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.02538805295015426,
-        "alcance_2d": 0.003065609182756508,
-        "coxa": 0.9902830283216822,
+        "alcance": -0.2210092706699527,
+        "alcance_2d": -0.12027511699368315,
+        "coxa": 0.981561969812722,
         "braco": "ao_lado",
+        "encolhimento": 1.0026901564767934,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.042613342221797273,
-        "alcance_2d": 0.012233857117399492,
-        "coxa": 0.9901236456785926,
+        "alcance": -0.217939304072297,
+        "alcance_2d": -0.11442515849651272,
+        "coxa": 0.9804243425883292,
         "braco": "ao_lado",
+        "encolhimento": 1.0026810468592657,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.052838623992139955,
-        "alcance_2d": 0.01840301158626693,
-        "coxa": 0.9918346804041311,
+        "alcance": -0.23233462162382795,
+        "alcance_2d": -0.12293721361427455,
+        "coxa": 0.9756848432577753,
         "braco": "ao_lado",
+        "encolhimento": 1.0069967267221638,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.07411546605025365,
-        "alcance_2d": 0.032000776275545054,
-        "coxa": 0.9957357815855166,
+        "alcance": -0.24073645268915972,
+        "alcance_2d": -0.12891203929279507,
+        "coxa": 0.9758609351657102,
         "braco": "ao_lado",
+        "encolhimento": 1.0022364092923655,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0929223011847144,
-        "alcance_2d": 0.05787075984535327,
-        "coxa": 0.9956012894208374,
+        "alcance": -0.24771825617592816,
+        "alcance_2d": -0.13269431899458167,
+        "coxa": 0.9762462869867564,
         "braco": "ao_lado",
+        "encolhimento": 0.9999770517937383,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.14220331812192016,
-        "alcance_2d": 0.024761991618855807,
-        "coxa": 0.9943720382856968,
+        "alcance": -1.7023853341598327,
+        "alcance_2d": -1.3952268403253383,
+        "coxa": 0.4202767214889836,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.1826888278924206,
-        "alcance_2d": 0.11177252285948129,
-        "coxa": 0.9922439011896068,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.1953057209034258,
-        "alcance_2d": 0.1281023992243779,
-        "coxa": 0.9935546280105977,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.19043726271009784,
-        "alcance_2d": 0.15355016713663047,
-        "coxa": 0.9947207716106166,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.2892907528277015,
-        "alcance_2d": 0.2190091460845124,
-        "coxa": 0.9936595327870764,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.29881813669517004,
-        "alcance_2d": 0.1984142696987027,
-        "coxa": 0.9934487440411544,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.32713707169026335,
-        "alcance_2d": 0.24008268697991417,
-        "coxa": 0.9928300409965742,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.40014290464221103,
-        "alcance_2d": 0.25095564754413924,
-        "coxa": 0.9929890517292292,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.4193972698418782,
-        "alcance_2d": 0.34915567873861325,
-        "coxa": 0.9906681643016897,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.4193972698418782,
-        "alcance_2d": 0.34915567873861325,
-        "coxa": 0.9913025138863574,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.7606965902840319,
-        "alcance_2d": 0.7501865584529614,
-        "coxa": 0.9906226152515799,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.918854338149486,
-        "alcance_2d": 0.9729665836613757,
-        "coxa": 0.9893089890619815,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.21913055872046996,
-        "alcance_2d": 0.12055954888951079,
-        "coxa": 0.9901395768915815,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.940689570419907,
-        "alcance_2d": 0.9531130022375369,
-        "coxa": 0.9903679221514731,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.144822437680579,
-        "alcance_2d": 1.141605582092419,
-        "coxa": 0.9905136345556433,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.9423420052236265,
-        "alcance_2d": 0.9465336109298966,
-        "coxa": 0.9905541626651262,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.04865545170410888,
-        "alcance_2d": -0.021414169915047306,
-        "coxa": 0.989588985827989,
-        "braco": "ao_lado",
+        "encolhimento": 0.6938768196979949,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.03958652643801933,
-        "alcance_2d": -0.020728477518097366,
-        "coxa": 0.9892191018319386,
+        "alcance": -1.5353195846472902,
+        "alcance_2d": -1.5126787112078957,
+        "coxa": 0.4527060110708916,
         "braco": "ao_lado",
+        "encolhimento": 0.6979725198902944,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.037355563333630076,
-        "alcance_2d": -0.0237586382360154,
-        "coxa": 0.9881516953754611,
+        "alcance_2d": -1.5180418478272004,
+        "coxa": 0.5381219407567095,
         "braco": "ao_lado",
+        "encolhimento": 0.7147158515138988,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.03881008811219308,
-        "alcance_2d": -0.022798807916948684,
-        "coxa": 0.9880787009009532,
+        "alcance_2d": -1.4793333370443822,
+        "coxa": 0.6154718475921347,
         "braco": "ao_lado",
+        "encolhimento": 0.7320773701741554,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04082997039977541,
-        "alcance_2d": -0.02201791575281359,
-        "coxa": 0.9890004514381147,
+        "alcance_2d": -2.0095183888108927,
+        "coxa": 0.7135794803406809,
         "braco": "ao_lado",
+        "encolhimento": 0.7429827302669849,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04785418954790527,
-        "alcance_2d": -0.00945753643798347,
-        "coxa": 0.988995001482641,
+        "alcance_2d": -1.800669471865906,
+        "coxa": 0.8113506460125574,
         "braco": "ao_lado",
+        "encolhimento": 0.8087478023287009,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.040079381692326416,
-        "alcance_2d": -0.012352117961356851,
-        "coxa": 0.9873851267091407,
+        "alcance": -1.6846040289488644,
+        "alcance_2d": -1.4821618186498489,
+        "coxa": 0.867033500553533,
         "braco": "ao_lado",
+        "encolhimento": 0.831132289138597,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04082519618999432,
-        "alcance_2d": -0.015473514808250696,
-        "coxa": 0.99009182007154,
+        "coxa": 0.8388453475040043,
+        "encolhimento": 0.8571177527162006
+      },
+      {
+        "coxa": 0.8106376499381925,
+        "encolhimento": 0.880192181205806
+      },
+      {
+        "coxa": 0.7980252999247058,
+        "encolhimento": 0.9155642515635048
+      },
+      {
+        "alcance": -0.7208582565470282,
+        "alcance_2d": -0.5575246471692987,
+        "coxa": 0.8096400241337877,
         "braco": "ao_lado",
+        "encolhimento": 1.0145710841214473,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04165555301189623,
-        "alcance_2d": -0.006831930840038684,
-        "coxa": 0.9896787826979171,
+        "alcance": -0.37211335400145534,
+        "alcance_2d": -0.15153766639506983,
+        "coxa": 0.7988372143815122,
         "braco": "ao_lado",
+        "encolhimento": 1.0318990104968244,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04515292223111751,
-        "alcance_2d": -0.0027878955989212167,
-        "coxa": 0.9902627195882935,
+        "alcance": -0.34505681363626234,
+        "alcance_2d": -0.16936104407929736,
+        "coxa": 0.8092755512603956,
         "braco": "ao_lado",
+        "encolhimento": 1.0367611683890947,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04537927481514443,
-        "alcance_2d": 0.0005627592615684606,
-        "coxa": 0.9898257947521591,
+        "alcance": -0.31734387237343337,
+        "alcance_2d": -0.18343911823874642,
+        "coxa": 0.7801501966331472,
         "braco": "ao_lado",
+        "encolhimento": 1.042867698857473,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.30506783108715524,
+        "alcance_2d": -0.1823398289258356,
+        "coxa": 0.7415871559452755,
+        "braco": "ao_lado",
+        "encolhimento": 1.0411058171721328,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.23639234247462945,
+        "alcance_2d": -0.14608619591269642,
+        "coxa": 0.801437545414597,
+        "braco": "ao_lado",
+        "encolhimento": 1.0384276773106837,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.2378118413367222,
+        "alcance_2d": -0.20878571704389529,
+        "coxa": 0.9318554707962314,
+        "braco": "ao_lado",
+        "encolhimento": 1.041488765466534,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.18750221715147186,
+        "alcance_2d": -0.16293352205857572,
+        "coxa": 0.9514741738447388,
+        "braco": "ao_lado",
+        "encolhimento": 1.0435573545969579,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.07630728750788515,
+        "alcance_2d": -0.1120070430577841,
+        "coxa": 0.9956472461172665,
+        "braco": "ao_lado",
+        "encolhimento": 1.0418870813704555,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.014486381353095833,
+        "alcance_2d": -0.04050032727134308,
+        "coxa": 0.9910790954669593,
+        "braco": "ao_lado",
+        "encolhimento": 1.0411639555409569,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.01838701199187657,
+        "alcance_2d": -0.02665592158907496,
+        "coxa": 0.9909787608757925,
+        "braco": "ao_lado",
+        "encolhimento": 1.0442250295369564,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.020394609520277267,
+        "alcance_2d": -0.021661538695798236,
+        "coxa": 0.9946610523485074,
+        "braco": "ao_lado",
+        "encolhimento": 1.0443325728536108,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.010090974969199978,
+        "alcance_2d": -0.03108531934617322,
+        "coxa": 0.9954384064688654,
+        "braco": "ao_lado",
+        "encolhimento": 1.046483555927638,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.018652348738524806,
+        "alcance_2d": -0.029396529828791575,
+        "coxa": 0.9926814410266959,
+        "braco": "ao_lado",
+        "encolhimento": 1.0465297149202313,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.017998873926310173,
+        "alcance_2d": -0.0245233489914341,
+        "coxa": 0.9945961719519465,
+        "braco": "ao_lado",
+        "encolhimento": 1.0435927173753516,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.003995257049865162,
+        "alcance_2d": -0.03751324489553333,
+        "coxa": 0.9951977072093617,
+        "braco": "ao_lado",
+        "encolhimento": 1.0435160072622933,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.011365730398752952,
+        "alcance_2d": -0.028229350969804064,
+        "coxa": 0.9955509418531223,
+        "braco": "ao_lado",
+        "encolhimento": 1.0406406798276329,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.0015142190199158782,
+        "alcance_2d": -0.020149067431767104,
+        "coxa": 0.9963836231951841,
+        "braco": "ao_lado",
+        "encolhimento": 1.0388022491875446,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.007859438618307252,
+        "alcance_2d": -0.033013562674009886,
+        "coxa": 0.9990816482955553,
+        "braco": "ao_lado",
+        "encolhimento": 1.0388250552442173,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.010002429669625876,
+        "alcance_2d": -0.061349725507854766,
+        "coxa": 0.9983637120428748,
+        "braco": "ao_lado",
+        "encolhimento": 1.0396354112606383,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.02918080248491569,
+        "alcance_2d": -0.07284395938193117,
+        "coxa": 0.9984706524553645,
+        "braco": "ao_lado",
+        "encolhimento": 1.0416386606264765,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.11791483433935225,
+        "alcance_2d": -0.0848975238915586,
+        "coxa": 0.9949782518734923,
+        "braco": "ao_lado",
+        "encolhimento": 1.0416999779793301,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.14183677287896865,
+        "alcance_2d": -0.09710220766202793,
+        "coxa": 0.9925446017354125,
+        "braco": "ao_lado",
+        "encolhimento": 1.03264152600684,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.2423902397981453,
+        "alcance_2d": -0.11832325723528227,
+        "coxa": 0.9787485838719163,
+        "braco": "ao_lado",
+        "encolhimento": 1.026643871630262,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.2369056081490797,
+        "alcance_2d": -0.13336471049120724,
+        "coxa": 0.9730489053382603,
+        "braco": "ao_lado",
+        "encolhimento": 1.0226177017316016,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.2180447934775539,
+        "alcance_2d": -0.13423677776927337,
+        "coxa": 0.9751561580335587,
+        "braco": "ao_lado",
+        "encolhimento": 1.019674043125496,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.17761268369707703,
+        "alcance_2d": -0.15278436204405582,
+        "coxa": 0.9763864536991035,
+        "braco": "ao_lado",
+        "encolhimento": 1.0204479790707206,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.1734013091260193,
+        "alcance_2d": -0.1386032286584551,
+        "coxa": 0.9768111812414861,
+        "braco": "ao_lado",
+        "encolhimento": 1.018547145882547,
         "viu_frontal": false,
         "viu_lateral": true
       }
     ],
     "p2": [
       {
-        "alcance": 1.000481878575943,
-        "alcance_2d": 0.983737737248242,
-        "coxa": 0.9801918660232032,
-        "braco": "estendido",
+        "alcance": -0.7282756771446377,
+        "alcance_2d": -0.5471118571735276,
+        "coxa": 0.8546662848489895,
+        "braco": "ao_lado",
+        "encolhimento": 1.0100283881448218,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.7576503258428242,
+        "alcance_2d": -0.5835623442878968,
+        "coxa": 0.8393122034509514,
+        "braco": "ao_lado",
+        "encolhimento": 1.013147393565782,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.806477367726558,
+        "alcance_2d": -0.6359252635909086,
+        "coxa": 0.8449622839647877,
+        "braco": "ao_lado",
+        "encolhimento": 1.0192713305929224,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.8146405427379328,
+        "alcance_2d": -0.6465035559549481,
+        "coxa": 0.8564283918191262,
+        "braco": "ao_lado",
+        "encolhimento": 1.0285291954603422,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.8058829109135465,
+        "alcance_2d": -0.6487875700409654,
+        "coxa": 0.8637385227092194,
+        "braco": "ao_lado",
+        "encolhimento": 1.0493181800073146,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.7868006200664132,
+        "alcance_2d": -0.6565000353838379,
+        "coxa": 0.8684323776611271,
+        "braco": "ao_lado",
+        "encolhimento": 1.0546868221621548,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.7617646186968594,
+        "alcance_2d": -0.6363711170045345,
+        "coxa": 0.883947720024032,
+        "braco": "ao_lado",
+        "encolhimento": 1.054405768675611,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.7466647408931932,
+        "alcance_2d": -0.6569281997771986,
+        "coxa": 0.8995654686847719,
+        "braco": "ao_lado",
+        "encolhimento": 1.054109121849722,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.66778302099325,
+        "alcance_2d": -0.5601834693188282,
+        "coxa": 0.8644380505197168,
+        "braco": "ao_lado",
+        "encolhimento": 1.058997370905139,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.6287217097847151,
+        "alcance_2d": -0.4962936032626769,
+        "coxa": 0.8718439961686134,
+        "braco": "ao_lado",
+        "encolhimento": 1.05652749002239,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.6223574889814292,
+        "alcance_2d": -0.48096981415513645,
+        "coxa": 0.7833670378113814,
+        "braco": "ao_lado",
+        "encolhimento": 1.0560818349292524,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.7335397205514089,
-        "alcance_2d": 0.3091940672795485,
-        "coxa": 0.9868863184941167,
+        "alcance": -0.5476823591136132,
+        "alcance_2d": -0.44947754482460067,
+        "coxa": 0.7457033610657008,
         "braco": "ao_lado",
+        "encolhimento": 1.0558099367382054,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.5946246593409028,
-        "alcance_2d": 0.3763080637852941,
-        "coxa": 0.9959288076933998,
+        "alcance": -0.5295666529685036,
+        "alcance_2d": -0.401631021647868,
+        "coxa": 0.7828525792845663,
         "braco": "ao_lado",
+        "encolhimento": 1.047680828603343,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.6935724347320524,
-        "alcance_2d": 0.6068926394507812,
-        "coxa": 0.9949663047417368,
+        "alcance": -0.4501873912295961,
+        "alcance_2d": -0.30624735473748893,
+        "coxa": 0.782647860119286,
         "braco": "ao_lado",
+        "encolhimento": 1.051857502638563,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.5511265780476005,
-        "alcance_2d": 0.514157053429847,
-        "coxa": 0.9836238377928963,
+        "alcance": -0.3401337693040907,
+        "alcance_2d": -0.30111005006086594,
+        "coxa": 0.7585587971844857,
         "braco": "ao_lado",
+        "encolhimento": 1.047986189964343,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.06386491141747053,
-        "alcance_2d": -0.20093320632091477,
-        "coxa": 0.9957607054683003,
+        "alcance": -0.304014111441364,
+        "alcance_2d": -0.29348564140539185,
+        "coxa": 0.8040765133046213,
         "braco": "ao_lado",
+        "encolhimento": 1.0460011624188232,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.4384686685812141,
-        "alcance_2d": 0.22107008733962302,
-        "coxa": 0.9975215059920723,
+        "alcance": -0.2736781609253325,
+        "alcance_2d": -0.26510538967438285,
+        "coxa": 0.9117631553911522,
         "braco": "ao_lado",
+        "encolhimento": 1.0463029549505518,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.15966586040412153,
-        "alcance_2d": -0.09515147933174639,
-        "coxa": 0.9927709360337782,
+        "alcance": -0.1928867942440771,
+        "alcance_2d": -0.20322048725699238,
+        "coxa": 0.9705947995190002,
         "braco": "ao_lado",
+        "encolhimento": 1.049378095584956,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.44386429849010806,
-        "alcance_2d": 0.3270849516079786,
-        "coxa": 0.9982330467078894,
+        "alcance": -0.11604335554874126,
+        "alcance_2d": -0.09855628438502415,
+        "coxa": 0.9930718763174435,
         "braco": "ao_lado",
+        "encolhimento": 1.0515003976425807,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.914683212787681,
-        "alcance_2d": 0.7485586990556339,
-        "coxa": 0.9899614880721253,
+        "alcance": -0.010750811241467253,
+        "alcance_2d": -0.058708213590209814,
+        "coxa": 0.9984749861425657,
         "braco": "ao_lado",
+        "encolhimento": 1.0471551208688754,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.8299345723195163,
-        "alcance_2d": 0.8243682723822386,
-        "coxa": 0.9881102985325414,
+        "alcance": 0.02673009804932961,
+        "alcance_2d": -0.042892140825453014,
+        "coxa": 0.9981210118972178,
         "braco": "ao_lado",
+        "encolhimento": 1.0471154694202307,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.7137359746335229,
-        "alcance_2d": 0.6733798961446444,
-        "coxa": 0.9902304640086982,
+        "alcance": 0.028215152515900822,
+        "alcance_2d": -0.03295825398020595,
+        "coxa": 0.9974598627225486,
         "braco": "ao_lado",
+        "encolhimento": 1.0426852726248255,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.6193744311411357,
-        "alcance_2d": 0.57277011467459,
-        "coxa": 0.9870372372938185,
+        "alcance": 0.0025293352772494675,
+        "alcance_2d": -0.01623147992186281,
+        "coxa": 0.9944149905323424,
         "braco": "ao_lado",
+        "encolhimento": 1.0469799717082668,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.6987775389028401,
-        "alcance_2d": 0.6400881951862911,
-        "coxa": 0.9876578453344584,
+        "alcance": 0.004434032885111248,
+        "alcance_2d": -0.009485560227794412,
+        "coxa": 0.9956639494731291,
         "braco": "ao_lado",
+        "encolhimento": 1.0437803471034102,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.5291275087890154,
-        "alcance_2d": 0.43908768016149524,
-        "coxa": 0.991738844860846,
+        "alcance": 0.0039151475752907,
+        "alcance_2d": -0.009168038319906483,
+        "coxa": 0.998360804364642,
         "braco": "ao_lado",
+        "encolhimento": 1.04662140968914,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.2170096849330191,
-        "alcance_2d": 0.044758780358550354,
-        "coxa": 0.9792919335038667,
+        "alcance": 0.020098147394740917,
+        "alcance_2d": -0.018366305394812175,
+        "coxa": 0.9999102820965559,
         "braco": "ao_lado",
+        "encolhimento": 1.0464685417938857,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.17691513854789273,
-        "alcance_2d": -0.05149460485550272,
-        "coxa": 0.9822586912144727,
+        "alcance": 0.013704426679248014,
+        "alcance_2d": -0.02605925143013579,
+        "coxa": 0.9995834666666941,
         "braco": "ao_lado",
+        "encolhimento": 1.0460634653467173,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08475244708932257,
-        "alcance_2d": -0.10983548038963419,
-        "coxa": 0.9844245512049902,
+        "alcance": 0.0008835072679259684,
+        "alcance_2d": -0.029305422891229425,
+        "coxa": 0.9985063800043036,
         "braco": "ao_lado",
+        "encolhimento": 1.045674370789489,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.062102647263202124,
-        "alcance_2d": -0.2746037650285689,
-        "coxa": 0.9565027976108357,
+        "alcance": -0.004988112973361453,
+        "alcance_2d": -0.037407915147401744,
+        "coxa": 0.9978108757935203,
         "braco": "ao_lado",
+        "encolhimento": 1.0471462152130104,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.0705946216992715,
-        "alcance_2d": -0.2901839196380177,
-        "coxa": 0.9191678745417888,
+        "alcance": -0.010834682284971394,
+        "alcance_2d": -0.03767279666868898,
+        "coxa": 0.9966896726788178,
         "braco": "ao_lado",
+        "encolhimento": 1.0391805597708914,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.1311394670247332,
-        "alcance_2d": -0.25296916173132616,
-        "coxa": 0.9473558058400164,
+        "alcance": -0.01188621682416934,
+        "alcance_2d": -0.05325127911553186,
+        "coxa": 0.9973159613299382,
         "braco": "ao_lado",
+        "encolhimento": 1.0422798144253078,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.07180695429133083,
-        "alcance_2d": -0.164113702966577,
-        "coxa": 0.9718113599484124,
+        "alcance": -0.04325817931773768,
+        "alcance_2d": -0.07223279194428135,
+        "coxa": 0.9972408688901029,
         "braco": "ao_lado",
+        "encolhimento": 1.0422798144253078,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.03721300819220897,
-        "alcance_2d": -0.024279662043099608,
-        "coxa": 0.9745974104534298,
+        "alcance": -0.04480511637323458,
+        "alcance_2d": -0.10330200754940126,
+        "coxa": 0.999218180445944,
         "braco": "ao_lado",
+        "encolhimento": 1.044436304045211,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.030522224230934498,
-        "alcance_2d": -0.008496084890219616,
-        "coxa": 0.981631810573536,
+        "alcance": -0.03643496103297896,
+        "alcance_2d": -0.10027418914500251,
+        "coxa": 0.9987587897819935,
         "braco": "ao_lado",
+        "encolhimento": 1.0423267156851357,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0212958330771541,
-        "alcance_2d": 0.040382457357139225,
-        "coxa": 0.9835314801904752,
+        "alcance": -0.025969091035833013,
+        "alcance_2d": -0.08779206848196136,
+        "coxa": 0.9984729230127971,
         "braco": "ao_lado",
+        "encolhimento": 1.0445224291431054,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05939992739057569,
-        "alcance_2d": 0.036708641529269136,
-        "coxa": 0.9849856485997174,
+        "alcance": -0.028737522488481423,
+        "alcance_2d": -0.08788448843246356,
+        "coxa": 0.9985538838182832,
         "braco": "ao_lado",
+        "encolhimento": 1.0498323037016197,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05939992739057569,
-        "alcance_2d": 0.036708641529269136,
-        "coxa": 0.9849856485997174,
+        "alcance": -0.056559944439109625,
+        "alcance_2d": -0.09349602244759447,
+        "coxa": 0.9986926010835057,
         "braco": "ao_lado",
+        "encolhimento": 1.0463919301872469,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05939992739057569,
-        "alcance_2d": 0.036708641529269136,
-        "coxa": 0.9849856485997174,
+        "alcance": -0.08125837447624289,
+        "alcance_2d": -0.09526066354064341,
+        "coxa": 0.9978113669551355,
         "braco": "ao_lado",
+        "encolhimento": 1.0505241821800224,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.03997380578114501,
-        "alcance_2d": -0.07066822985443591,
-        "coxa": 0.9791573127776655,
+        "alcance": -0.7887278267308884,
+        "alcance_2d": -0.6722260622128942,
+        "coxa": 0.8631197383051857,
         "braco": "ao_lado",
+        "encolhimento": 1.021253164809608,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.021494289013977246,
-        "alcance_2d": -0.011695214892851786,
-        "coxa": 0.9794873838584601,
+        "alcance": -0.7860044573041935,
+        "alcance_2d": -0.6070387535208851,
+        "coxa": 0.8855262041420495,
         "braco": "ao_lado",
+        "encolhimento": 1.0148439584971216,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.007268454833172639,
-        "alcance_2d": -0.0010912410567063204,
-        "coxa": 0.982430239032921,
+        "alcance": -0.8073703511296884,
+        "alcance_2d": -0.6260734914428437,
+        "coxa": 0.8688020178490712,
         "braco": "ao_lado",
+        "encolhimento": 1.012825500995013,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.03878872303377867,
-        "alcance_2d": 0.02171603027422882,
-        "coxa": 0.9826849476622963,
+        "alcance": -0.5755663670561642,
+        "alcance_2d": -0.45411343688411204,
+        "coxa": 0.8256215350252111,
         "braco": "ao_lado",
+        "encolhimento": 1.0156023996581718,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.044480804932990406,
-        "alcance_2d": 0.035579254862279905,
-        "coxa": 0.9839170300672198,
+        "alcance": -0.5938677091451936,
+        "alcance_2d": -0.48583421508314983,
+        "coxa": 0.7947555382398802,
         "braco": "ao_lado",
+        "encolhimento": 1.0130122456192965,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05228512333391736,
-        "alcance_2d": 0.05121665423621989,
-        "coxa": 0.9807444710583085,
+        "alcance": -0.3964628939760176,
+        "alcance_2d": -0.2856247860522949,
+        "coxa": 0.7981140353919597,
         "braco": "ao_lado",
+        "encolhimento": 1.0149033220184411,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.048415195283572056,
-        "alcance_2d": 0.056419799651526846,
-        "coxa": 0.981097815922771,
+        "alcance": -0.42030120183356773,
+        "alcance_2d": -0.3486768177621433,
+        "coxa": 0.7957087863651857,
         "braco": "ao_lado",
+        "encolhimento": 1.0097367469815228,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.037585600750558584,
-        "alcance_2d": 0.049803724621281985,
-        "coxa": 0.9821256762184973,
+        "alcance": -0.42721097539198455,
+        "alcance_2d": -0.3888105634789479,
+        "coxa": 0.755531248933567,
         "braco": "ao_lado",
+        "encolhimento": 1.009605149678745,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.03715971660132605,
-        "alcance_2d": 0.050711071853826714,
-        "coxa": 0.9864040041303289,
+        "alcance": -0.43809487204311315,
+        "alcance_2d": -0.38436762203120445,
+        "coxa": 0.7214670509898643,
         "braco": "ao_lado",
+        "encolhimento": 1.0124576152533318,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05837898187224491,
-        "alcance_2d": 0.06715515135735879,
-        "coxa": 0.9882364051063313,
+        "alcance": -0.43230257074514844,
+        "alcance_2d": -0.39270366358448555,
+        "coxa": 0.7672076146470286,
         "braco": "ao_lado",
+        "encolhimento": 1.0156495069150953,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09052387602168376,
-        "alcance_2d": 0.05626472399084209,
-        "coxa": 0.9884619926157021,
+        "alcance": -0.3724805905625956,
+        "alcance_2d": -0.2849019928880371,
+        "coxa": 0.8913757875274848,
         "braco": "ao_lado",
+        "encolhimento": 1.0126593351318678,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08678640011129667,
-        "alcance_2d": 0.05226283838936839,
-        "coxa": 0.9889711304413658,
+        "alcance": -0.26250727010598507,
+        "alcance_2d": -0.16282546151854416,
+        "coxa": 0.9857682103982365,
         "braco": "ao_lado",
+        "encolhimento": 1.0147208732316926,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.11295939896954213,
-        "alcance_2d": 0.05343934080740728,
-        "coxa": 0.9913071317634082,
+        "alcance": -0.28939186292409763,
+        "alcance_2d": -0.16268395780672287,
+        "coxa": 0.9825129436169835,
         "braco": "ao_lado",
+        "encolhimento": 1.012321301072484,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10896759153132589,
-        "alcance_2d": 0.0509778509642544,
-        "coxa": 0.9908262830428095,
+        "alcance": -0.2646960742510987,
+        "alcance_2d": -0.15614122117570864,
+        "coxa": 0.9891201659756252,
         "braco": "ao_lado",
+        "encolhimento": 1.0077341907038446,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.11323000492893089,
-        "alcance_2d": 0.041934578715387236,
-        "coxa": 0.9899587326161856,
+        "alcance": -0.20932382311867506,
+        "alcance_2d": -0.13454645270094637,
+        "coxa": 0.9874327433354511,
         "braco": "ao_lado",
+        "encolhimento": 1.0070968468584516,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.11085272137582382,
-        "alcance_2d": 0.041561598725933846,
-        "coxa": 0.9905105243222432,
+        "alcance": -0.16129427620768952,
+        "alcance_2d": -0.10059918706149093,
+        "coxa": 0.9879901902381346,
         "braco": "ao_lado",
+        "encolhimento": 1.006925112349724,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.1186034668354671,
-        "alcance_2d": 0.03862810367755531,
-        "coxa": 0.9899081326381025,
+        "alcance": -0.09641943665905613,
+        "alcance_2d": -0.09048289230767292,
+        "coxa": 0.994400993971736,
         "braco": "ao_lado",
+        "encolhimento": 1.001162118623171,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10955905306807515,
-        "alcance_2d": 0.03580469403567912,
-        "coxa": 0.9902468703555616,
+        "alcance": -0.0919204706510747,
+        "alcance_2d": -0.07341745880235945,
+        "coxa": 0.9932021228674829,
         "braco": "ao_lado",
+        "encolhimento": 0.9997020382645906,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10975451397009717,
-        "alcance_2d": 0.037233492391079634,
-        "coxa": 0.9879828982179041,
+        "alcance": -0.06492325584588744,
+        "alcance_2d": -0.06313307849998101,
+        "coxa": 0.9927937986373198,
         "braco": "ao_lado",
+        "encolhimento": 1.0013819181404495,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.1031065249291968,
-        "alcance_2d": 0.03570221604144936,
-        "coxa": 0.9873913330959685,
+        "alcance": -0.025908267069279216,
+        "alcance_2d": -0.04422394013188734,
+        "coxa": 0.9948567898246231,
         "braco": "ao_lado",
+        "encolhimento": 1.0013385112870132,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10409830686905475,
-        "alcance_2d": 0.03667318388061942,
-        "coxa": 0.9874607344470397,
+        "alcance": -0.039942832863032754,
+        "alcance_2d": -0.05244559382427314,
+        "coxa": 0.9973915592335941,
         "braco": "ao_lado",
+        "encolhimento": 0.9994791173888403,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10248138050458272,
-        "alcance_2d": 0.03585721647939255,
-        "coxa": 0.9870186711202131,
+        "alcance": -0.04620264832544362,
+        "alcance_2d": -0.04960253688896944,
+        "coxa": 0.997659962666712,
         "braco": "ao_lado",
+        "encolhimento": 1.0000738994061997,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09714016802843904,
-        "alcance_2d": 0.03831295600351784,
-        "coxa": 0.9881586030000071,
+        "alcance": -0.05329050156561348,
+        "alcance_2d": -0.06314566000070443,
+        "coxa": 0.9976937353119958,
         "braco": "ao_lado",
+        "encolhimento": 0.9993621116932568,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09703324728248017,
-        "alcance_2d": 0.03256710888070153,
-        "coxa": 0.9884391974575659,
+        "alcance": -0.05135656323088117,
+        "alcance_2d": -0.06256421231364133,
+        "coxa": 0.9984543824704585,
         "braco": "ao_lado",
+        "encolhimento": 1.0016401233417702,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0933830409136889,
-        "alcance_2d": 0.032192,
-        "coxa": 0.9897803092709515,
+        "alcance": -0.059065226182057076,
+        "alcance_2d": -0.07008993732251544,
+        "coxa": 0.9983695031150374,
         "braco": "ao_lado",
+        "encolhimento": 1.0030906767182408,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09413810018174106,
-        "alcance_2d": 0.03171189596979179,
-        "coxa": 0.9888047145577838,
+        "alcance": -0.06365213450209112,
+        "alcance_2d": -0.07054274816728501,
+        "coxa": 0.9977712438615114,
         "braco": "ao_lado",
+        "encolhimento": 1.0003402137321085,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08756035487391411,
-        "alcance_2d": 0.025055075702907763,
-        "coxa": 0.9921164741441552,
+        "alcance": -0.05763462093774426,
+        "alcance_2d": -0.07212261146077185,
+        "coxa": 0.9972804053624709,
         "braco": "ao_lado",
+        "encolhimento": 1.0001556934792122,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08489273311490171,
-        "alcance_2d": 0.02415859823885675,
-        "coxa": 0.9926824216582436,
+        "alcance": -0.03918997945057397,
+        "alcance_2d": -0.05946669779496025,
+        "coxa": 0.9983596455615287,
         "braco": "ao_lado",
+        "encolhimento": 1.0000664216733506,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08132889743612946,
-        "alcance_2d": 0.018326799819252115,
-        "coxa": 0.9927341966865043,
+        "alcance": -0.03753274860332602,
+        "alcance_2d": -0.05911907313609608,
+        "coxa": 0.9981629634845657,
         "braco": "ao_lado",
+        "encolhimento": 1.0000147597303808,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08818507744598103,
-        "alcance_2d": 0.0203390581581061,
-        "coxa": 0.9915082636061996,
+        "alcance": -0.03898713032912552,
+        "alcance_2d": -0.05973535740354734,
+        "coxa": 0.9971709621245506,
         "braco": "ao_lado",
+        "encolhimento": 1.0044894036669345,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08581237267570027,
-        "alcance_2d": 0.017217096941322202,
-        "coxa": 0.9914914266203736,
+        "alcance": -0.04123296415931112,
+        "alcance_2d": -0.06029875546470792,
+        "coxa": 0.9966392225136501,
         "braco": "ao_lado",
+        "encolhimento": 0.9979665422660291,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0791543961448387,
-        "alcance_2d": 0.011686993495726456,
-        "coxa": 0.9914527975833933,
+        "alcance": -0.04082552359756546,
+        "alcance_2d": -0.06279032969207399,
+        "coxa": 0.9965649517201933,
         "braco": "ao_lado",
+        "encolhimento": 0.9980697450107976,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0775399291035349,
-        "alcance_2d": 0.020019315921560005,
-        "coxa": 0.988952378683814,
+        "alcance": -0.052034641150971284,
+        "alcance_2d": -0.06982929023726288,
+        "coxa": 0.9963898914417548,
         "braco": "ao_lado",
+        "encolhimento": 1.0009503815364416,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.07516920938403765,
-        "alcance_2d": 0.018787361229718188,
-        "coxa": 0.9899558490593469,
+        "alcance": -0.054848279421223965,
+        "alcance_2d": -0.07439525854072494,
+        "coxa": 0.9963187111256888,
         "braco": "ao_lado",
+        "encolhimento": 0.9989600714296304,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.0794240255255762,
-        "alcance_2d": 0.018960757276267354,
-        "coxa": 0.990070812801955,
+        "alcance": -0.06925104272823937,
+        "alcance_2d": -0.09870820586343002,
+        "coxa": 0.9964854915378737,
         "braco": "ao_lado",
+        "encolhimento": 1.0008053173126896,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08489582495112892,
-        "alcance_2d": 0.018925635728108556,
-        "coxa": 0.9896024129489014,
+        "alcance": -0.04435006453690241,
+        "alcance_2d": -0.07924381397535997,
+        "coxa": 0.998468087289321,
         "braco": "ao_lado",
+        "encolhimento": 1.0006732524869997,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08394846481769733,
-        "alcance_2d": 0.017691931630554096,
-        "coxa": 0.9904477777046499,
+        "alcance": -0.03830435107885916,
+        "alcance_2d": -0.08055414535374063,
+        "coxa": 0.9988624966850053,
         "braco": "ao_lado",
+        "encolhimento": 0.998786807044497,
         "viu_frontal": false,
         "viu_lateral": true
       }
     ],
     "p3": [
       {
-        "alcance": 0.3152543059625162,
-        "alcance_2d": 0.27700574595203536,
-        "coxa": 0.9933709282178828,
+        "alcance": 0.1282050436937761,
+        "alcance_2d": 0.07777857441961707,
+        "coxa": 0.9951426217274887,
         "braco": "ao_lado",
+        "encolhimento": 1.0024091199964955,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.3466240605758678,
-        "alcance_2d": 0.28762251246143805,
-        "coxa": 0.989150619247833,
+        "alcance": 0.12760856229375395,
+        "alcance_2d": 0.07795742167188434,
+        "coxa": 0.9963547608944762,
         "braco": "ao_lado",
+        "encolhimento": 1.0018900575968266,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.4001404168360732,
-        "alcance_2d": 0.37949673044441506,
-        "coxa": 0.9891194422015794,
+        "alcance": 0.12779212723940928,
+        "alcance_2d": 0.07723749292156151,
+        "coxa": 0.9963674695905097,
         "braco": "ao_lado",
+        "encolhimento": 1.0023851712902538,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.45010098492302314,
-        "alcance_2d": 0.41345391608099674,
-        "coxa": 0.9869883970477373,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.3991895556976308,
-        "alcance_2d": 0.35328317484709887,
-        "coxa": 0.9905916560128074,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.41958992921923627,
-        "alcance_2d": 0.3561342990573342,
-        "coxa": 0.9912193759952694,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.3768694315336557,
-        "alcance_2d": 0.32444411559372927,
-        "coxa": 0.9915846958608319,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.3720060365932676,
-        "alcance_2d": 0.3239831517990983,
-        "coxa": 0.9907758879075379,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.41080290692616583,
-        "alcance_2d": 0.3550877226593901,
-        "coxa": 0.9904954276336265,
+        "alcance": 0.12546524372239382,
+        "alcance_2d": 0.07903648622325157,
+        "coxa": 0.9965706619945854,
         "braco": "ao_lado",
+        "encolhimento": 0.9983633757990122,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.39829772356778725,
-        "alcance_2d": 0.34233017729999055,
-        "coxa": 0.9881445357173104,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4056689207870981,
-        "alcance_2d": 0.33579439766261,
-        "coxa": 0.9876925837729286,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.37494494418973773,
-        "alcance_2d": 0.32861008870599284,
-        "coxa": 0.9892968059508404,
+        "alcance": 0.12274505395395184,
+        "alcance_2d": 0.08464520335683362,
+        "coxa": 0.9972578004182235,
         "braco": "ao_lado",
+        "encolhimento": 1.0024731128275277,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.3880507185993618,
-        "alcance_2d": 0.3376567389650643,
-        "coxa": 0.9893158575945695,
+        "alcance": 0.145475960341456,
+        "alcance_2d": 0.08920578797353944,
+        "coxa": 0.9971914939438569,
         "braco": "ao_lado",
+        "encolhimento": 1.0003515851166023,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.38771842740819845,
-        "alcance_2d": 0.33722465738348767,
-        "coxa": 0.9892225728696352,
+        "alcance": 0.1522395388968313,
+        "alcance_2d": 0.09467520412042559,
+        "coxa": 0.9966601656560774,
         "braco": "ao_lado",
+        "encolhimento": 1.0021748882866839,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.3983570140114417,
-        "alcance_2d": 0.3420765281046225,
-        "coxa": 0.9870799383863014,
+        "alcance": 0.15290293014558595,
+        "alcance_2d": 0.09438282032809149,
+        "coxa": 0.996542705112998,
         "braco": "ao_lado",
+        "encolhimento": 1.000127425154748,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.4062623415445912,
-        "alcance_2d": 0.34567548485989025,
-        "coxa": 0.9850869266615089,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.38765887213848893,
-        "alcance_2d": 0.34304913928273995,
-        "coxa": 0.9862189458541265,
+        "alcance": 0.14987421483316388,
+        "alcance_2d": 0.0930117987362566,
+        "coxa": 0.9979907051154199,
         "braco": "ao_lado",
+        "encolhimento": 1.000095768922962,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.3904199862589665,
-        "alcance_2d": 0.34096234900572736,
-        "coxa": 0.9856223936270253,
+        "alcance": 0.14416887552719218,
+        "alcance_2d": 0.08799298186583093,
+        "coxa": 0.9975334728571281,
         "braco": "ao_lado",
+        "encolhimento": 1.0021191299132113,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.4276185437740652,
-        "alcance_2d": 0.34709988672873693,
-        "coxa": 0.9816779400511739,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.41937345260902603,
-        "alcance_2d": 0.34641788405667506,
-        "coxa": 0.9813638833733129,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4521244173555808,
-        "alcance_2d": 0.4184272855138345,
-        "coxa": 0.9814594300635441,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4257866504213806,
-        "alcance_2d": 0.38268512380808667,
-        "coxa": 0.9819328006093229,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4254676516636523,
-        "alcance_2d": 0.38392228464955996,
-        "coxa": 0.988987089977822,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4172395941937844,
-        "alcance_2d": 0.3827890496846207,
-        "coxa": 0.9892969043799298,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.392803144933949,
-        "alcance_2d": 0.3709356291130841,
-        "coxa": 0.9836194018835854,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.40513428480933555,
-        "alcance_2d": 0.37227434935698134,
-        "coxa": 0.9813071259962954,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4058112424921132,
-        "alcance_2d": 0.3670599665062695,
-        "coxa": 0.9818001169805614,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4006180872089774,
-        "alcance_2d": 0.34853967995990265,
-        "coxa": 0.9819544948261963,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.4072845062916961,
-        "alcance_2d": 0.3446420165337488,
-        "coxa": 0.9825795278079973,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.41222813660138097,
-        "alcance_2d": 0.3369981827230949,
-        "coxa": 0.9826027358461491,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.44556264680865815,
-        "alcance_2d": 0.3590393966385484,
-        "coxa": 0.9859431629678904,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.44152119854854593,
-        "alcance_2d": 0.36345402913526587,
-        "coxa": 0.985410905643003,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.3869996595543096,
-        "alcance_2d": 0.30238139441337325,
-        "coxa": 0.9842561667069224,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.335071406787694,
-        "alcance_2d": 0.24622605804939623,
-        "coxa": 0.9857642261235161,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.2477733938418317,
-        "alcance_2d": 0.18387442142270147,
-        "coxa": 0.9918252072837459,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.19199601215980105,
-        "alcance_2d": 0.09300991393557681,
-        "coxa": 0.9916763821439825,
-        "braco": "estendido",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.7194888580517098,
-        "alcance_2d": 0.7462665217699093,
-        "coxa": 0.9903961903595463,
+        "alcance": 0.14549863618881176,
+        "alcance_2d": 0.11102841032023553,
+        "coxa": 0.9971920510668306,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.10882387676693103,
-        "alcance_2d": 0.025035686335123538,
-        "coxa": 0.9924362753275981,
-        "braco": "ao_lado",
+        "encolhimento": 1.0020832527497445,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.08655501699861182,
-        "alcance_2d": 0.014536970924069238,
-        "coxa": 0.994207705442718,
+        "alcance": 0.10269502867857007,
+        "alcance_2d": 0.1072138426665774,
+        "coxa": 0.9950679524855134,
         "braco": "ao_lado",
+        "encolhimento": 1.0016931358096064,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.05015994908972594,
-        "alcance_2d": -0.025453442434059816,
-        "coxa": 0.9917866937923945,
+        "alcance": 0.09985523580597538,
+        "alcance_2d": 0.10366970803815756,
+        "coxa": 0.9954678283812138,
         "braco": "ao_lado",
+        "encolhimento": 1.0013293986183787,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.022577588635669874,
-        "alcance_2d": -0.03808249525952083,
-        "coxa": 0.9932238859483395,
+        "alcance": 0.10030548047516666,
+        "alcance_2d": 0.09861816279345456,
+        "coxa": 0.995528153490446,
         "braco": "ao_lado",
+        "encolhimento": 0.9992251929658241,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.013486804547816825,
-        "alcance_2d": -0.042183197877561356,
-        "coxa": 0.9920692908714754,
+        "alcance": 0.0987493227619838,
+        "alcance_2d": 0.09788866705549902,
+        "coxa": 0.9962863507473052,
         "braco": "ao_lado",
+        "encolhimento": 0.9993150721461992,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.7288190726670876,
-        "alcance_2d": 0.5398351575808495,
-        "coxa": 0.9907121623338241,
+        "alcance": 0.1391534596771586,
+        "alcance_2d": 0.1071424065747376,
+        "coxa": 0.9963972517971681,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5888064790413244,
-        "alcance_2d": 0.50725648834691,
-        "coxa": 0.9910490121510601,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5839382510243863,
-        "alcance_2d": 0.5196997843402384,
-        "coxa": 0.987495601361767,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.9859555147200961,
-        "alcance_2d": 0.9550228170974822,
-        "coxa": 0.9875302163694205,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.9859555147200961,
-        "alcance_2d": 0.9550228170974822,
-        "coxa": 0.9844675377297831,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.9859555147200961,
-        "alcance_2d": 0.9550228170974822,
-        "coxa": 0.985280129449395,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.3041728613675285,
-        "alcance_2d": 1.2136245366443013,
-        "coxa": 0.985293922382997,
-        "braco": "levantado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.1098031294032988,
-        "alcance_2d": 0.8780718515811002,
-        "coxa": 0.9857108354118611,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.7653104083495275,
-        "alcance_2d": 0.7045715124262789,
-        "coxa": 0.9808291730958478,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.7653104083495275,
-        "alcance_2d": 0.7045715124262789,
-        "coxa": 0.9836243526881683,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.7653104083495275,
-        "alcance_2d": 0.7045715124262789,
-        "coxa": 0.9864721162730336,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.7653104083495275,
-        "alcance_2d": 0.7045715124262789,
-        "coxa": 0.9895909750779341,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.03185319270215,
-        "alcance_2d": -0.049677731220343684,
-        "coxa": 0.9898173074589144,
-        "braco": "ao_lado",
+        "encolhimento": 0.9989107431143565,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.04745723130683556,
-        "alcance_2d": -0.017439114709241105,
-        "coxa": 0.9887378791079534,
+        "alcance": 0.13221015228706706,
+        "alcance_2d": 0.10820363179235623,
+        "coxa": 0.9957425884258025,
         "braco": "ao_lado",
+        "encolhimento": 1.0006515218841543,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09082648124119046,
-        "alcance_2d": 0.01770624624648879,
-        "coxa": 0.9889641867112353,
+        "alcance": 0.12893866427659928,
+        "alcance_2d": 0.10333588881516614,
+        "coxa": 0.9957153215962163,
         "braco": "ao_lado",
+        "encolhimento": 1.0004867031548084,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09096288094389014,
-        "alcance_2d": 0.034293774856273884,
-        "coxa": 0.9840739475063849,
+        "alcance": 0.1292218806626202,
+        "alcance_2d": 0.10096338534367734,
+        "coxa": 0.9976346601456187,
         "braco": "ao_lado",
+        "encolhimento": 0.9985338163508972,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 1.1941675803006866,
-        "alcance_2d": 1.0907173908615344,
-        "coxa": 0.9839890453879033,
+        "alcance": 0.09456762477502823,
+        "alcance_2d": 0.09035273105123544,
+        "coxa": 0.9961155279961472,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.1941675803006866,
-        "alcance_2d": 1.0907173908615344,
-        "coxa": 0.9894125080775101,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 1.1941675803006866,
-        "alcance_2d": 1.0907173908615344,
-        "coxa": 0.9899419673117712,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.10642481408088644,
-        "alcance_2d": 0.05729187769538205,
-        "coxa": 0.9903591912201349,
-        "braco": "ao_lado",
+        "encolhimento": 0.9983093411756261,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.10776805285543094,
-        "alcance_2d": 0.08077880208294644,
-        "coxa": 0.9904581031211255,
+        "alcance": 0.11092609336939427,
+        "alcance_2d": 0.09204655515755061,
+        "coxa": 0.9979323550989403,
         "braco": "ao_lado",
+        "encolhimento": 0.998473946434193,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.10658999577758266,
+        "alcance_2d": 0.09190733617058841,
+        "coxa": 0.9953231514579322,
+        "braco": "ao_lado",
+        "encolhimento": 0.998458980076772,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.11083613238534354,
+        "alcance_2d": 0.09649375130144895,
+        "coxa": 0.9967218738239431,
+        "braco": "ao_lado",
+        "encolhimento": 0.9985487849519293,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12431550011804697,
+        "alcance_2d": 0.0967308313010937,
+        "coxa": 0.996887746435026,
+        "braco": "ao_lado",
+        "encolhimento": 0.9983093411756261,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1241807699580458,
+        "alcance_2d": 0.10369335086880054,
+        "coxa": 0.9964776841251476,
+        "braco": "ao_lado",
+        "encolhimento": 1.0005780519556589,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12436712348557759,
+        "alcance_2d": 0.09660524182143965,
+        "coxa": 0.9962168004758355,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000402188180288,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12489053636856703,
+        "alcance_2d": 0.10777156291986693,
+        "coxa": 0.9954498492889067,
+        "braco": "ao_lado",
+        "encolhimento": 0.9983721939982619,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12057927395221188,
+        "alcance_2d": 0.10736399639190364,
+        "coxa": 0.995930418240705,
+        "braco": "ao_lado",
+        "encolhimento": 0.9984021268034106,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12968283617286977,
+        "alcance_2d": 0.11529865200344461,
+        "coxa": 0.9956368842259976,
+        "braco": "ao_lado",
+        "encolhimento": 0.9983721939982619,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1291364859091737,
+        "alcance_2d": 0.11188470386749552,
+        "coxa": 0.9959755764598452,
+        "braco": "ao_lado",
+        "encolhimento": 0.9977440194312014,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.13511755865016065,
+        "alcance_2d": 0.12936203318649003,
+        "coxa": 0.996895736232077,
+        "braco": "ao_lado",
+        "encolhimento": 0.9978038115208681,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1659621547522165,
+        "alcance_2d": 0.1284550410362113,
+        "coxa": 0.9961719537841961,
+        "braco": "ao_lado",
+        "encolhimento": 0.998521875974831,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.16457509934174228,
+        "alcance_2d": 0.12125220891526999,
+        "coxa": 0.9962521362311262,
+        "braco": "ao_lado",
+        "encolhimento": 0.9987599350674647,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.0891753674727426,
+        "alcance_2d": 0.03833972673754686,
+        "coxa": 0.995595177782845,
+        "braco": "ao_lado",
+        "encolhimento": 0.9989231458846178,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.02434930106704692,
+        "alcance_2d": 0.014096641373670617,
+        "coxa": 0.9953390076088464,
+        "braco": "ao_lado",
+        "encolhimento": 0.9990279586347875,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.08257990597949014,
+        "alcance_2d": -0.05560757997430636,
+        "coxa": 0.9886730922564042,
+        "braco": "ao_lado",
+        "encolhimento": 1.0011313446233123,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.09859527462397374,
+        "alcance_2d": -0.11323886328300169,
+        "coxa": 0.9884997197483517,
+        "braco": "ao_lado",
+        "encolhimento": 1.0012363671936142,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.16123518406288068,
+        "alcance_2d": -0.10432063566868635,
+        "coxa": 0.9850650822348818,
+        "braco": "ao_lado",
+        "encolhimento": 1.0014014471873605,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.1512599778899947,
+        "alcance_2d": -0.1112583891137112,
+        "coxa": 0.9846502680843713,
+        "braco": "ao_lado",
+        "encolhimento": 1.0014314675802962,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.1371778853011137,
+        "alcance_2d": -0.10693362768684563,
+        "coxa": 0.985409198190435,
+        "braco": "ao_lado",
+        "encolhimento": 1.0013714692575062,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12447368385781282,
+        "alcance_2d": 0.12637627754163394,
+        "coxa": 0.990250693914716,
+        "braco": "ao_lado",
+        "encolhimento": 1.0037079230155956,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.11900061574566274,
+        "alcance_2d": 0.12272120189407196,
+        "coxa": 0.997497703512914,
+        "braco": "ao_lado",
+        "encolhimento": 1.0036782940989328,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.071698274924045,
+        "alcance_2d": 0.10249062702257922,
+        "coxa": 0.9961510026807213,
+        "braco": "ao_lado",
+        "encolhimento": 1.0036655094302278,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.09370138798295789,
+        "alcance_2d": 0.11430327246275879,
+        "coxa": 0.9983514601624908,
+        "braco": "ao_lado",
+        "encolhimento": 1.0055434375628711,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12023097531759536,
+        "alcance_2d": 0.11582059175717764,
+        "coxa": 0.9966950040701357,
+        "braco": "ao_lado",
+        "encolhimento": 1.0073564075201498,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.11075105061420829,
+        "alcance_2d": 0.11484310965166106,
+        "coxa": 0.9936740970092734,
+        "braco": "ao_lado",
+        "encolhimento": 1.0052243172914244,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.10282861833153413,
+        "alcance_2d": 0.1187134204181554,
+        "coxa": 0.9939969864956485,
+        "braco": "ao_lado",
+        "encolhimento": 1.0050418516292898,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.0696236576992072,
+        "alcance_2d": 0.11825785253353638,
+        "coxa": 0.9895135668593837,
+        "braco": "ao_lado",
+        "encolhimento": 1.004838250924227,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.06710549607098373,
+        "alcance_2d": 0.11126453224795109,
+        "coxa": 0.9921195534406205,
+        "braco": "ao_lado",
+        "encolhimento": 1.0047343076302833,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.06894939008418682,
+        "alcance_2d": 0.11042547678611138,
+        "coxa": 0.9932938855092274,
+        "braco": "ao_lado",
+        "encolhimento": 1.006656281156688,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.0652479056865399,
+        "alcance_2d": 0.10661431461423268,
+        "coxa": 0.9930465787947992,
+        "braco": "ao_lado",
+        "encolhimento": 1.0026457866062337,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.07344212950600083,
+        "alcance_2d": 0.10314609320101142,
+        "coxa": 0.9932638167718543,
+        "braco": "ao_lado",
+        "encolhimento": 1.00444133297423,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.17428635666317302,
+        "alcance_2d": 0.14142253941129646,
+        "coxa": 0.9938307250672136,
+        "braco": "ao_lado",
+        "encolhimento": 1.0024463675960258,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.15642074861672173,
+        "alcance_2d": 0.1369727588429439,
+        "coxa": 0.9937288982361623,
+        "braco": "ao_lado",
+        "encolhimento": 1.0040984332527094,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1528607953209057,
+        "alcance_2d": 0.14111231452669348,
+        "coxa": 0.9930476055041625,
+        "braco": "ao_lado",
+        "encolhimento": 1.0017986852382146,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.14677638812337704,
+        "alcance_2d": 0.13194825441741198,
+        "coxa": 0.9986404774531501,
+        "braco": "ao_lado",
+        "encolhimento": 1.003707271875016,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.14063170177923173,
+        "alcance_2d": 0.1331521538567576,
+        "coxa": 0.995379878823697,
+        "braco": "ao_lado",
+        "encolhimento": 1.0017010785651619,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.15509790364208023,
+        "alcance_2d": 0.13295191511357216,
+        "coxa": 0.9988274433337601,
+        "braco": "ao_lado",
+        "encolhimento": 1.0033054315916579,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.15064215118913693,
+        "alcance_2d": 0.1318079613313824,
+        "coxa": 0.9936435833090129,
+        "braco": "ao_lado",
+        "encolhimento": 1.0028458835620349,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.13169721352892325,
+        "alcance_2d": 0.1295477729438984,
+        "coxa": 0.9937671551724395,
+        "braco": "ao_lado",
+        "encolhimento": 1.0006788771199087,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.09759408928931408,
+        "alcance_2d": 0.13116885967988126,
+        "coxa": 0.992539091413891,
+        "braco": "ao_lado",
+        "encolhimento": 1.0005754687403388,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.14811688045803997,
+        "alcance_2d": 0.16234577007446438,
+        "coxa": 0.9918454582689541,
+        "braco": "ao_lado",
+        "encolhimento": 1.0024336016772624,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12105012148714112,
+        "alcance_2d": 0.15559167420474557,
+        "coxa": 0.9905972116414202,
+        "braco": "ao_lado",
+        "encolhimento": 1.0004201926744618,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.12011411078937448,
+        "alcance_2d": 0.14766948980938135,
+        "coxa": 0.9903826624744535,
+        "braco": "ao_lado",
+        "encolhimento": 1.0002027367260067,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.11869655771001429,
+        "alcance_2d": 0.16171572658620914,
+        "coxa": 0.991192960992719,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000441963457218,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.23130263144486893,
+        "alcance_2d": 0.18180186935901388,
+        "coxa": 0.9922342915216418,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000441963457218,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.23655585167171925,
+        "alcance_2d": 0.18309393541568744,
+        "coxa": 0.9944530524752024,
+        "braco": "ao_lado",
+        "encolhimento": 1.0019938972610967,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.21221278423823733,
+        "alcance_2d": 0.1801396039353789,
+        "coxa": 0.9950576495049824,
+        "braco": "ao_lado",
+        "encolhimento": 0.9955077301009477,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.18951713440272688,
+        "alcance_2d": 0.1231739375798523,
+        "coxa": 0.995952990981541,
+        "braco": "ao_lado",
+        "encolhimento": 0.992791333191166,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.18784535916228007,
+        "alcance_2d": 0.11411761241301076,
+        "coxa": 0.9962417522075013,
+        "braco": "ao_lado",
+        "encolhimento": 0.9985476027709593,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1849059856219126,
+        "alcance_2d": 0.08750612686015492,
+        "coxa": 0.9987459753880853,
+        "braco": "ao_lado",
+        "encolhimento": 0.9943927285611598,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.18530088358756897,
+        "alcance_2d": 0.09174286612454637,
+        "coxa": 0.996691981884136,
+        "braco": "ao_lado",
+        "encolhimento": 0.9921406757769204,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.1192336615851281,
+        "alcance_2d": 0.056487090080978034,
+        "coxa": 0.9963741570621646,
+        "braco": "ao_lado",
+        "encolhimento": 0.9914564609998098,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.04180683252545552,
+        "alcance_2d": -0.06126281162028888,
+        "coxa": 0.9952277120657094,
+        "braco": "ao_lado",
+        "encolhimento": 0.9944120052001618,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.08367242953496408,
+        "alcance_2d": -0.08149433646599644,
+        "coxa": 0.9957801548982026,
+        "braco": "ao_lado",
+        "encolhimento": 0.994632415098533,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.08534273928609071,
+        "alcance_2d": -0.10631312292459187,
+        "coxa": 0.995666823071999,
+        "braco": "ao_lado",
+        "encolhimento": 0.9946765088035708,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.10380087097936538,
+        "alcance_2d": -0.10733894146798093,
+        "coxa": 0.9955174853322941,
+        "braco": "ao_lado",
+        "encolhimento": 0.9965705386939011,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": -0.08001022937999196,
+        "alcance_2d": -0.09594410632581735,
+        "coxa": 0.995966924890403,
+        "braco": "ao_lado",
+        "encolhimento": 0.9977143490028642,
         "viu_frontal": false,
         "viu_lateral": true
       }
     ],
     "p4": [
       {
-        "alcance": 1.0375945574657979,
-        "alcance_2d": 1.0767459054642516,
-        "coxa": 0.9933567833574236,
-        "braco": "estendido",
+        "alcance": 0.6168554654678629,
+        "alcance_2d": 0.601286590785806,
+        "coxa": 0.0,
+        "braco": "ao_lado",
+        "encolhimento": 0.9949496447116252,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.6539989928666914,
-        "alcance_2d": 0.6011623249022578,
-        "coxa": 0.9952938463310593,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6679650740876769,
-        "alcance_2d": 0.7683213766364826,
-        "coxa": 0.9951030380861928,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.4421712143892732,
-        "alcance_2d": 0.517153435114769,
-        "coxa": 0.09779149768562759,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5115696502486082,
-        "alcance_2d": 0.5062993854770786,
         "coxa": 0.0,
-        "braco": "estendido",
+        "braco": "levantado",
+        "encolhimento": 0.994964600920646,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.5492014595853175,
-        "alcance_2d": 0.5404328619333413,
         "coxa": 0.0,
-        "braco": "estendido",
+        "braco": "levantado",
+        "encolhimento": 0.9949496447116252,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.5919345945285154,
-        "alcance_2d": 0.6157445855458391,
         "coxa": 0.0,
-        "braco": "estendido",
+        "braco": "levantado",
+        "encolhimento": 0.9928806221070052,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.5916870942028849,
-        "alcance_2d": 0.5541254647955842,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9979763618151941,
+        "encolhimento": 0.9949496447116252
       },
       {
-        "alcance": 0.6343237557430866,
-        "alcance_2d": 0.5534225514525916,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9981035534815608,
+        "encolhimento": 0.9949346889522381
       },
       {
-        "alcance": 0.6152789690918692,
-        "alcance_2d": 0.5658917344063127,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9986203369792184,
+        "encolhimento": 0.9949346889522381
       },
       {
-        "alcance": 0.6152789690918692,
-        "alcance_2d": 0.5658917344063127,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980082916692102,
+        "encolhimento": 0.9949197336424644
       },
       {
-        "alcance": 0.596425981375683,
-        "alcance_2d": 0.5742366969147905,
-        "coxa": 0.9922755093745915,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980624622825811,
+        "encolhimento": 0.9992457839199238
       },
       {
-        "alcance": 0.6981717778786667,
-        "alcance_2d": 0.6770915867183752,
-        "coxa": 0.9922646484773696,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9993883338351045,
+        "encolhimento": 0.99911742170858
       },
       {
-        "alcance": 0.7103868678137059,
-        "alcance_2d": 0.6562608543177617,
-        "coxa": 0.9910817157694297,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9979440455965921,
+        "encolhimento": 0.9991099974622367
       },
       {
-        "alcance": 0.7079986582399936,
-        "alcance_2d": 0.6751310449312409,
-        "coxa": 0.9919072992693075,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9984010151062119,
+        "encolhimento": 0.9971213051781549
       },
       {
-        "alcance": 0.6638492956321288,
-        "alcance_2d": 0.6567220793911556,
-        "coxa": 0.991975164404425,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980748281863597,
+        "encolhimento": 0.9972183345254395
       },
       {
-        "alcance": 0.6620980252648947,
-        "alcance_2d": 0.6421991277099278,
-        "coxa": 0.9897330005763673,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9960583514844831,
+        "encolhimento": 0.9993343777922012
       },
       {
-        "alcance": 0.6630050538921309,
-        "alcance_2d": 0.624308465261203,
-        "coxa": 0.9895023895160955,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9969843980317178,
+        "encolhimento": 0.9995138418586956
       },
       {
-        "alcance": 0.715793667173389,
-        "alcance_2d": 0.6719725871550725,
-        "coxa": 0.9885605050153429,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9967832924624143,
+        "encolhimento": 0.9998055342629822
       },
       {
-        "alcance": 0.6908693619302745,
-        "alcance_2d": 0.6534856081518088,
-        "coxa": 0.9913491875565029,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.998265114457493,
+        "encolhimento": 0.9999401687953011
       },
       {
-        "alcance": 0.6767240277760228,
-        "alcance_2d": 0.6404007242088322,
-        "coxa": 0.9911588424069103,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9983990908097977,
+        "encolhimento": 1.0020540187986253
       },
       {
-        "alcance": 0.73296025279082,
-        "alcance_2d": 0.7377494546253301,
-        "coxa": 0.990692365496021,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9982502377372097,
+        "encolhimento": 1.002024067816646
       },
       {
-        "alcance": 0.7154082697914473,
-        "alcance_2d": 0.7018337564471127,
-        "coxa": 0.9926495503185127,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9982557654173353,
+        "encolhimento": 0.9999925210434834
       },
       {
-        "alcance": 0.6983070668255325,
-        "alcance_2d": 0.678773010976869,
-        "coxa": 0.9927931545679952,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9976969152304583,
+        "encolhimento": 1.0000074789565168
       },
       {
-        "alcance": 0.7308782355234346,
-        "alcance_2d": 0.6759483855225367,
-        "coxa": 0.992765621595364,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9971696407504862,
+        "encolhimento": 1.0
       },
       {
-        "alcance": 0.75994056594586,
-        "alcance_2d": 0.6482994546380014,
-        "coxa": 0.9931438115410677,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.999551909640698,
+        "encolhimento": 1.0000299164972994
       },
       {
-        "alcance": 0.885233350135638,
-        "alcance_2d": 0.7699495198478992,
-        "coxa": 0.021729283917630106,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9983267978765779,
+        "encolhimento": 1.0000149580249038
       },
       {
-        "alcance": 0.8317355911903268,
-        "alcance_2d": 0.7615661844336107,
-        "coxa": 0.99352776189885,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.997763289953062,
+        "encolhimento": 0.9979423003956563
       },
       {
-        "alcance": 0.7788662798634227,
-        "alcance_2d": 0.7054589972937387,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980310528956756,
+        "encolhimento": 1.0000448754172067
       },
       {
-        "alcance": 0.7014202390284782,
-        "alcance_2d": 0.6482443141579342,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.997483346899609,
+        "encolhimento": 0.9979572408684151
       },
       {
-        "alcance": 0.8209650342387222,
-        "alcance_2d": 0.7499817043605929,
-        "coxa": 0.9893555822586507,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9970185926378939,
+        "encolhimento": 1.0000448754172067
       },
       {
-        "alcance": 0.8166262239925929,
-        "alcance_2d": 0.7220625857167222,
-        "coxa": 0.9912966217016881,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9971498070343084,
+        "encolhimento": 1.0000299164972994
       },
       {
-        "alcance": 0.8166262239925929,
-        "alcance_2d": 0.7220625857167222,
-        "coxa": 0.9911265904629836,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9974682898850272,
+        "encolhimento": 1.0000299164972994
       },
       {
-        "alcance": 0.7625712841581966,
-        "alcance_2d": 0.6932162303781182,
-        "coxa": 0.9911811016683362,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980070243544482,
+        "encolhimento": 1.0000224373170385
       },
       {
-        "alcance": 0.732685614278363,
-        "alcance_2d": 0.6676302858615566,
-        "coxa": 0.9909807526193355,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.998052144422477,
+        "encolhimento": 1.0000373961250686
       },
       {
-        "alcance": 0.7344809800727171,
-        "alcance_2d": 0.7074396037265577,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9979491490892428,
+        "encolhimento": 1.0000074789565168
       },
       {
-        "alcance": 0.7233131968245683,
-        "alcance_2d": 0.6823205654091523,
-        "coxa": 0.9942793379292717,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9972410483291648,
+        "encolhimento": 1.0000224373170385
       },
       {
-        "alcance": 0.71877293688076,
-        "alcance_2d": 0.6749319475974344,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9974920331856397,
+        "encolhimento": 1.0000373961250686
       },
       {
-        "alcance": 0.71877293688076,
-        "alcance_2d": 0.6749319475974344,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9977711144392879,
+        "encolhimento": 0.997972181788536
       },
       {
-        "alcance": 0.7088866600304334,
-        "alcance_2d": 0.6726509704716532,
-        "coxa": 0.9924330920586554,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9980979665384474,
+        "encolhimento": 1.0000373961250686
       },
       {
-        "alcance": 0.6955168947934418,
-        "alcance_2d": 0.66997018038927,
-        "coxa": 0.9886300871378542,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9982937883900199,
+        "encolhimento": 1.0000373961250686
       },
       {
-        "alcance": 0.7175933316718022,
-        "alcance_2d": 0.716534998508948,
-        "coxa": 0.9892744817671331,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9979044603055877,
+        "encolhimento": 0.9979647179979835
       },
       {
-        "alcance": 0.7053305699338366,
-        "alcance_2d": 0.6970917816086519,
-        "coxa": 0.9933491638643702,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.998625890645765,
+        "encolhimento": 0.9979423003956563
       },
       {
-        "alcance": 0.898184323894912,
-        "alcance_2d": 0.8666606661881796,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.90258184975609,
-        "alcance_2d": 0.9465438010440809,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.8466573305085255,
-        "alcance_2d": 0.8427206950835553,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5578796936666031,
-        "alcance_2d": 0.6567661220384563,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.47084231259751635,
-        "alcance_2d": 0.5421540934796633,
-        "coxa": 0.0,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.3002643704443305,
-        "alcance_2d": 0.10848966377442953,
-        "coxa": 0.9318224765883403,
-        "braco": "estendido",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.19079969604991598,
-        "alcance_2d": -0.013923307748422344,
-        "coxa": 0.9901884107746566,
+        "alcance": 0.6552276375323633,
+        "alcance_2d": 0.6232189240708669,
+        "coxa": 0.998469421948886,
         "braco": "ao_lado",
+        "encolhimento": 0.9933751072917463,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "coxa": 0.9994373451528092,
+        "encolhimento": 0.9945068268856155
+      },
+      {
+        "coxa": 0.9992853751563455,
+        "encolhimento": 0.9925502557515259
+      },
+      {
+        "coxa": 0.9994337307235821,
+        "encolhimento": 0.9925649244020124
+      },
+      {
+        "coxa": 0.9994556034555372,
+        "encolhimento": 0.9934191877197686
+      },
+      {
+        "coxa": 0.9993970820888437,
+        "braco": "ao_lado",
+        "encolhimento": 0.993433882065141,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.3031991763027488,
-        "alcance_2d": 0.18734967740446432,
-        "coxa": 0.9903733141120119,
+        "coxa": 0.9992996504379008,
         "braco": "ao_lado",
+        "encolhimento": 0.9918400874159516,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": -0.044861737039117285,
-        "alcance_2d": -0.21430791842399696,
-        "coxa": 0.9292027369867675,
+        "coxa": 0.9975938873167373,
+        "encolhimento": 0.9937723516433872
+      },
+      {
+        "coxa": 0.9982292411993907,
+        "encolhimento": 0.9938458516640795
+      },
+      {
+        "coxa": 0.9980333488848464,
+        "encolhimento": 0.9938458516640795
+      },
+      {
+        "coxa": 0.9998468749621072,
         "braco": "ao_lado",
+        "encolhimento": 0.9938311507901768,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": -0.03699971722395662,
-        "alcance_2d": -0.1414709569853559,
-        "coxa": 0.9844895671207438,
+        "coxa": 0.9999582420176467,
         "braco": "ao_lado",
+        "encolhimento": 0.991884139597228,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.601195016849165,
-        "alcance_2d": 0.5361449587027737,
-        "coxa": 0.7005332851987496,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9991976391761997,
+        "encolhimento": 0.9890223598948836
       },
       {
-        "alcance": 0.6357379458059238,
-        "alcance_2d": 0.6060195889655919,
-        "coxa": 0.5923930131863474,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.999577621879176,
+        "encolhimento": 0.9890516441500237
       },
       {
-        "alcance": 0.8305386112260961,
-        "alcance_2d": 0.804823846783699,
-        "coxa": 0.9835654719244098,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9995317122662105,
+        "encolhimento": 0.991001106299189
       },
       {
-        "alcance": 0.6523807844561289,
-        "alcance_2d": 0.7550831061966492,
-        "coxa": 0.9915382595821364,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9994121603192367,
+        "encolhimento": 0.992270731965408
       },
       {
-        "alcance": 0.6257875819888331,
-        "alcance_2d": 0.6791159017189354,
-        "coxa": 0.9935260938910879,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9994016327614667,
+        "encolhimento": 0.9928431421009377
       },
       {
-        "alcance": 0.5886497560785867,
-        "alcance_2d": 0.523476120607531,
-        "coxa": 0.9931772846228173,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.999433428555373,
+        "encolhimento": 0.9929245584272977
       },
       {
-        "alcance": 0.8333348305622426,
-        "alcance_2d": 0.785246865634648,
-        "coxa": 0.9926839963541786,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.998839939776353,
+        "encolhimento": 0.9941262333806071
       },
       {
-        "alcance": 0.8759043464865387,
-        "alcance_2d": 0.8658617115860168,
-        "coxa": 0.994481828826953,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.999216955753991,
+        "encolhimento": 0.998114269538843
       },
       {
-        "alcance": 0.9819678499333263,
-        "alcance_2d": 0.9746365165870463,
-        "coxa": 0.9940880138512176,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9997545584000747,
+        "encolhimento": 0.9989953946490427
       },
       {
-        "alcance": 0.8937806828459912,
-        "alcance_2d": 0.8662309268709657,
-        "coxa": 0.9950443357431945,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9997626188772013,
+        "encolhimento": 0.9999076553352597
       },
       {
-        "alcance": 0.8428176254828531,
-        "alcance_2d": 0.828249655842821,
-        "coxa": 0.9948476402630283,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9990462858040114,
+        "encolhimento": 0.999946404109593
+      },
+      {
+        "coxa": 0.9991193587597016,
+        "encolhimento": 1.0019080768320945
+      },
+      {
+        "coxa": 0.9988211818223633,
+        "encolhimento": 0.9991319546431511
+      },
+      {
+        "coxa": 0.9984381017039712,
+        "encolhimento": 0.9975204273323477
+      },
+      {
+        "coxa": 0.9991136120629526,
+        "encolhimento": 0.9990706817696676
+      },
+      {
+        "coxa": 0.996391332763048,
+        "encolhimento": 1.002418901905972
+      },
+      {
+        "coxa": 0.998040659533767,
+        "encolhimento": 1.0041067055294046
+      },
+      {
+        "coxa": 0.9959786466667168,
+        "encolhimento": 1.0021381484263974
+      },
+      {
+        "coxa": 0.9962467373381503,
+        "encolhimento": 1.0021086045766354
+      },
+      {
+        "coxa": 0.9981376043001828,
+        "encolhimento": 1.005953520174746
+      },
+      {
+        "coxa": 0.9987768844693637,
+        "encolhimento": 1.0040475533667717
+      },
+      {
+        "coxa": 0.9967988434000037,
+        "encolhimento": 1.0040771285768957
+      },
+      {
+        "coxa": 0.99308025787145,
+        "encolhimento": 1.004017979898879
+      },
+      {
+        "coxa": 0.9944683107223721,
+        "encolhimento": 1.0020938333049774
+      },
+      {
+        "coxa": 0.997588797778072,
+        "encolhimento": 1.0040327664150561
+      },
+      {
+        "coxa": 0.9984323890888973,
+        "encolhimento": 1.0021233762837691
+      },
+      {
+        "coxa": 0.9993166917386761,
+        "encolhimento": 1.0021086045766354
+      },
+      {
+        "coxa": 0.9992988744206893,
+        "encolhimento": 0.9994604146549796
       }
     ],
     "p5": [
       {
-        "alcance": 1.7593326581075708,
-        "alcance_2d": 1.7045936863544824,
-        "coxa": 0.9949280026114096,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7324660873151527,
-        "alcance_2d": 1.7295108451584644,
-        "coxa": 0.9897179049050463,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7117145510859912,
-        "alcance_2d": 1.6989836818926867,
-        "coxa": 0.9938190950358742,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6882526715925428,
-        "alcance_2d": 1.694836044758174,
-        "coxa": 0.9796466882852586,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7103147869626574,
-        "alcance_2d": 1.6914457127755667,
-        "coxa": 0.9768880768743922,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6647637803090685,
-        "alcance_2d": 1.7109463816010806,
-        "coxa": 0.9774367042155904,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7156363519901188,
-        "alcance_2d": 1.7259726966942883,
-        "coxa": 0.9781584967575413,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7261206293644622,
-        "alcance_2d": 1.7356831176595515,
-        "coxa": 0.9784436735947786,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6524261486453653,
-        "alcance_2d": 1.7241532379237452,
-        "coxa": 0.9827098611936927,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7263240466918908,
-        "alcance_2d": 1.6883567088732618,
-        "coxa": 0.9784029084660222,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.666334841826927,
-        "alcance_2d": 1.6922561495905923,
-        "coxa": 0.9794037540410259,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6677990502070998,
-        "alcance_2d": 1.6875108071965925,
-        "coxa": 0.9800982025492948,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6437028265876055,
-        "alcance_2d": 1.6788671468979879,
-        "coxa": 0.9795041022764238,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6523447935358657,
-        "alcance_2d": 1.6826969984667868,
-        "coxa": 0.9579833422262223,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6731711494833819,
-        "alcance_2d": 1.7083464363019683,
-        "coxa": 0.9595601311999092,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6838739882396625,
-        "alcance_2d": 1.7159477580175146,
-        "coxa": 0.9616552693744754,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7389666824648522,
-        "alcance_2d": 1.7141827493801836,
-        "coxa": 0.9592504304233822,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7407250470366822,
-        "alcance_2d": 1.7025864111725977,
-        "coxa": 0.9628987639649288,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7168270656078133,
-        "alcance_2d": 1.6999318731742143,
-        "coxa": 0.9647604546470313,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.657897345603285,
-        "alcance_2d": 1.7048962443236715,
-        "coxa": 0.9687980680523779,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6764216161464423,
-        "alcance_2d": 1.7102907433023027,
-        "coxa": 0.9651331225113986,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.675639684289553,
-        "alcance_2d": 1.7062584665085667,
-        "coxa": 0.9744488581929044,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6956003064559626,
-        "alcance_2d": 1.725162489366846,
-        "coxa": 0.9709857212892924,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7493093335306704,
-        "alcance_2d": 1.7313707614263063,
-        "coxa": 0.9785405659210988,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7454215155762363,
-        "alcance_2d": 1.7289147468452348,
-        "coxa": 0.9863905405985693,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7387897999791608,
-        "alcance_2d": 1.7423807165098955,
-        "coxa": 0.9844377631476035,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7146688972801638,
-        "alcance_2d": 1.7314480559933518,
-        "coxa": 0.9832167672168498,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7129403859112586,
-        "alcance_2d": 1.7292385288037961,
-        "coxa": 0.9857250423565818,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7074337638235948,
-        "alcance_2d": 1.7498439974262812,
-        "coxa": 0.9799508850531269,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7096676222987373,
-        "alcance_2d": 1.7419015752460767,
-        "coxa": 0.98743496637615,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6819917183654869,
-        "alcance_2d": 1.7409040503644369,
-        "coxa": 0.9833625892526161,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6819917183654869,
-        "alcance_2d": 1.7409040503644369,
-        "coxa": 0.9833625892526161,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7080060648098885,
-        "alcance_2d": 1.761278022022458,
-        "coxa": 0.9765383073381854,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7080060648098885,
-        "alcance_2d": 1.761278022022458,
-        "coxa": 0.9765383073381854,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7080060648098885,
-        "alcance_2d": 1.761278022022458,
-        "coxa": 0.9765383073381854,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7080060648098885,
-        "alcance_2d": 1.761278022022458,
-        "coxa": 0.9765383073381854,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7080060648098885,
-        "alcance_2d": 1.761278022022458,
-        "coxa": 0.9765383073381854,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7132915183181119,
-        "alcance_2d": 1.7676119748582877,
-        "coxa": 0.9747420875177343,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7132915183181119,
-        "alcance_2d": 1.7676119748582877,
-        "coxa": 0.9747420875177343,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7237892324989705,
-        "alcance_2d": 1.7542986820371627,
-        "coxa": 0.9785123559707983,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.7257499697345282,
-        "alcance_2d": 1.7706573243837822,
-        "coxa": 0.9797657486517244,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.6647072350439307,
-        "alcance_2d": 1.7035619032448497,
-        "coxa": 0.9779088105790205,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 1.4226850657353063,
-        "alcance_2d": 1.484220294956042,
-        "coxa": 0.9755907087380008,
-        "braco": "levantado",
-        "viu_frontal": false,
-        "viu_lateral": true
-      },
-      {
-        "alcance": 0.547663319062908,
-        "alcance_2d": 0.5956028356967858,
-        "coxa": 0.9756188369431025,
+        "alcance": 1.1233936783315743,
+        "alcance_2d": 1.1017998371855613,
+        "coxa": 0.0,
         "braco": "ao_lado",
+        "encolhimento": 1.0000533766585882,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.12815786647095875,
-        "alcance_2d": 0.17393224254617934,
-        "coxa": 0.9771484872740065,
+        "alcance": 1.1253840402656385,
+        "alcance_2d": 1.1070058702418115,
+        "coxa": 0.8761979498249761,
         "braco": "ao_lado",
+        "encolhimento": 1.0000233700580772,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.013583437022028876,
-        "alcance_2d": -0.015333328316353942,
-        "coxa": 0.9769759495718341,
-        "braco": "ao_lado",
+        "alcance": 1.1386476369829528,
+        "alcance_2d": 1.0963869139090623,
+        "coxa": 0.9027318594390757,
+        "braco": "estendido",
+        "encolhimento": 1.0000233700580772,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.02531086387004028,
-        "alcance_2d": -0.03548162273017158,
-        "coxa": 0.9790505374769208,
-        "braco": "ao_lado",
+        "alcance": 1.1561864415466463,
+        "alcance_2d": 1.113369044723048,
+        "coxa": 0.9979683840283333,
+        "braco": "estendido",
+        "encolhimento": 1.0000383731332423,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": -0.03107593541034963,
-        "alcance_2d": 0.01013195760638975,
-        "coxa": 0.9763913722569336,
-        "braco": "ao_lado",
+        "alcance": 1.1274369115773244,
+        "alcance_2d": 1.1001397449476809,
+        "coxa": 0.3035124013631408,
+        "braco": "estendido",
+        "encolhimento": 0.999993365258208,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.2655756335964213,
-        "alcance_2d": 0.2421608991730943,
-        "coxa": 0.9762590562151295,
+        "alcance": 1.1263055432597402,
+        "alcance_2d": 1.09667838763099,
+        "coxa": 0.8910389101542435,
         "braco": "ao_lado",
+        "encolhimento": 0.9958172885515201,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1139016293341948,
+        "alcance_2d": 1.0858587167614375,
+        "coxa": 0.8730207659817827,
+        "braco": "ao_lado",
+        "encolhimento": 0.9979296114233088,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1537528514519153,
+        "alcance_2d": 1.0947023139820993,
+        "coxa": 0.42420356387647246,
+        "braco": "estendido",
+        "encolhimento": 1.0000233700580772,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1608867979209925,
+        "alcance_2d": 1.1268237604150175,
+        "coxa": 0.909194889747406,
+        "braco": "ao_lado",
+        "encolhimento": 0.9979595809114757,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1915375655746705,
+        "alcance_2d": 1.1458808808117862,
+        "coxa": 0.9962179287386383,
+        "braco": "estendido",
+        "encolhimento": 1.0000083674330724,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1874411958530346,
+        "alcance_2d": 1.148289553429954,
+        "coxa": 0.0,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000533766585882,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.187460052285248,
+        "alcance_2d": 1.1549676674344382,
+        "coxa": 0.0,
+        "braco": "estendido",
+        "encolhimento": 1.0000233700580772,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1934296214766953,
+        "alcance_2d": 1.150533243207393,
+        "coxa": 0.8582113628679303,
+        "braco": "ao_lado",
+        "encolhimento": 0.9978996437351012,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0767419534201896,
+        "alcance_2d": 1.0339963451623662,
+        "coxa": 0.8720264661567863,
+        "braco": "ao_lado",
+        "encolhimento": 0.999993365258208,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0959712613011572,
+        "alcance_2d": 1.050158151059113,
+        "coxa": 0.9226666729952613,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000083674330724,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0131239996498658,
+        "alcance_2d": 1.0012804635683619,
+        "coxa": 0.4866886735899517,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000233700580772,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0301711497353794,
+        "alcance_2d": 1.0035113281706125,
+        "coxa": 0.6892409191550143,
+        "braco": "ao_lado",
+        "encolhimento": 0.9979445959423873,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0046245643516092,
+        "alcance_2d": 0.9804626839911947,
+        "coxa": 0.9996182543831913,
+        "braco": "ao_lado",
+        "encolhimento": 0.9979445959423873,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1496029405476336,
+        "alcance_2d": 1.0723682674950152,
+        "coxa": 0.697836571546283,
+        "braco": "estendido",
+        "encolhimento": 1.0000533766585882,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0702778288763546,
+        "alcance_2d": 1.0415212743102782,
+        "coxa": 0.7254635795563921,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000533766585882,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0969788613481397,
+        "alcance_2d": 1.0930542729076425,
+        "coxa": 0.9409325536984859,
+        "braco": "ao_lado",
+        "encolhimento": 0.999963362258819,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.111505904233233,
+        "alcance_2d": 1.0978772940035146,
+        "coxa": 0.0,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000083674330724,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0274045478755516,
+        "alcance_2d": 0.9998250208538592,
+        "coxa": 0.0,
+        "braco": "ao_lado",
+        "encolhimento": 1.000068380634135,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0854404310770414,
+        "alcance_2d": 1.0495550919997274,
+        "coxa": 0.79200092684643,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000833850599031,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1068336688639582,
+        "alcance_2d": 1.0730209389500196,
+        "coxa": 0.0,
+        "braco": "estendido",
+        "encolhimento": 0.9980345125077784,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0739388100098,
+        "alcance_2d": 1.0633796204176866,
+        "coxa": 0.8201501978624398,
+        "braco": "estendido",
+        "encolhimento": 0.9980794768669784,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0440506643933187,
+        "alcance_2d": 1.0275123661092764,
+        "coxa": 0.7903942648513281,
+        "braco": "estendido",
+        "encolhimento": 1.0001434072655941,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.023516455070885,
+        "alcance_2d": 0.9907941133295265,
+        "coxa": 0.915312243762813,
+        "braco": "estendido",
+        "encolhimento": 0.9981544264697668,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0422320445563673,
+        "alcance_2d": 0.997891518106792,
+        "coxa": 0.8774186568755951,
+        "braco": "estendido",
+        "encolhimento": 0.9972978780258086,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.9874269005981184,
+        "alcance_2d": 0.9816630458918856,
+        "coxa": 0.8881263064054943,
+        "braco": "estendido",
+        "encolhimento": 0.999390854001531,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.9676531860232078,
+        "alcance_2d": 0.9726525942400505,
+        "coxa": 0.9162060565743348,
+        "braco": "estendido",
+        "encolhimento": 0.9964427983850072,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.856155380088599,
+        "alcance_2d": 0.860618035153812,
+        "coxa": 0.0,
+        "braco": "estendido",
+        "encolhimento": 0.9965324445126679,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 2.2223929134559266,
+        "alcance_2d": 2.322571082373976,
+        "coxa": 0.9983490388394911,
+        "braco": "levantado",
+        "encolhimento": 0.9994807653544213,
         "viu_frontal": true,
         "viu_lateral": false
       },
       {
-        "alcance": 0.08728921987390546,
-        "alcance_2d": 0.0833764599321397,
-        "coxa": 0.9762179554320259,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "coxa": 0.9986658300672921,
+        "encolhimento": 0.9994807653544213
       },
       {
-        "alcance": 0.22770663751360137,
-        "alcance_2d": 0.2126463166970774,
-        "coxa": 0.9764891925099596,
+        "alcance": 1.1104641302892753,
+        "alcance_2d": 1.186045623064357,
+        "coxa": 0.9975092566694714,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.2613153549491979,
-        "alcance_2d": 0.23630286706360598,
-        "coxa": 0.980222372843595,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.2767635723441894,
-        "alcance_2d": 0.2792121214241195,
-        "coxa": 0.9779819512634392,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.3112829657960434,
-        "alcance_2d": 0.2699609004795532,
-        "coxa": 0.9795804851435639,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6968255779392208,
-        "alcance_2d": 0.7238542570951483,
-        "coxa": 0.9869171635519529,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6271521063024158,
-        "alcance_2d": 0.6342054556230526,
-        "coxa": 0.9871973889168018,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.3754513353313799,
-        "alcance_2d": 0.4747276182027706,
-        "coxa": 0.9870977541609856,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.36827341675680786,
-        "alcance_2d": 0.3662799504922007,
-        "coxa": 0.9877916007683626,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.36827341675680786,
-        "alcance_2d": 0.3662799504922007,
-        "coxa": 0.9865111713082957,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.3564862987943488,
-        "alcance_2d": 0.3370770101356674,
-        "coxa": 0.9862573205046906,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6611793695142353,
-        "alcance_2d": 0.682362244897647,
-        "coxa": 0.9830154118878411,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6793846750990756,
-        "alcance_2d": 0.6761753059138025,
-        "coxa": 0.9941536442052223,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.8321248806187167,
-        "alcance_2d": 0.8545296477840013,
-        "coxa": 0.9948421477110782,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.46683286921782685,
-        "alcance_2d": 0.49184370355482987,
-        "coxa": 0.9343559713296742,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5603101071574929,
-        "alcance_2d": 0.5938408448451081,
-        "coxa": 0.9662469426995192,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5540224266783551,
-        "alcance_2d": 0.5107699964580223,
-        "coxa": 0.970837156701156,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5572959539421504,
-        "alcance_2d": 0.5324061671649057,
-        "coxa": 0.973572524667186,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.6010932079836558,
-        "alcance_2d": 0.575482211744535,
-        "coxa": 0.9612876733912225,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": 0.5265105773487647,
-        "alcance_2d": 0.5138393098064665,
-        "coxa": 0.9495637293907719,
-        "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
-      },
-      {
-        "alcance": -3.3208751466553505e-05,
-        "alcance_2d": -0.04806359618584217,
-        "coxa": 0.9716574872583202,
-        "braco": "ao_lado",
+        "encolhimento": 0.9991548939121917,
         "viu_frontal": false,
         "viu_lateral": true
       },
       {
-        "alcance": 0.09464883692849227,
-        "alcance_2d": -0.03661112318186327,
-        "coxa": 0.9821965923784624,
+        "alcance": 0.8881066936099762,
+        "alcance_2d": 0.8887211120272261,
+        "coxa": 0.99693381934337,
         "braco": "ao_lado",
-        "viu_frontal": true,
-        "viu_lateral": false
+        "encolhimento": 1.0019773653639212,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0802666393777929,
+        "alcance_2d": 1.1007785707377125,
+        "coxa": 0.9970069378023856,
+        "braco": "ao_lado",
+        "encolhimento": 1.003951391382929,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1553580757570843,
+        "alcance_2d": 1.2278652824440663,
+        "coxa": 0.9962080760157087,
+        "braco": "ao_lado",
+        "encolhimento": 1.0020069808689755,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1859062185340823,
+        "alcance_2d": 1.245527359021276,
+        "coxa": 0.9965997020986945,
+        "braco": "ao_lado",
+        "encolhimento": 0.9992361577106479,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.9740060252229436,
+        "alcance_2d": 0.9841077042504307,
+        "coxa": 0.9962635038517634,
+        "braco": "ao_lado",
+        "encolhimento": 1.0001109299385078,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1470775982004842,
+        "alcance_2d": 1.1680080804206499,
+        "coxa": 0.9981727307881797,
+        "braco": "ao_lado",
+        "encolhimento": 0.9972710069361428,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0367515116545798,
+        "alcance_2d": 1.050157442397385,
+        "coxa": 0.9984547702536992,
+        "braco": "ao_lado",
+        "encolhimento": 0.9994873592910599,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1167350384923709,
+        "alcance_2d": 1.160786064177402,
+        "coxa": 0.9975937817848157,
+        "braco": "ao_lado",
+        "encolhimento": 0.999472588773735,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1315052466627595,
+        "alcance_2d": 1.1666398119701025,
+        "coxa": 0.9969451066223669,
+        "braco": "ao_lado",
+        "encolhimento": 1.002044050201947,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1171347936256275,
+        "alcance_2d": 1.1761518894855763,
+        "coxa": 0.9971788544821234,
+        "braco": "ao_lado",
+        "encolhimento": 0.9992361577106479,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0688137499745078,
+        "alcance_2d": 1.1750401804247357,
+        "coxa": 0.9973045775673429,
+        "braco": "ao_lado",
+        "encolhimento": 0.9994578186929639,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0866567836272367,
+        "alcance_2d": 1.1911750417810967,
+        "coxa": 0.9988045387774801,
+        "braco": "ao_lado",
+        "encolhimento": 1.0000665532379582,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0567165500681357,
+        "alcance_2d": 1.1694164218186909,
+        "coxa": 0.9988535188883466,
+        "braco": "ao_lado",
+        "encolhimento": 1.000014790811562,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1536060669880759,
+        "alcance_2d": 1.2265187607902057,
+        "coxa": 0.9987771461964625,
+        "braco": "ao_lado",
+        "encolhimento": 1.001932945388649,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1555616254669188,
+        "alcance_2d": 1.230519222697206,
+        "coxa": 0.996173868164058,
+        "braco": "ao_lado",
+        "encolhimento": 1.001999570675558,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1522881135569873,
+        "alcance_2d": 1.2088787409066328,
+        "coxa": 0.9960995377843328,
+        "braco": "ao_lado",
+        "encolhimento": 0.999117974693909,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1420072221076139,
+        "alcance_2d": 1.2137549664337708,
+        "coxa": 0.9954121971186584,
+        "braco": "ao_lado",
+        "encolhimento": 0.997182515703205,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1834996127138764,
+        "alcance_2d": 1.1949487152333127,
+        "coxa": 0.9962879436451929,
+        "braco": "ao_lado",
+        "encolhimento": 0.999117974693909,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1834996127138764,
+        "alcance_2d": 1.1949487152333127,
+        "coxa": 0.9962879436451929,
+        "braco": "ao_lado",
+        "encolhimento": 0.9999778143842519,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1834996127138764,
+        "alcance_2d": 1.1949487152333127,
+        "coxa": 0.9962879436451929,
+        "braco": "ao_lado",
+        "encolhimento": 1.0019699553895207,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1834996127138764,
+        "alcance_2d": 1.1949487152333127,
+        "coxa": 0.9962879436451929,
+        "braco": "ao_lado",
+        "encolhimento": 0.9980192868105298,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0614048253042645,
+        "alcance_2d": 1.1627731778238188,
+        "coxa": 0.9957827756889419,
+        "braco": "ao_lado",
+        "encolhimento": 0.9980192868105298,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1172695388335623,
+        "alcance_2d": 1.2002380304021412,
+        "coxa": 0.999390524501337,
+        "braco": "ao_lado",
+        "encolhimento": 0.9989018484083683,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1556295479030336,
+        "alcance_2d": 1.2254709410933136,
+        "coxa": 0.999638635180348,
+        "braco": "estendido",
+        "encolhimento": 1.0038772770577034,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1675193214042714,
+        "alcance_2d": 1.2381965113466264,
+        "coxa": 0.9991673594238641,
+        "braco": "estendido",
+        "encolhimento": 0.9999852096259613,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.184996926074538,
+        "alcance_2d": 1.236255878639047,
+        "coxa": 0.998870256207326,
+        "braco": "ao_lado",
+        "encolhimento": 0.9999556301903764,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1724797062268135,
+        "alcance_2d": 1.2343377872537207,
+        "coxa": 0.9987304362577827,
+        "braco": "estendido",
+        "encolhimento": 0.9999556301903764,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.171384510821197,
+        "alcance_2d": 1.1926045058990267,
+        "coxa": 0.9978717094991716,
+        "braco": "estendido",
+        "encolhimento": 1.0038772770577034,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1839968528949187,
+        "alcance_2d": 1.2005954931813225,
+        "coxa": 0.9978337701347859,
+        "braco": "ao_lado",
+        "encolhimento": 0.997960195138063,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 0.9659315715901836,
+        "alcance_2d": 0.9403896061980914,
+        "coxa": 0.9991028222986481,
+        "braco": "estendido",
+        "encolhimento": 0.9980192868105298,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1365080770015794,
+        "alcance_2d": 1.1266866537277722,
+        "coxa": 0.9970694669471428,
+        "braco": "estendido",
+        "encolhimento": 1.0008095051097303,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.0934985982511394,
+        "alcance_2d": 1.135603250376977,
+        "coxa": 0.9964606521614661,
+        "braco": "estendido",
+        "encolhimento": 0.998827879253752,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1591220043839197,
+        "alcance_2d": 1.1735970734313725,
+        "coxa": 0.9973688861193402,
+        "braco": "ao_lado",
+        "encolhimento": 0.998857475833436,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1440892089158532,
+        "alcance_2d": 1.1824883841026361,
+        "coxa": 0.997255025915052,
+        "braco": "estendido",
+        "encolhimento": 1.002758115980115,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.184003103853055,
+        "alcance_2d": 1.1758323871928378,
+        "coxa": 0.9961665171787214,
+        "braco": "estendido",
+        "encolhimento": 1.00466618429181,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.1117655187619015,
+        "alcance_2d": 1.155277652625831,
+        "coxa": 0.9961291571458892,
+        "braco": "ao_lado",
+        "encolhimento": 1.0007947141982965,
+        "viu_frontal": false,
+        "viu_lateral": true
+      },
+      {
+        "alcance": 1.2094219916413038,
+        "alcance_2d": 1.1681988168398818,
+        "coxa": 0.9959171230276559,
+        "braco": "levantado",
+        "encolhimento": 0.9999482336361731,
+        "viu_frontal": false,
+        "viu_lateral": true
       }
     ]
   },
@@ -2658,25 +2880,27 @@
       "nome": "Prateleira 1 (chao)",
       "altura": 0.15,
       "alcance": [
-        0.0456,
-        0.2693
+        -0.2179,
+        0.1511
       ],
       "alcance_2d": [
-        -0.0082,
-        0.4937
+        -0.1327,
+        0.12
       ],
       "coxa": [
-        0.9881,
-        0.06
+        0.9764,
+        0.0878
       ],
-      "encolhimento": null,
+      "encolhimento": [
+        1.0388,
+        0.05
+      ],
       "bracos": {
-        "ao_lado": 0.925,
-        "levantado": 0.06,
-        "estendido": 0.015
+        "levantado": 0.022,
+        "ao_lado": 0.978
       },
-      "visto_frontal": 0.358,
-      "visto_lateral": 0.642,
+      "visto_frontal": 0.022,
+      "visto_lateral": 0.978,
       "amostras": 67
     },
     {
@@ -2684,101 +2908,105 @@
       "nome": "Prateleira 2",
       "altura": 0.55,
       "alcance": [
-        0.0876,
-        0.12
+        -0.0813,
+        0.2056
       ],
       "alcance_2d": [
-        0.0367,
-        0.12
+        -0.0986,
+        0.1662
       ],
       "coxa": [
-        0.9882,
-        0.06
+        0.9944,
+        0.067
       ],
-      "encolhimento": null,
+      "encolhimento": [
+        1.0156,
+        0.05
+      ],
       "bracos": {
-        "estendido": 0.015,
-        "ao_lado": 0.985
+        "ao_lado": 1.0
       },
       "visto_frontal": 0.0,
       "visto_lateral": 1.0,
-      "amostras": 65
+      "amostras": 75
     },
     {
       "id": "p3",
       "nome": "Prateleira 3",
       "altura": 0.95,
       "alcance": [
-        0.4057,
+        0.1242,
         0.12
       ],
       "alcance_2d": [
-        0.3471,
+        0.1052,
         0.12
       ],
       "coxa": [
-        0.9881,
+        0.9957,
         0.06
       ],
-      "encolhimento": null,
+      "encolhimento": [
+        1.0005,
+        0.05
+      ],
       "bracos": {
-        "ao_lado": 0.571,
-        "estendido": 0.413,
-        "levantado": 0.016
+        "ao_lado": 1.0
       },
-      "visto_frontal": 0.254,
-      "visto_lateral": 0.746,
-      "amostras": 63
+      "visto_frontal": 0.0,
+      "visto_lateral": 1.0,
+      "amostras": 78
     },
     {
       "id": "p4",
       "nome": "Prateleira 4",
       "altura": 1.35,
-      "alcance": [
-        0.7034,
-        0.12
-      ],
-      "alcance_2d": [
-        0.6738,
-        0.12
-      ],
+      "alcance": null,
+      "alcance_2d": null,
       "coxa": [
-        0.9903,
-        0.4963
+        0.9982,
+        0.06
       ],
-      "encolhimento": null,
+      "encolhimento": [
+        0.9991,
+        0.05
+      ],
       "bracos": {
-        "estendido": 0.766,
-        "ao_lado": 0.234
+        "ao_lado": 0.667,
+        "levantado": 0.333
       },
-      "visto_frontal": 0.984,
-      "visto_lateral": 0.016,
-      "amostras": 64
+      "visto_frontal": 0.778,
+      "visto_lateral": 0.222,
+      "amostras": 80
     },
     {
       "id": "p5",
       "nome": "Prateleira 5 (topo)",
       "altura": 1.9,
       "alcance": [
-        1.6663,
-        0.5926
+        1.1254,
+        0.12
       ],
       "alcance_2d": [
-        1.6948,
-        0.6094
+        1.1459,
+        0.12
       ],
       "coxa": [
-        0.978,
-        0.06
+        0.9962,
+        0.0626
       ],
-      "encolhimento": null,
+      "encolhimento": [
+        1.0,
+        0.05
+      ],
       "bracos": {
-        "levantado": 0.606,
-        "ao_lado": 0.394
+        "ao_lado": 0.634,
+        "estendido": 0.338,
+        "levantado": 0.028
       },
-      "visto_frontal": 0.31,
-      "visto_lateral": 0.69,
-      "amostras": 71
+      "visto_frontal": 0.014,
+      "visto_lateral": 0.986,
+      "amostras": 72
     }
   ],
   "_atencao": [

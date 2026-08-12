@@ -268,6 +268,28 @@ class LeituraDoCorpo:
     alcance_2d_esq: float | None = None
     alcance_2d_dir: float | None = None
 
+    # VERTICALIDADE DO TRONCO. 1 = ereto, 0 = dobrado para a frente.
+    #
+    # O OUTRO JEITO DE PEGAR EMBAIXO, 12/08
+    #
+    # A `coxa` cobre quem agacha. Mas quem NAO agacha e se curva move outra
+    # coisa: o tronco. E medido em 12/08 que os dois sinais do agachamento
+    # ficam cegos justamente quando alguem agacha —
+    #
+    #     coxa           precisa de quadril E joelho, e agachar tira as pernas
+    #                    do quadro das cameras de mesa
+    #     encolhimento   de cima a caixa e dominada pela pegada no chao
+    #
+    # — enquanto o TRONCO continua a vista nos dois casos. Ele e a parte do
+    # corpo que as cameras de mesa mais enxergam: ombros em 100% dos quadros
+    # nos dois laudos do dia.
+    #
+    #     O sinal que enxerga uma postura nao pode depender de ver a parte do
+    #     corpo que aquela postura esconde.
+    #
+    # Razao entre duas medidas da mesma vista, como a coxa: escala se cancela.
+    verticalidade_tronco: float | None = None
+
     verticalidade_coxa: float | None = None
 
     @property
@@ -905,6 +927,7 @@ class AnalisadorDeCorpo:
             altura_quadril_agora=quadril_agora,
             altura_medida=medida,
             verticalidade_coxa=self._verticalidade_da_coxa(j, visivel),
+            verticalidade_tronco=self._verticalidade_do_tronco(j, visivel),
         )
 
         if rumo_cam is None:
@@ -928,6 +951,27 @@ class AnalisadorDeCorpo:
             juntas_2d, visivel, OMBRO_DIR, PULSO_DIR)
 
         return leitura
+
+    def _verticalidade_do_tronco(self, j, visivel):
+        """Quanto o vetor quadril->ombro aponta para cima. Ver o campo homonimo.
+
+        1.0 = tronco vertical.  ~0.3 = curvado para pegar algo no chao.
+
+        A conta e a componente vertical dividida pelo comprimento — cosseno do
+        angulo com a vertical. Tronco curto demais e reconstrucao ruim, e
+        dividir por ele amplificaria o ruido em vez de normalizar.
+        """
+        if not _visivel(visivel, OMBRO_ESQ, OMBRO_DIR,
+                        QUADRIL_ESQ, QUADRIL_DIR):
+            return None
+
+        ombros = (j[OMBRO_ESQ] + j[OMBRO_DIR]) / 2.0
+        quadris = (j[QUADRIL_ESQ] + j[QUADRIL_DIR]) / 2.0
+        v = ombros - quadris
+        comprimento = float(np.linalg.norm(v))
+        if comprimento < self.tronco_minimo:
+            return None
+        return float(v[2]) / comprimento
 
     def _alcance_2d(self, p2d, visivel, i_ombro, i_pulso):
         """O alcance medido em PIXELS da imagem. Ver `alcance_2d_dir`.
@@ -1500,6 +1544,9 @@ class AnalisadorDeCorpo:
         if final.verticalidade_coxa is None:
             final.verticalidade_coxa = primeiro(
                 lambda x: x.verticalidade_coxa)
+        if final.verticalidade_tronco is None:
+            final.verticalidade_tronco = primeiro(
+                lambda x: x.verticalidade_tronco)
         if final.rumo_corpo is None:
             final.rumo_corpo = primeiro(lambda x: x.rumo_corpo)
         if final.altura_quadril is None:

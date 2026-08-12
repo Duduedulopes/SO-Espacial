@@ -62,7 +62,7 @@ from src.acao.corpo import (                                 # noqa: E402
     AnalisadorDeCorpo, DirecaoPorDeslocamento, SinalDoRumo, rumo_do_alto,
 )
 from src.acao.escala import (                                # noqa: E402
-    EscalaVertical, altura_do_quadril_vista_de_cima,
+    EscalaVertical, altura_do_quadril_vista_de_cima, quadril_na_caixa,
 )
 from src.espacial.estado import EstadoDePessoa              # noqa: E402
 from src.nucleo.log import Log                              # noqa: E402
@@ -262,6 +262,7 @@ class SpatialEngine:
         # Encolhimento por PESSOA (nao por rastro). Ver
         # `_anotar_encolhimento`: os dois ids tem a mesma cara.
         self._encolhimento = {}
+        self._quadril_na_caixa = {}
         self._ombros = {}
         # Ultima pose relativa de cada papel, guardada CRUA. O fusor guarda a
         # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
@@ -345,6 +346,12 @@ class SpatialEngine:
     def caixas_por_id(self):
         """Indexado pelo id do RASTREADOR, nao pelo da pessoa."""
         return dict(self._caixas)
+
+    @property
+    def quadris_na_caixa(self):
+        """Onde o quadril esta dentro da caixa, por PESSOA. Ve o agachamento
+        que a coxa e o encolhimento nao veem — ver `escala.quadril_na_caixa`."""
+        return dict(self._quadril_na_caixa)
 
     @property
     def encolhimentos(self):
@@ -701,6 +708,9 @@ class SpatialEngine:
             tid = ext[-1]
             caixa = self._caixas.get(tid)
             self._anotar_encolhimento(pessoa.id, caixa)
+            fracao = quadril_na_caixa(*self._ombros[tid], caixa)
+            if fracao is not None:
+                self._quadril_na_caixa[pessoa.id] = fracao
             medida = altura_do_quadril_vista_de_cima(
                 *self._ombros[tid], caixa,
                 self.plausibilidade.v_horizonte, self.escala.fator)

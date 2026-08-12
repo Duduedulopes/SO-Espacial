@@ -197,6 +197,7 @@ class LeituraFalsa:
     alcance_2d_dir = 1.12
     alcance_2d_esq = None
     verticalidade_coxa = 0.98
+    verticalidade_tronco = 0.94
 
 
 def test_traduz_a_leitura_combinada_em_evidencia():

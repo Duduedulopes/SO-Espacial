@@ -66,6 +66,10 @@ from dataclasses import dataclass, field
 
 NENHUMA = "nenhuma"
 
+NUMERICOS = ("alcance", "alcance_2d", "coxa", "tronco",
+             "quadril_na_caixa", "encolhimento")
+BINARIOS = ("visto_frontal", "visto_lateral")
+
 
 @dataclass
 class Evidencia:
@@ -95,6 +99,19 @@ class Evidencia:
     # Nao depende do chao — e por isso sobreviveu quando o resto caiu.
     coxa: float | None = None
 
+    # (frontal ou lateral) verticalidade do TRONCO. 1 = ereto, ~0.3 = curvado.
+    #
+    # Cobre quem pega embaixo SEM agachar. E, ao contrario da coxa, continua
+    # visivel quando a pessoa agacha — o tronco nao sai do quadro.
+    tronco: float | None = None
+
+    # (alto) onde o quadril esta DENTRO da caixa. 0 = no pe, 1 = no topo.
+    #
+    # Medido em 12/08: o Eduardo agachou na prateleira do chao e tanto a coxa
+    # (0,98) quanto o encolhimento (1,04) nao viram. Este ve, e vem de outra
+    # camera — o alto —, entao erra de um jeito diferente dos dois.
+    quadril_na_caixa: float | None = None
+
     # (frontal ou lateral) o rotulo do vocabulario fechado.
     braco: str | None = None
 
@@ -111,13 +128,8 @@ class Evidencia:
     viu_lateral: bool | None = None
 
     def vazia(self):
-        return all(getattr(self, c) is None for c in
-                   ("alcance", "alcance_2d", "coxa", "braco", "encolhimento",
-                    "viu_frontal", "viu_lateral"))
-
-
-NUMERICOS = ("alcance", "alcance_2d", "coxa", "encolhimento")
-BINARIOS = ("visto_frontal", "visto_lateral")
+        return all(getattr(self, c) is None
+                   for c in NUMERICOS + ("braco", "viu_frontal", "viu_lateral"))
 
 
 def pesos_medidos(assinaturas, piso=0.05):
@@ -242,6 +254,8 @@ class Assinatura:
     alcance: tuple | None = None       # (centro, tolerancia)
     alcance_2d: tuple | None = None
     coxa: tuple | None = None
+    tronco: tuple | None = None
+    quadril_na_caixa: tuple | None = None
     encolhimento: tuple | None = None
     bracos: dict = field(default_factory=dict)      # rotulo -> fracao
     visto_frontal: float | None = None              # fracao de quadros
@@ -434,7 +448,8 @@ class ClassificadorDePrateleira:
         self._historico.pop(pessoa_id, None)
 
 
-def evidencia_de(leitura, lado="direita", encolhimento=None):
+def evidencia_de(leitura, lado="direita", encolhimento=None,
+                 quadril_na_caixa=None):
     """Extrai a `Evidencia` de uma `LeituraDoCorpo` ja combinada.
 
     A leitura combinada JA e o resultado das tres cameras: `_combinar` escolheu
@@ -456,6 +471,8 @@ def evidencia_de(leitura, lado="direita", encolhimento=None):
         alcance_2d=(leitura.alcance_2d_dir if dir_
                     else leitura.alcance_2d_esq),
         coxa=leitura.verticalidade_coxa,
+        tronco=leitura.verticalidade_tronco,
+        quadril_na_caixa=quadril_na_caixa,
         braco=braco if braco and braco != "desconhecido" else None,
         encolhimento=encolhimento,
         viu_frontal=(fonte == "frontal") if fonte else None,

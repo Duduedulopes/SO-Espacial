@@ -69,7 +69,8 @@ DESTINO = RAIZ / "config" / "prateleiras.json"
 # Tolerancia minima. Um agrupamento apertado demais recusaria a proxima
 # repeticao do mesmo gesto — ninguem pousa a mao duas vezes no mesmo ponto.
 TOLERANCIA_MINIMA = {"alcance": 0.12, "alcance_2d": 0.12,
-                     "coxa": 0.06, "encolhimento": 0.05}
+                     "coxa": 0.06, "tronco": 0.04,
+                     "quadril_na_caixa": 0.04, "encolhimento": 0.05}
 
 
 def encolhimento_de(app, pessoa_id):
@@ -115,8 +116,10 @@ def colher(app, voz, prateleira, segundos, n, total, lado):
             continue
 
         pid = sorted(leituras)[0]
-        ev = evidencia_de(leituras[pid], lado=lado,
-                          encolhimento=encolhimento_de(app, pid))
+        ev = evidencia_de(
+            leituras[pid], lado=lado,
+            encolhimento=encolhimento_de(app, pid),
+            quadril_na_caixa=app.espacial.quadris_na_caixa.get(pid))
         if ev is not None and not ev.vazia():
             colhidas.append(ev)
 
@@ -189,7 +192,8 @@ def resumir(prateleira, evidencias):
         id=prateleira["id"], nome=prateleira["nome"],
         altura=prateleira["altura"],
         alcance=faixa("alcance"), alcance_2d=faixa("alcance_2d"),
-        coxa=faixa("coxa"),
+        coxa=faixa("coxa"), tronco=faixa("tronco"),
+        quadril_na_caixa=faixa("quadril_na_caixa"),
         encolhimento=faixa("encolhimento"),
         bracos={k: round(v / n, 3) for k, v in bracos.items()} if n else {},
         visto_frontal=fracao("viu_frontal"),
@@ -433,7 +437,8 @@ def main():
         "prateleiras": [{
             "id": a.id, "nome": a.nome, "altura": a.altura,
             "alcance": a.alcance, "alcance_2d": a.alcance_2d,
-            "coxa": a.coxa,
+            "coxa": a.coxa, "tronco": a.tronco,
+            "quadril_na_caixa": a.quadril_na_caixa,
             "encolhimento": a.encolhimento, "bracos": a.bracos,
             "visto_frontal": a.visto_frontal, "visto_lateral": a.visto_lateral,
             "amostras": a.amostras,

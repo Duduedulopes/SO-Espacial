@@ -224,6 +224,53 @@ def altura_do_quadril_vista_de_cima(juntas_2d, conf, caixa, v_horizonte, fator,
     return altura if minimo <= altura <= maximo else None
 
 
+def quadril_na_caixa(juntas_2d, conf, caixa, limiar=0.5):
+    """Onde o quadril esta DENTRO da caixa, visto de cima. 0 = no pe, 1 = no topo.
+
+    O SINAL QUE FALTAVA PARA VER O AGACHAMENTO, 12/08
+
+    O Eduardo agachou na prateleira do chao e o sistema marcou `coxa 0,98` —
+    quase vertical — e `encolhimento 1,04`, ou seja, caixa que nem encolheu.
+    Os dois sinais que deveriam ver o agachamento estavam cegos, cada um pelo
+    motivo que o caderno ja tinha registrado:
+
+        coxa           precisa de quadril E joelho, e quem agacha tira as
+                       pernas do quadro das cameras de mesa        (11/08)
+        encolhimento   de cima a caixa e dominada pela PEGADA no chao,
+                       nao pela altura                             (10/08)
+
+    Este aqui nao depende de nenhuma das duas coisas. Ele so pergunta: dentro
+    da propria caixa da pessoa, o quadril esta mais perto do pe ou da cabeca?
+
+        em pe       o quadril fica perto da metade
+        agachado    ele desce em direcao aos pes e a fracao cai
+
+    E escala-livre por construcao — e uma razao entre duas distancias da mesma
+    caixa. Nao precisa do fator, nem do horizonte, nem da estatura. E o
+    numerador ja era calculado para a altura do quadril: o dado estava ali,
+    faltava fazer a outra pergunta com ele.
+
+        O sinal que enxerga uma postura nao pode depender de ver a parte do
+        corpo que aquela postura esconde.
+    """
+    if juntas_2d is None or conf is None or caixa is None:
+        return None
+
+    c = np.asarray(conf, dtype=float)
+    if not (c[QUADRIL_ESQ] > limiar and c[QUADRIL_DIR] > limiar):
+        return None
+
+    p = np.asarray(juntas_2d, dtype=float)
+    v_quadril = (p[QUADRIL_ESQ][1] + p[QUADRIL_DIR][1]) / 2.0
+    _x1, y1, _x2, y2 = (float(v) for v in caixa)
+
+    altura = y2 - y1
+    if altura < 20.0:          # caixa pequena demais: a razao vira ruido
+        return None
+    fracao = (y2 - v_quadril) / altura
+    return fracao if -0.2 <= fracao <= 1.2 else None
+
+
 class EscalaVertical:
     """Converte a razao geometrica da camera do alto em metros.
 
