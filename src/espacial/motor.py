@@ -259,6 +259,9 @@ class SpatialEngine:
         self.log = Log("espacial")
         self._rumos = {}
         self._caixas = {}
+        # Encolhimento por PESSOA (nao por rastro). Ver
+        # `_anotar_encolhimento`: os dois ids tem a mesma cara.
+        self._encolhimento = {}
         self._ombros = {}
         # Ultima pose relativa de cada papel, guardada CRUA. O fusor guarda a
         # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
@@ -340,7 +343,13 @@ class SpatialEngine:
 
     @property
     def caixas_por_id(self):
+        """Indexado pelo id do RASTREADOR, nao pelo da pessoa."""
         return dict(self._caixas)
+
+    @property
+    def encolhimentos(self):
+        """Quanto a caixa encolheu, por PESSOA. Ver `_anotar_encolhimento`."""
+        return dict(self._encolhimento)
 
     def _ids_ja_provados(self, percorrido_minimo=0.8):
         """Ids do rastreador que pertencem a um rastro que JA ANDOU.
@@ -690,12 +699,42 @@ class SpatialEngine:
         ext = [x for x in (r.ids_externos if r else ()) if x in self._ombros]
         if ext and self.plausibilidade is not None:
             tid = ext[-1]
+            caixa = self._caixas.get(tid)
+            self._anotar_encolhimento(pessoa.id, caixa)
             medida = altura_do_quadril_vista_de_cima(
-                *self._ombros[tid], self._caixas.get(tid),
+                *self._ombros[tid], caixa,
                 self.plausibilidade.v_horizonte, self.escala.fator)
             if medida is not None:
                 return medida
         return self.escala.altura_do_quadril(pessoa.id)
+
+    def _anotar_encolhimento(self, pessoa_id, caixa):
+        """Quanto a caixa encolheu em relacao a estatura EM PE desta pessoa.
+
+        Sinal SO da camera do alto: nao passa pelo MediaPipe, entao erra de um
+        jeito diferente das vistas de pose. E o motivo de existirem tres
+        cameras — complementar e errar diferente, nao ver a mesma coisa.
+
+        POR QUE ELE E CALCULADO AQUI E NAO NA FERRAMENTA
+
+        `aprender_prateleiras.py` tentava monta-lo por fora, com
+        `caixas_por_id.get(pessoa_id)`. Mas `_caixas` e indexado pelo id do
+        RASTREADOR, nao pelo da pessoa — dois espacos de identificadores com
+        a mesma cara. A busca nunca casava e o sinal saiu `--` na colheita
+        inteira de 12/08, sem erro nenhum, so ausencia.
+
+            Id que parece id mas e de outro dominio nao falha: ele devolve
+            None e some.
+
+        Aqui dentro os dois ids convivem e a traducao ja aconteceu.
+        """
+        estatura = self.escala.estatura(pessoa_id)
+        if not estatura or caixa is None or not self.escala.fator:
+            return
+        razao = self.plausibilidade.razao(caixa)
+        if razao is not None:
+            self._encolhimento[pessoa_id] = (
+                razao * self.escala.fator) / estatura
 
     def _rumo_do_alto(self, pessoa, rastros):
         """Rumo do corpo em coordenadas de MUNDO, da camera de cima.

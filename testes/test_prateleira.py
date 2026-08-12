@@ -253,9 +253,11 @@ def test_resumir_recusa_amostra_curta_demais():
 
 
 def test_prateleiras_distantes_se_separam_fora_do_treino():
-    colheita = {"p1": _lote(-0.60, 0.35, braco="ao_lado"),
-                "p5": _lote(1.35, 1.00, braco="levantado")}
-    matriz, taxa = conferir(colheita, [_prat("p1"), _prat("p5")])
+    volta1 = {"p1": _lote(-0.60, 0.35, braco="ao_lado"),
+              "p5": _lote(1.35, 1.00, braco="levantado")}
+    volta2 = {"p1": _lote(-0.58, 0.36, braco="ao_lado"),
+              "p5": _lote(1.33, 0.99, braco="levantado")}
+    matriz, taxa = conferir(volta1, volta2, [_prat("p1"), _prat("p5")])
 
     assert taxa == 1.0, matriz
     assert matriz["p1"].most_common(1)[0][0] == "p1"
@@ -269,26 +271,41 @@ def test_duas_prateleiras_identicas_se_confundem_e_o_boletim_mostra():
     falta. Aqui as duas assinaturas sao o mesmo gesto, e o acerto tem que
     despencar para perto de sortear.
     """
-    colheita = {"a": _lote(0.5, 0.9), "b": _lote(0.5, 0.9)}
-    _matriz, taxa = conferir(colheita, [_prat("a"), _prat("b")])
+    volta1 = {"a": _lote(0.5, 0.9), "b": _lote(0.5, 0.9)}
+    volta2 = {"a": _lote(0.5, 0.9), "b": _lote(0.5, 0.9)}
+    _matriz, taxa = conferir(volta1, volta2, [_prat("a"), _prat("b")])
     assert taxa < 0.75, f"acerto {taxa:.0%} alto demais para gestos identicos"
 
 
 def test_conferir_nao_testa_no_proprio_treino():
-    """A segunda metade nunca pode ter entrado na assinatura.
+    """A volta de teste nunca pode ter entrado na assinatura.
 
-    Prova pelo efeito: um lote em que as duas metades sao MUITO diferentes.
-    Treinando na primeira e testando na segunda, o acerto cai. Se o metodo
-    estivesse testando no treino, ele acertaria assim mesmo.
+    Prova pelo efeito: na volta 2 o gesto da p5 e IGUAL ao da p1. Se o metodo
+    estivesse olhando o proprio treino, acertaria assim mesmo.
     """
-    torto = (_lote(1.35, 1.00, n=10, braco="levantado")
-             + _lote(-0.60, 0.35, n=10, braco="ao_lado"))
-    colheita = {"p5": torto, "p1": _lote(-0.60, 0.35, n=20, braco="ao_lado")}
+    volta1 = {"p5": _lote(1.35, 1.00, braco="levantado"),
+              "p1": _lote(-0.60, 0.35, braco="ao_lado")}
+    volta2 = {"p5": _lote(-0.60, 0.35, braco="ao_lado"),   # virou p1
+              "p1": _lote(-0.60, 0.35, braco="ao_lado")}
 
-    _matriz, taxa = conferir(colheita, [_prat("p5"), _prat("p1")])
+    _matriz, taxa = conferir(volta1, volta2, [_prat("p5"), _prat("p1")])
     assert taxa < 0.75, (
-        "a segunda metade da p5 e igual a p1: acertar tudo aqui provaria que "
-        "o teste esta olhando o proprio treino")
+        "a p5 da volta 2 e identica a p1: acertar tudo aqui provaria que o "
+        "teste esta olhando o proprio treino")
+
+
+def test_gesto_que_nao_se_repete_reprova():
+    """O caso que a divisao ao meio nao pegava, e que motivou as duas voltas.
+
+    Medido em 12/08: a visibilidade do pulso mudou completamente entre duas
+    colheitas separadas por 50 minutos, e era o sinal de maior peso. Dentro de
+    uma volta ele parecia forte; entre voltas, nao existia.
+    """
+    volta1 = {"a": _lote(0.0, 0.9), "b": _lote(1.0, 0.9)}
+    volta2 = {"a": _lote(1.0, 0.9), "b": _lote(0.0, 0.9)}   # trocaram
+
+    _matriz, taxa = conferir(volta1, volta2, [_prat("a"), _prat("b")])
+    assert taxa < 0.25, f"acerto {taxa:.0%}: sinal que inverte nao pode passar"
 
 
 # ------------------------------------------- o peso e MEDIDO, nao escolhido

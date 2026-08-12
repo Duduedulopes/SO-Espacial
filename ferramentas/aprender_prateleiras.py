@@ -73,20 +73,17 @@ TOLERANCIA_MINIMA = {"alcance": 0.12, "alcance_2d": 0.12,
 
 
 def encolhimento_de(app, pessoa_id):
-    """Quanto a caixa encolheu, em relacao a estatura desta pessoa.
+    """Quanto a caixa encolheu, vindo do motor.
 
-    Vem SO da camera do alto: altura aparente agora, dividida pela estatura
-    aprendida quando ela andava ereta. Nao passa pelo MediaPipe, entao erra
-    de um jeito diferente das outras duas vistas — que e o motivo de existirem
-    tres cameras.
+    A primeira versao montava a conta aqui fora, com
+    `caixas_por_id.get(pessoa_id)`. Mas aquele dicionario e indexado pelo id
+    do RASTREADOR, e nao pelo da pessoa — dois espacos de identificadores com
+    a mesma cara. A busca nunca casava, e o sinal saiu `--` na colheita
+    inteira de 12/08 sem levantar erro nenhum.
+
+        Id que parece id mas e de outro dominio nao falha: devolve None e some.
     """
-    esp = app.espacial
-    estatura = esp.escala.estatura(pessoa_id)
-    caixa = esp.caixas_por_id.get(pessoa_id)
-    if not estatura or caixa is None or not esp.escala.fator:
-        return None
-    razao = esp.plausibilidade.razao(caixa)
-    return None if razao is None else (razao * esp.escala.fator) / estatura
+    return app.espacial.encolhimentos.get(pessoa_id)
 
 
 def colher(app, voz, prateleira, segundos, n, total, lado):
@@ -138,7 +135,26 @@ def colher(app, voz, prateleira, segundos, n, total, lado):
 
     apito_de_fim()
     voz.dizer("Peguei." if colhidas else "Nao consegui ver.")
-    return colhidas, sem_pessoa
+
+    # AS BORDAS DA JANELA NAO SAO O GESTO: SAO A ENTRADA E A SAIDA DELE.
+    #
+    # Medido em 12/08: a p5 saiu com tolerancia 0,59 no alcance — enorme, e
+    # grande o bastante para a faixa dela cobrir a p4 inteira. O bracO nao
+    # aparece pronto no apito: ele sobe, para, e desce. Os quadros do sobe e
+    # do desce dizem "estou a caminho", nao "estou aqui".
+    #
+    #     Uma janela de tempo nao e uma janela de gesto. Medir a transicao
+    #     junto com o alvo alarga a faixa ate ela invadir a vizinha.
+    return _miolo(colhidas), sem_pessoa
+
+
+def _miolo(evidencias, fora=0.2):
+    """Descarta a primeira e a ultima fatia da janela. Ver `colher`."""
+    n = len(evidencias)
+    if n < 10:
+        return evidencias
+    corte = int(n * fora)
+    return evidencias[corte:n - corte]
 
 
 def _ou(v, casas=2):
@@ -182,31 +198,53 @@ def resumir(prateleira, evidencias):
     )
 
 
-def conferir(colheita, prateleiras):
-    """As cinco se separam? Treina na PRIMEIRA metade, testa na SEGUNDA.
+def conferir(volta_treino, volta_teste, prateleiras):
+    """As cinco se separam? Treina numa VOLTA e testa em OUTRA.
 
-    Conferir com os mesmos quadros que ensinaram sempre da nota alta — o
-    metodo decorou. A divisao ao meio e o teste mais barato que existe contra
-    isso, e ja pega o caso importante: assinatura que so descreve aquele
-    instante nao descreve o gesto seguinte.
+    O DEFEITO DA PRIMEIRA VERSAO, ENCONTRADO EM 12/08
+
+    Ela cortava os 6 segundos de UM gesto ao meio: os primeiros 3 s ensinavam,
+    os ultimos 3 s conferiam. Mas os ultimos 3 s sao o mesmo instante, a mesma
+    posicao no chao, a mesma luz. Estudar uma questao e depois responder
+    aquela mesma questao.
+
+    O dado mostrou o preco. A visibilidade do pulso, entre duas colheitas
+    separadas por 50 minutos:
+
+        12:09   0,00  0,48  0,67  0,72  0,09
+        12:59   0,36  0,00  0,25  0,98  0,31
+
+    Nada a ver uma com a outra — e era o sinal com o MAIOR peso medido. Ele
+    separava dentro da sessao e nao descrevia a prateleira: descrevia onde a
+    pessoa estava de pe naquele dia. O teste antigo nao tinha como ver isso,
+    porque as duas metades vinham do mesmo minuto.
+
+        Treino e teste tirados do mesmo gesto continuo medem consistencia,
+        nao reprodutibilidade. Sao perguntas diferentes, e a facil nao serve
+        para decidir se o metodo vai funcionar amanha.
+
+    Agora sao duas voltas completas pelas cinco prateleiras, com a pessoa
+    saindo e voltando entre elas. A segunda volta e uma situacao nova de
+    verdade — e o acerto contra ela e o unico numero que autoriza ligar isto
+    no laco real.
     """
     treino = ClassificadorDePrateleira(janela=1)
     for p in prateleiras:
-        evs = colheita.get(p["id"], [])
+        evs = volta_treino.get(p["id"], [])
         if len(evs) >= 8:
-            treino.declarar(resumir(p, evs[:len(evs) // 2]))
+            treino.declarar(resumir(p, evs))
 
     if len(treino.assinaturas) < 2:
         return None, None
 
     matriz, acertos, total = {}, 0, 0
     for p in prateleiras:
-        evs = colheita.get(p["id"], [])
-        if len(evs) < 8:
+        evs = volta_teste.get(p["id"], [])
+        if len(evs) < 4:
             continue
         c = ClassificadorDePrateleira(treino.assinaturas, janela=1)
         votos = Counter()
-        for i, ev in enumerate(evs[len(evs) // 2:]):
+        for i, ev in enumerate(evs):
             palpite = c.observar(f"t{i}", ev)
             if palpite:
                 votos[palpite.prateleira] += 1
@@ -217,7 +255,7 @@ def conferir(colheita, prateleiras):
     return matriz, (acertos / total if total else 0.0)
 
 
-def boletim(colheita, prateleiras, assinaturas):
+def boletim(colheita, prateleiras, assinaturas, voltas=None):
     linhas = ["ASSINATURA DE CADA PRATELEIRA", "",
               f"{'PRATELEIRA':22} {'ALCANCE':>14} {'COXA':>12} "
               f"{'ENCOLHIM.':>12}  BRACO"]
@@ -247,12 +285,22 @@ def boletim(colheita, prateleiras, assinaturas):
         marca = "" if v > 0 else "   <-- mudo nesta colheita"
         linhas.append(f"    {k:16} {v:6.2f}  {barra}{marca}")
 
-    matriz, taxa = conferir(colheita, prateleiras)
+    if voltas and len(voltas) >= 2:
+        matriz, taxa = conferir(voltas[0], voltas[1], prateleiras)
+        titulo = "(treino na VOLTA 1, teste na VOLTA 2 — gesto novo)"
+    else:
+        # Sem segunda volta, so da para medir consistencia interna. O numero
+        # sai, e sai marcado: ele nao autoriza ligar nada.
+        meio = {k: v[:len(v) // 2] for k, v in colheita.items()}
+        resto = {k: v[len(v) // 2:] for k, v in colheita.items()}
+        matriz, taxa = conferir(meio, resto, prateleiras)
+        titulo = "(UMA VOLTA SO: mede consistencia, NAO reprodutibilidade)"
+
     if matriz is None:
         linhas += ["", "  Amostras insuficientes para conferir a separacao."]
         return linhas, 0.0
 
-    linhas += ["", "  AS CINCO SE SEPARAM?  (treino na 1a metade, teste na 2a)",
+    linhas += ["", f"  AS CINCO SE SEPARAM?  {titulo}",
                "", "    verdade ->  o que o metodo respondeu"]
     for pid, votos in matriz.items():
         total = sum(votos.values()) or 1
@@ -263,9 +311,12 @@ def boletim(colheita, prateleiras, assinaturas):
         linhas.append(f"    {pid:10} {resposta}{marca}")
 
     linhas += ["", f"  ACERTO GERAL: {taxa:.0%}"]
-    if taxa >= 0.8:
-        linhas += ["", "  As prateleiras se separam com a evidencia que as tres",
-                   "  cameras ja produzem. O classificador pode entrar no laco."]
+    if taxa >= 0.8 and voltas and len(voltas) >= 2:
+        linhas += ["", "  As prateleiras se separam num gesto que o metodo NUNCA",
+                   "  viu. Isto autoriza ligar o classificador no laco real."]
+    elif taxa >= 0.8:
+        linhas += ["", "  Bom — mas medido dentro da MESMA volta. Rode com duas",
+                   "  voltas antes de confiar: consistencia nao e reprodutibilidade."]
     else:
         linhas += ["", "  Ainda se confundem. Olhe a matriz acima: QUAIS duas se",
                    "  misturam diz o que falta. Se forem vizinhas, e resolucao;",
@@ -280,6 +331,9 @@ def main():
     p.add_argument("--segundos", type=float, default=6.0)
     p.add_argument("--planta", default="loja/bancada.json")
     p.add_argument("--pular", action="append", default=[])
+    p.add_argument("--voltas", type=int, default=2,
+                   help="quantas passadas pelas cinco. 2 = treina numa, "
+                        "testa na outra (o unico jeito de medir reproducao)")
     p.add_argument("--sem-voz", action="store_true")
     p.add_argument("--log", default="AVISO")
     args = p.parse_args()
@@ -295,7 +349,7 @@ def main():
     app.montar_visao()
     app.iniciar()
 
-    colheita = {}
+    colheita, voltas = {}, []
     try:
         estados = chamada_das_cameras(app)
         print(f"{LIMPAR}APRENDER AS PRATELEIRAS\n")
@@ -323,10 +377,23 @@ def main():
             print(f"{LIMPAR}  ANDE pela area   {12 - (time.monotonic()-t0):4.1f} s\n")
             print(f"  {app.espacial.resumo()['escala']}")
 
-        for i, prat in enumerate(prateleiras, 1):
-            evs, _ = colher(app, voz, prat, args.segundos, i,
-                            len(prateleiras), args.lado)
-            colheita[prat["id"]] = evs
+        for volta in range(1, args.voltas + 1):
+            if volta > 1:
+                voz.dizer(f"Volta {volta}. Saia da area e volte, "
+                          "para o teste valer.", esperar=True)
+                print(f"{LIMPAR}  VOLTA {volta} de {args.voltas}\n")
+                print("  SAIA da area e VOLTE antes de continuar.")
+                print("  E isso que torna esta volta um gesto NOVO — se voce")
+                print("  ficar parado no mesmo lugar, o teste vira decoreba.\n")
+                input("  ENTER quando estiver posicionado de novo. ")
+
+            desta = {}
+            for i, prat in enumerate(prateleiras, 1):
+                evs, _ = colher(app, voz, prat, args.segundos, i,
+                                len(prateleiras), args.lado)
+                desta[prat["id"]] = evs
+                colheita.setdefault(prat["id"], []).extend(evs)
+            voltas.append(desta)
     except KeyboardInterrupt:
         print("\n  interrompido")
     finally:
@@ -339,7 +406,7 @@ def main():
         print("\n  Nenhuma prateleira teve amostras suficientes.")
         return 1
 
-    linhas, taxa = boletim(colheita, prateleiras, assinaturas)
+    linhas, taxa = boletim(colheita, prateleiras, assinaturas, voltas)
     print(f"{LIMPAR}" + "\n".join(linhas))
 
     DESTINO.parent.mkdir(exist_ok=True)
@@ -350,6 +417,7 @@ def main():
         "estante": estante["id"],
         "lado": args.lado,
         "quando": datetime.now().isoformat(timespec="seconds"),
+        "voltas": len(voltas),
         "acerto_fora_do_treino": round(taxa, 3),
         # O BRUTO VIAJA JUNTO COM O RESUMO.
         #
