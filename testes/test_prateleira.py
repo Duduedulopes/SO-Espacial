@@ -211,3 +211,78 @@ def test_braco_desconhecido_nao_vota():
     ev = evidencia_de(LeituraFalsa(), lado="esquerda")
     assert ev.braco is None
     assert ev.viu_frontal is None and ev.viu_lateral is None
+
+
+# ---------------------------------------- o aprendizado, e a honestidade dele
+#
+#     Metrica medida no proprio treino nao mede o metodo: mede a memoria dele.
+#
+# `conferir` divide cada prateleira ao meio: a primeira metade vira assinatura,
+# a segunda e classificada como se fosse nova.
+
+from ferramentas.aprender_prateleiras import conferir, resumir  # noqa: E402
+
+
+def _prat(pid):
+    return {"id": pid, "nome": pid, "altura": 1.0}
+
+
+def _lote(alcance, coxa, n=20, braco="estendido", passo=0.02):
+    """Amostras espalhadas em torno de um centro, sem numero aleatorio."""
+    return [Evidencia(alcance=alcance + passo * (i - n / 2),
+                      coxa=coxa + (passo / 2) * (i - n / 2),
+                      braco=braco, viu_frontal=True, viu_lateral=False)
+            for i in range(n)]
+
+
+def test_resumir_poe_o_centro_na_mediana():
+    a = resumir(_prat("p3"), _lote(0.05, 0.92))
+    assert abs(a.alcance[0] - 0.05) < 0.03
+    assert a.alcance[1] >= 0.12, "a tolerancia tem piso: ninguem repete igual"
+    assert a.bracos == {"estendido": 1.0}
+    assert a.visto_frontal == 1.0 and a.visto_lateral == 0.0
+
+
+def test_resumir_recusa_amostra_curta_demais():
+    """Tres quadros nao descrevem um gesto."""
+    a = resumir(_prat("p1"), _lote(0.0, 1.0, n=3))
+    assert a.alcance is None and a.coxa is None
+
+
+def test_prateleiras_distantes_se_separam_fora_do_treino():
+    colheita = {"p1": _lote(-0.60, 0.35, braco="ao_lado"),
+                "p5": _lote(1.35, 1.00, braco="levantado")}
+    matriz, taxa = conferir(colheita, [_prat("p1"), _prat("p5")])
+
+    assert taxa == 1.0, matriz
+    assert matriz["p1"].most_common(1)[0][0] == "p1"
+    assert matriz["p5"].most_common(1)[0][0] == "p5"
+
+
+def test_duas_prateleiras_identicas_se_confundem_e_o_boletim_mostra():
+    """Se o metodo nao consegue separar, isso TEM que aparecer.
+
+    Um relatorio que so sabe dizer 'deu certo' nao serve para decidir o que
+    falta. Aqui as duas assinaturas sao o mesmo gesto, e o acerto tem que
+    despencar para perto de sortear.
+    """
+    colheita = {"a": _lote(0.5, 0.9), "b": _lote(0.5, 0.9)}
+    _matriz, taxa = conferir(colheita, [_prat("a"), _prat("b")])
+    assert taxa < 0.75, f"acerto {taxa:.0%} alto demais para gestos identicos"
+
+
+def test_conferir_nao_testa_no_proprio_treino():
+    """A segunda metade nunca pode ter entrado na assinatura.
+
+    Prova pelo efeito: um lote em que as duas metades sao MUITO diferentes.
+    Treinando na primeira e testando na segunda, o acerto cai. Se o metodo
+    estivesse testando no treino, ele acertaria assim mesmo.
+    """
+    torto = (_lote(1.35, 1.00, n=10, braco="levantado")
+             + _lote(-0.60, 0.35, n=10, braco="ao_lado"))
+    colheita = {"p5": torto, "p1": _lote(-0.60, 0.35, n=20, braco="ao_lado")}
+
+    _matriz, taxa = conferir(colheita, [_prat("p5"), _prat("p1")])
+    assert taxa < 0.75, (
+        "a segunda metade da p5 e igual a p1: acertar tudo aqui provaria que "
+        "o teste esta olhando o proprio treino")
