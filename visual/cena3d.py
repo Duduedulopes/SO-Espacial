@@ -119,6 +119,43 @@ class CameraVirtual:
 
 
 # ---------------------------------------------------------------- cena
+def _clarear(cor, quanto):
+    """Mistura a cor com branco. Serve para o realce da esfera."""
+    return tuple(int(c + (255 - c) * quanto) for c in cor)
+
+
+def _osso(img, a, b, ra, rb, cor):
+    """Osso como TRONCO DE CONE, nao como linha de espessura constante.
+
+    Uma linha reta entre duas esferas de tamanhos diferentes deixa degrau nas
+    junturas — o traco fica mais fino que a esfera de um lado e mais grosso
+    que a do outro. Um poligono que interpola as duas larguras encosta em
+    cada esfera exatamente no diametro dela, e o corpo vira uma peca so.
+    """
+    a = np.asarray(a, float)
+    b = np.asarray(b, float)
+    d = b - a
+    comprimento = float(np.hypot(*d))
+    if comprimento < 1e-3:
+        return
+
+    # Normal ao osso: e nela que a largura e aplicada.
+    n = np.array([-d[1], d[0]]) / comprimento
+    # OSSO FINO, ESFERA GRANDE — e a proporcao que faz a silhueta.
+    #
+    # A primeira versao usou 0,80 do raio e o boneco ficou inflado: cabeca e
+    # ombros viraram uma massa so, sem pescoco, e o braco levantado colou no
+    # tronco. Volume nao e gordura.
+    #
+    #     Na referencia da AiFi as juntas sao contas e os ossos sao o cordao.
+    #     E o CONTRASTE entre os dois que da forma; igualar os dois apaga a
+    #     silhueta que se queria ganhar.
+    wa, wb = ra * 0.38, rb * 0.38
+
+    quad = np.array([a + n * wa, b + n * wb, b - n * wb, a - n * wa])
+    cv2.fillConvexPoly(img, quad.astype(np.int32), cor, cv2.LINE_AA)
+
+
 class Cena3D:
     def __init__(self, largura=960, altura=620, chao=(-1.5, 3.5, -1.5, 3.5),
                  calor_hz=4.0):
@@ -269,6 +306,25 @@ class Cena3D:
                       for j in range(3))
             cv2.polylines(img, [p[ini:fim]], False, c, 1, cv2.LINE_AA)
 
+    # Raio de cada junta, em fracao do raio base. Vem da anatomia: a cabeca
+    # e a maior massa visivel, ombros e quadris sao articulacoes largas, e as
+    # extremidades afinam. Sem essa variacao o boneco vira um colar de contas
+    # iguais — que e exatamente a cara de diagrama que queremos perder.
+    PESO_DA_JUNTA = {
+        0: 1.90,                                    # cabeca
+        5: 1.30, 6: 1.30,                           # ombros
+        7: 1.00, 8: 1.00,                           # cotovelos
+        9: 0.90, 10: 0.90,                          # pulsos
+        11: 1.30, 12: 1.30,                         # quadris
+        13: 1.10, 14: 1.10,                         # joelhos
+        15: 0.90, 16: 0.90,                         # tornozelos
+    }
+
+    def _raio(self, i, z):
+        """Raio da esfera em pixels: perspectiva x importancia anatomica."""
+        base = np.clip(52.0 / max(z, 0.3), 3.0, 18.0)
+        return max(2, int(base * self.PESO_DA_JUNTA.get(i, 0.8)))
+
     def _esqueleto(self, img, e):
         cor = CORES[e.id % len(CORES)]
         p, z = self.cam.projetar(e.juntas)
@@ -286,25 +342,42 @@ class Cena3D:
                         0, 0, 360, (0, 0, 0), -1)
             cv2.addWeighted(sobre, 0.35, img, 0.65, 0, img)
 
-        # ossos como tubos: espessura cai com a distancia
-        for a, b in OSSOS:
+        # ESFERAS E OSSOS COM VOLUME, EM VEZ DE LINHA FINA.
+        #
+        #     n acho ele algo bonito ou legal para se apresentar, eu gosto
+        #     muito da ideia da AiFi e o esqueleto deles   — Eduardo, 12/08
+        #
+        # Ele tem razao, e a diferenca nao e enfeite: linha de 2 px le-se como
+        # DIAGRAMA, e esfera com volume le-se como CORPO. Numa apresentacao,
+        # quem assiste decide em dois segundos se aquilo e uma pessoa ou um
+        # grafico — e decide pelo peso visual, nao pela precisao.
+        #
+        #     O mesmo dado desenhado com volume conta outra historia. Forma e
+        #     argumento, nao acabamento.
+        #
+        # Nada aqui muda a leitura: sao os mesmos 17 pontos que o `boneco.py`
+        # monta a partir da descricao. Muda so a espessura do traco.
+        cor_viva = cor if not e.prevendo else tuple(int(c * .45) for c in cor)
+
+        # DE TRAS PARA A FRENTE. Sem ordenar, um pulso atras do tronco aparece
+        # desenhado por cima dele, e o corpo perde a profundidade que a
+        # perspectiva acabou de calcular.
+        for a, b in sorted(OSSOS, key=lambda ab: -(z[ab[0]] + z[ab[1]])):
             if not (vis[a] and vis[b]):
                 continue
-            esp = int(np.clip(60 / max((z[a] + z[b]) / 2, .3), 2, 9))
-            cv2.line(img, tuple(p[a]), tuple(p[b]),
-                     cor if not e.prevendo else tuple(int(c * .5) for c in cor),
-                     esp, cv2.LINE_AA)
+            ra, rb = self._raio(i=a, z=z[a]), self._raio(i=b, z=z[b])
+            _osso(img, p[a], p[b], ra, rb, cor_viva)
 
-        # juntas como esferas
-        for i in range(len(p)):
-            if not vis[i]:
+        for i in sorted(range(len(p)), key=lambda k: -z[k]):
+            # Olhos e orelhas ficam de fora: a AiFi desenha a cabeca como UMA
+            # esfera, e quatro pontinhos no rosto so poluem a silhueta.
+            if not vis[i] or i in (1, 2, 3, 4):
                 continue
-            r = int(np.clip(46 / max(z[i], .3), 3, 12))
-            if i in (0,):
-                r = int(r * 1.7)          # cabeca
-            cv2.circle(img, tuple(p[i]), r, cor, -1, cv2.LINE_AA)
-            cv2.circle(img, tuple(p[i]), max(1, r // 3),
-                       (255, 255, 255), -1, cv2.LINE_AA)
+            r = self._raio(i, z[i])
+            cv2.circle(img, tuple(p[i]), r, cor_viva, -1, cv2.LINE_AA)
+            # Realce fora do centro: e o que faz o circulo virar ESFERA.
+            cv2.circle(img, (p[i][0] - r // 3, p[i][1] - r // 3),
+                       max(1, r // 3), _clarear(cor_viva, 0.55), -1, cv2.LINE_AA)
 
         cabeca = p[0]
         etq = f"#{e.id}" + ("  prevendo" if e.prevendo else "")
