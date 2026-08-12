@@ -377,3 +377,41 @@ def test_desvio_pequeno_e_tolerado():
     """Ninguem para no mesmo pixel duas vezes. Reclamar de 10% seria ruido."""
     e = _observar(_EV(fator=5.25, razao_de_referencia=0.343), 0.320)
     assert e.divergiu is None
+
+
+# ---------------------------------------------------------------- estatura fecha
+def _escala_medindo(n, razao=0.35, fator=5.19, fechar=45):
+    from src.acao.escala import EscalaVertical
+    e = EscalaVertical(fator=fator, amostras_para_fechar=fechar)
+    for _ in range(n):
+        e.observar(1, razao)
+    return e
+
+
+def test_estatura_ainda_se_move_antes_de_fechar():
+    """Enquanto mede, ela mede: acompanhar e o certo aqui."""
+    e = _escala_medindo(5)
+    antes = e.estatura(1)
+    for _ in range(5):
+        e.observar(1, 0.30)
+    assert e.estatura(1) != antes
+
+
+def test_estatura_para_de_mudar_depois_de_fechar():
+    """UMA PESSOA NAO MUDA DE TAMANHO.
+
+        o boneco fica diminuindo e aumentando conforme a camera ve + ou -,
+        isso e um erro                                  — Eduardo, 12/08
+    """
+    e = _escala_medindo(45)
+    fechada = e.estatura(1)
+    for _ in range(200):                       # a camera passa a ver bem menos
+        e.observar(1, 0.22)
+    assert e.estatura(1) == fechada
+
+
+def test_estatura_fechada_morre_com_a_pessoa():
+    """Id reciclado e outra pessoa: nao herda a altura da anterior."""
+    e = _escala_medindo(45)
+    e.esquecer(set())
+    assert e.estatura(1) is None

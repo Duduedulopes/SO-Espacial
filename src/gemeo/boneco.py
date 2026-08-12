@@ -97,10 +97,31 @@ ESTATURA_MIN, ESTATURA_MAX = 0.80, 2.20
 # joelho, e o joelho em pé fica a 0,285/0,530 = 0,54 do quadril.
 QUADRIL_AGACHADO = 0.55
 
-# Amplitude do passo, em fração da estatura. Serve para o boneco não deslizar
-# de pé fixo enquanto a posição muda — deslizar é a assinatura visual de um
-# corpo que está sendo arrastado em vez de caminhar.
-PASSO = 0.16
+# O CORPO RESPIRA. AS PERNAS SÓ AGACHAM.
+#
+#     eu nao quero que as pernas do boneco fiquem se mechendo para andar, eu
+#     quero que ele flutua suavemente ou fique totalmente parado, movimentos
+#     bem suaves, o unico movimento que a perna faz é para agachar
+#                                                     — Eduardo, 12/08
+#
+# Até 12/08 aqui havia `PASSO = 0.16`: os pés alternavam à frente e atrás
+# durante a caminhada, para o boneco não deslizar de pé fixo. A intenção era
+# boa e o resultado era pior que o deslize, porque a CADÊNCIA ERA INVENTADA —
+# dois passos por segundo, uma constante escrita em `rodar.py`. Nada em lugar
+# nenhum media a passada de quem estava na sala.
+#
+#     Um movimento que não foi medido não é informação: é ruído com forma
+#     de perna.
+#
+# É a mesma regra que fez `DESCONHECIDO` virar valor de primeira classe no
+# vocabulário. Quando o sistema não sabe, ele não finge — e a perna parada
+# diz "não sei a sua passada" com muito mais honestidade do que uma perna
+# que se mexe no ritmo de uma constante.
+#
+# O que sobra é a respiração: milímetros, lentos, o bastante para o corpo não
+# parecer congelado. Os tornozelos ficam de fora — pé que flutua sai do chão.
+FLUTUACAO = 0.006
+CICLOS_DE_RESPIRO = 0.25
 
 
 def _girar(pontos, rumo_rad):
@@ -205,7 +226,14 @@ def montar(estatura=ESTATURA_PADRAO, x=0.0, y=0.0, rumo=0.0,
     E = float(np.clip(estatura or ESTATURA_PADRAO, ESTATURA_MIN, ESTATURA_MAX))
     agachado = postura == Postura.AGACHADO
 
-    z_quadril = ALTURA_QUADRIL * E * (QUADRIL_AGACHADO if agachado else 1.0)
+    # O respiro entra AQUI, no quadril, e sobe sozinho pelo corpo: joelho,
+    # ombro, cabeça e braços são todos calculados a partir desta altura. Uma
+    # linha move o corpo inteiro porque o corpo é uma cadeia, não um saco de
+    # pontos independentes.
+    respiro = FLUTUACAO * E * float(np.sin(2 * np.pi * CICLOS_DE_RESPIRO * fase))
+
+    z_quadril = (ALTURA_QUADRIL * E * (QUADRIL_AGACHADO if agachado else 1.0)
+                 + respiro)
     z_tornozelo = ALTURA_TORNOZELO * E
 
     # JOELHO: no meio da perna dobrada, empurrado para a FRENTE ao agachar.
@@ -224,18 +252,17 @@ def montar(estatura=ESTATURA_PADRAO, x=0.0, y=0.0, rumo=0.0,
     meia_largura_ombro = LARGURA_OMBROS * E / 2.0
     meia_largura_quadril = LARGURA_QUADRIL * E / 2.0
 
-    # PASSO: os pés se alternam à frente e atrás enquanto anda.
-    andando = locomocao not in (Locomocao.PARADO, Locomocao.DESCONHECIDA)
-    balanco = PASSO * E * float(np.sin(2 * np.pi * fase)) if andando else 0.0
-
     j = np.zeros((17, 3))
 
+    # Pés lado a lado, sempre. `locomocao` continua chegando aqui porque quem
+    # desenha usa: a seta no chão é acesa por ela. O que ela não faz mais é
+    # mexer perna.
     j[QUADRIL_ESQ] = [-meia_largura_quadril, 0.0, z_quadril]
     j[QUADRIL_DIR] = [meia_largura_quadril, 0.0, z_quadril]
-    j[JOELHO_ESQ] = [-meia_largura_quadril, avanco_joelho + balanco / 2, z_joelho]
-    j[JOELHO_DIR] = [meia_largura_quadril, avanco_joelho - balanco / 2, z_joelho]
-    j[TORNOZELO_ESQ] = [-meia_largura_quadril, balanco, z_tornozelo]
-    j[TORNOZELO_DIR] = [meia_largura_quadril, -balanco, z_tornozelo]
+    j[JOELHO_ESQ] = [-meia_largura_quadril, avanco_joelho, z_joelho]
+    j[JOELHO_DIR] = [meia_largura_quadril, avanco_joelho, z_joelho]
+    j[TORNOZELO_ESQ] = [-meia_largura_quadril, 0.0, z_tornozelo]
+    j[TORNOZELO_DIR] = [meia_largura_quadril, 0.0, z_tornozelo]
 
     j[OMBRO_ESQ] = [-meia_largura_ombro, 0.0, z_ombro]
     j[OMBRO_DIR] = [meia_largura_ombro, 0.0, z_ombro]

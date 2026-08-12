@@ -281,9 +281,14 @@ class EscalaVertical:
     """
 
     def __init__(self, fator=None, memoria=90, razao_de_referencia=None,
-                 divergencia_maxima=0.20):
+                 divergencia_maxima=0.20, amostras_para_fechar=45):
         self.fator = fator
         self.memoria = memoria
+        # Quantas amostras bastam para a mediana ser a estatura e nao mais uma
+        # opiniao. 45 quadros sao ~4,5 s a 10 fps: tempo de a pessoa entrar,
+        # ser vista de pe algumas vezes, e o valor assentar. Menos que isso e a
+        # mediana de meia duzia de quadros, que ainda pula.
+        self.amostras_para_fechar = amostras_para_fechar
         # A RAZAO OBSERVADA NO DIA DA CALIBRACAO.
         #
         # `config/escala.json` sempre a gravou, com o aviso "este numero vale
@@ -292,6 +297,7 @@ class EscalaVertical:
         self.razao_de_referencia = razao_de_referencia
         self.divergencia_maxima = divergencia_maxima
         self._razoes = {}
+        self._fechadas = {}
         self._observadas = deque(maxlen=200)
 
     # ------------------------------------------------------------ calibracao
@@ -333,8 +339,41 @@ class EscalaVertical:
         return self.estatura(pessoa_id)
 
     def estatura(self, pessoa_id):
+        """A altura desta pessoa. Ela para de mudar quando ja foi medida.
+
+        UMA PESSOA NAO MUDA DE TAMANHO. A MEDIDA MUDAVA.
+
+            o boneco fica diminuindo e aumentando conforme a camera ve + ou -,
+            isso e um erro                              — Eduardo, 12/08
+
+        Ele esta certo, e o defeito era estrutural, nao ruido. `_razoes` e um
+        `deque(maxlen=90)`: uma janela DESLIZANTE. A mediana de uma janela que
+        desliza acompanha o sinal — e para isso que ela serve. Quando o que se
+        mede varia de verdade (a posicao de alguem andando) acompanhar e a
+        virtude. Quando o que se mede E CONSTANTE, acompanhar e o defeito: a
+        mediana persegue o ruido da amostragem, e a estatura respira junto com
+        a distancia ate a camera.
+
+        Entao a janela continua existindo para MEDIR, e o resultado e FECHADO
+        quando ha amostras suficientes para a mediana valer alguma coisa.
+        Depois disso a resposta e a mesma para sempre — o boneco tem um
+        tamanho, nao uma opiniao por quadro sobre o proprio tamanho.
+
+        E a mesma escolha de `calibrar()`, logo acima: uma pessoa medida, uma
+        vez. A diferenca e que la o sistema sabia disso e aqui tinha esquecido.
+        """
+        fechada = self._fechadas.get(pessoa_id)
+        if fechada is not None:
+            return fechada
+
         h = self._razoes.get(pessoa_id)
-        return float(np.median(h)) if h else None
+        if not h:
+            return None
+
+        valor = float(np.median(h))
+        if len(h) >= self.amostras_para_fechar:
+            self._fechadas[pessoa_id] = valor
+        return valor
 
     def altura_do_quadril(self, pessoa_id):
         """Onde fica o quadril desta pessoa, em metros acima do chao."""
@@ -345,6 +384,11 @@ class EscalaVertical:
         for pid in list(self._razoes):
             if pid not in vivos:
                 del self._razoes[pid]
+        # A estatura fechada morre com a pessoa. Um id reciclado pelo tracker e
+        # outra pessoa; herdar a altura da anterior seria pior que remedir.
+        for pid in list(self._fechadas):
+            if pid not in vivos:
+                del self._fechadas[pid]
 
     # ---------------------------------------------------- a calibracao envelheceu?
     @property

@@ -25,10 +25,27 @@ sys.path.insert(0, str(RAIZ))
 from src.app.orquestrador import Orquestrador       # noqa: E402
 from src.nucleo import log as logmod                # noqa: E402
 
-# Cadencia da caminhada. Duas passadas por segundo e o ritmo de
-# quem anda devagar numa loja — o boneco precisa de UMA cadencia,
-# e ela nao vem da medicao: vem de nao deslizar.
-PASSOS_POR_SEGUNDO = 2.0
+# Ciclos de respiracao por segundo. Nao ha mais passada aqui: as pernas
+# pararam de andar em 12/08 (ver `src/gemeo/boneco.py`, FLUTUACAO).
+RESPIROS_POR_SEGUNDO = 0.30
+
+# COMO CADA CAMERA APARECE, E O QUE ELA ENTREGA.
+#
+#     nao sei se as 3 cameras estao trabalhando juntas para isso, pq quando a
+#     simulacao comeca eu so vejo a camera superior    — Eduardo, 12/08
+#
+# As tres SEMPRE alimentaram a fusao — `motor.py` junta as vistas antes de
+# decidir qualquer coisa. Mas so a de cima era exibida, e um sistema que nao
+# mostra o que usa esta pedindo para nao ser acreditado. Uma afirmacao minha
+# de que "elas trabalham juntas" nao vale nada; tres janelas abertas valem.
+#
+# Cada uma leva escrito o que E DELA na resposta final. Nao e legenda: e a
+# unica maneira de olhar para a tela e ver a complementaridade acontecendo.
+PAINEL_DAS_CAMERAS = (
+    ("alto",    "ALTO — posicao no chao, rumo, estatura"),
+    ("frontal", "FRONTAL — bracos, altura da mao"),
+    ("lateral", "LATERAL — profundidade do alcance"),
+)
 
 
 def main():
@@ -79,11 +96,15 @@ def main():
     app.iniciar()
 
     cena = None
+    suavizador = None
     if not args.sem_janela:
         import cv2
         from visual.cena3d import Cena3D, Esqueleto
         from src.gemeo import boneco
+        from src.gemeo.suave import Suavizador
+        from src.acao.vocabulario import Locomocao
         cena = Cena3D(960, 620, chao=app.planta.chao, calor_hz=4.0)
+        suavizador = Suavizador()
         app.planta.aplicar_na_cena(cena)
 
     t0 = time.monotonic()
@@ -120,19 +141,24 @@ def main():
                 # acao e da antropometria. Nenhuma coordenada de junta
                 # atravessa esta fronteira, que e exatamente o que a `Acao`
                 # promete no proprio docstring dela.
-                fase = (agora * PASSOS_POR_SEGUNDO) % 1.0
+                fase = (agora * RESPIROS_POR_SEGUNDO) % 1.0
                 esqueletos = []
                 for p in app.gemeo.pessoas.values():
                     item = app.espacial.acoes.get(p.id)
                     if item is None:
                         continue
                     leitura = app.espacial.leituras.get(p.id)
+                    # O filtro fica AQUI, do lado de quem desenha, e nao no
+                    # Kalman: a logica precisa da medida crua e rapida, o olho
+                    # precisa dela lisa. Ver `src/gemeo/suave.py`.
+                    x, y, rumo = suavizador.suavizar(
+                        p.id, p.x, p.y, getattr(leitura, "rumo_corpo", None))
                     esqueletos.append(Esqueleto(
                         id=p.id,
                         juntas=boneco.montar(
                             estatura=app.espacial.escala.estatura(p.id),
-                            x=p.x, y=p.y,
-                            rumo=(getattr(leitura, "rumo_corpo", None) or 0.0),
+                            x=x, y=y,
+                            rumo=(rumo or 0.0),
                             postura=item[0].postura,
                             locomocao=item[0].locomocao,
                             braco_esq=item[0].braco_esquerdo,
@@ -142,7 +168,11 @@ def main():
                             fase=fase),
                         visivel=None,
                         prevendo=bool(p.prevendo),
+                        rumo=rumo,
+                        andando=item[0].locomocao not in (
+                            Locomocao.PARADO, Locomocao.DESCONHECIDA),
                         historico=list(app.gemeo.trilhas.get(p.id, ()))))
+                suavizador.esquecer(set(app.gemeo.pessoas))
 
                 # Quem ainda nao tem ACAO vira pino, nao desaparece. Antes o
                 # criterio era `tem_esqueleto`; agora e ter descricao, que e o
@@ -168,10 +198,18 @@ def main():
                     esqueletos, titulo, calor=app.gemeo.calor,
                     zonas=app.planta.zonas, marcadores=marcadores))
 
-                q = instante.get("alto")
-                if q is not None:
-                    cv2.imshow("alto", cv2.resize(q.imagem, None,
-                                                  fx=0.45, fy=0.45))
+                for papel, entrega in PAINEL_DAS_CAMERAS:
+                    q = instante.get(papel)
+                    if q is None:
+                        continue
+                    vista = cv2.resize(q.imagem, None, fx=0.45, fy=0.45)
+                    cv2.putText(vista, entrega, (8, 18),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38,
+                                (0, 0, 0), 3, cv2.LINE_AA)
+                    cv2.putText(vista, entrega, (8, 18),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38,
+                                (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.imshow(papel, vista)
 
                 k = cv2.waitKeyEx(1) & 0xFFFFFF
                 if not cena.tecla(k):

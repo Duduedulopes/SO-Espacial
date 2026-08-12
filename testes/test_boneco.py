@@ -204,15 +204,36 @@ def test_a_posicao_no_chao_desloca_o_corpo_inteiro():
     assert np.allclose(ali[:, 2], aqui[:, 2])
 
 
-def test_andar_move_as_pernas_e_parado_nao():
-    """Deslizar de pé fixo é a assinatura de um corpo arrastado."""
-    parado_a = montar(estatura=E, locomocao=Locomocao.PARADO, fase=0.0)
-    parado_b = montar(estatura=E, locomocao=Locomocao.PARADO, fase=0.5)
-    assert np.allclose(parado_a, parado_b)
+def test_andar_nao_mexe_as_pernas():
+    """A PERNA SO AGACHA.
 
+        eu nao quero que as pernas do boneco fiquem se mechendo para andar
+                                                        — Eduardo, 12/08
+
+    Este teste afirmava o CONTRARIO ate 12/08: exigia que os tornozelos se
+    alternassem durante a caminhada, para o boneco nao deslizar. Era um teste
+    correto para uma decisao errada — a cadencia era uma constante inventada
+    em `rodar.py`, nao a passada de ninguem.
+    """
     andando_a = montar(estatura=E, locomocao=Locomocao.FRENTE, fase=0.25)
     andando_b = montar(estatura=E, locomocao=Locomocao.FRENTE, fase=0.75)
-    assert not np.allclose(andando_a[TORNOZELO_ESQ], andando_b[TORNOZELO_ESQ])
+    assert np.allclose(andando_a[TORNOZELO_ESQ], andando_b[TORNOZELO_ESQ])
+    assert np.allclose(andando_a[TORNOZELO_DIR], andando_b[TORNOZELO_DIR])
+
+    parado = montar(estatura=E, locomocao=Locomocao.PARADO, fase=0.25)
+    assert np.allclose(parado[TORNOZELO_ESQ], andando_a[TORNOZELO_ESQ]), (
+        "andar e parar tem que dar o mesmo par de pes")
+
+
+def test_o_corpo_respira_e_os_pes_ficam_no_chao():
+    """Flutuar suave sem descolar do chao: milimetros, e so acima do pe."""
+    a = montar(estatura=E, fase=0.0)
+    b = montar(estatura=E, fase=1.0)          # meio ciclo de respiro
+
+    assert not np.allclose(a[QUADRIL_ESQ], b[QUADRIL_ESQ])
+    assert abs(a[QUADRIL_ESQ][2] - b[QUADRIL_ESQ][2]) < 0.02, "respiro, nao pulo"
+    assert np.allclose(a[TORNOZELO_ESQ], b[TORNOZELO_ESQ]), (
+        "pe que flutua sai do chao")
 
 
 def test_a_altura_da_mao_pedida_e_atendida_quando_cabe_no_corpo():

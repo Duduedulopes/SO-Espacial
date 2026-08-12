@@ -42,15 +42,29 @@ OSSOS = [
     (0, 5), (0, 6),                          # pescoco
 ]
 
+# TEMA CLARO, DA REFERENCIA DA AiFi.
+#
+# O fundo escuro fazia o boneco parecer instrumentacao — tela de radar, coisa
+# de sala de controle. O claro com grade branca faz o mesmo dado parecer
+# ESPACO: um piso onde alguem esta, nao um grafico sobre fundo preto.
+#
+#     Fundo escuro pede que o observador leia numeros. Fundo claro pede que
+#     ele reconheca uma cena. Para uma banca, a segunda leitura e a que vale.
+#
+# Cores em BGR, que e a ordem do OpenCV.
+# Na referencia TODOS sao roxos — a cor identifica o SISTEMA, nao a pessoa.
+# Quem distingue quem e a etiqueta. Uma paleta de seis cores gritantes faria
+# duas pessoas parecerem duas coisas diferentes, e sao a mesma coisa.
 CORES = [
-    (232, 200, 53), (90, 180, 255), (120, 230, 130),
-    (220, 130, 240), (110, 220, 240), (240, 170, 110),
+    (122, 42, 108),          # roxo da referencia
+    (138, 58, 122), (108, 36, 96), (150, 72, 134),
+    (96, 30, 86), (128, 50, 116),
 ]
 
-FUNDO = (28, 24, 22)
-CHAO = (46, 40, 37)
-GRADE = (64, 56, 51)
-TEXTO = (200, 200, 200)
+FUNDO = (247, 246, 246)
+CHAO = (236, 235, 236)
+GRADE = (255, 255, 255)
+TEXTO = (90, 88, 90)
 
 
 @dataclass
@@ -66,6 +80,15 @@ class Esqueleto:
     visivel: np.ndarray | None = None      # (17,) bool
     prevendo: bool = False
     historico: list = field(default_factory=list)   # rastro no chao, [(x,y)]
+    # PARA ONDE ELE ESTA VIRADO, E SE ESTA INDO.
+    #
+    # Nao da para ler isso das juntas. As 17 juntas de alguem de costas e as de
+    # alguem de frente sao quase o mesmo desenho, e as pernas pararam de andar
+    # em 12/08 — entao a silhueta nao diz mais nem se a pessoa se move. O que o
+    # sistema SABE (`rumo_corpo`, `locomocao`) tem que chegar ate aqui por
+    # escrito, senao nao chega.
+    rumo: float | None = None              # radianos, None = nao sei
+    andando: bool = False
 
 
 # ---------------------------------------------------------------- camera
@@ -120,17 +143,51 @@ class CameraVirtual:
 
 # ---------------------------------------------------------------- cena
 def _clarear(cor, quanto):
-    """Mistura a cor com branco. Serve para o realce da esfera."""
+    """Mistura a cor com branco."""
     return tuple(int(c + (255 - c) * quanto) for c in cor)
+
+
+def _escurecer(cor, quanto):
+    return tuple(int(c * (1.0 - quanto)) for c in cor)
+
+
+def _esfera(img, centro, raio, cor, luz=(-0.45, -0.45)):
+    """Circulo com SOMBREAMENTO, nao circulo chapado.
+
+    O que separa "bolinha" de "esfera" e o gradiente: claro do lado da luz,
+    escuro do lado oposto. Sem ele o boneco parece recortado em papel.
+
+    Feito com circulos concentricos deslocados na direcao da luz — barato, e
+    visualmente indistinguivel de um gradiente radial de verdade neste
+    tamanho. Um shader daria o mesmo resultado por um custo que este projeto
+    nao precisa pagar.
+    """
+    x, y = int(centro[0]), int(centro[1])
+    if raio < 2:
+        cv2.circle(img, (x, y), max(1, raio), cor, -1, cv2.LINE_AA)
+        return
+
+    # Base escura: e ela que aparece na borda oposta a luz.
+    cv2.circle(img, (x, y), raio, _escurecer(cor, 0.35), -1, cv2.LINE_AA)
+
+    camadas = max(3, min(9, raio // 2))
+    for k in range(camadas):
+        f = (k + 1) / camadas                     # 0 -> 1 do centro a borda
+        r = int(raio * (1.0 - f * 0.72))
+        if r < 1:
+            break
+        cx = int(x + luz[0] * (raio - r) * 0.85)
+        cy = int(y + luz[1] * (raio - r) * 0.85)
+        cv2.circle(img, (cx, cy), r, _clarear(cor, 0.10 + f * 0.42),
+                   -1, cv2.LINE_AA)
 
 
 def _osso(img, a, b, ra, rb, cor):
     """Osso como TRONCO DE CONE, nao como linha de espessura constante.
 
-    Uma linha reta entre duas esferas de tamanhos diferentes deixa degrau nas
-    junturas — o traco fica mais fino que a esfera de um lado e mais grosso
-    que a do outro. Um poligono que interpola as duas larguras encosta em
-    cada esfera exatamente no diametro dela, e o corpo vira uma peca so.
+    `ra` e `rb` sao as MEIAS-LARGURAS nas duas pontas, ja em pixels. Passar a
+    largura pronta em vez do raio da junta foi o que permitiu separar as duas
+    decisoes: o quanto uma junta pesa, e o quanto um osso e grosso.
     """
     a = np.asarray(a, float)
     b = np.asarray(b, float)
@@ -150,7 +207,7 @@ def _osso(img, a, b, ra, rb, cor):
     #     Na referencia da AiFi as juntas sao contas e os ossos sao o cordao.
     #     E o CONTRASTE entre os dois que da forma; igualar os dois apaga a
     #     silhueta que se queria ganhar.
-    wa, wb = ra * 0.38, rb * 0.38
+    wa, wb = ra, rb
 
     quad = np.array([a + n * wa, b + n * wb, b - n * wb, a - n * wa])
     cv2.fillConvexPoly(img, quad.astype(np.int32), cor, cv2.LINE_AA)
@@ -230,7 +287,7 @@ class Cena3D:
             if (prof <= 0).any():
                 continue
             p = p.astype(np.int32)
-            cor = (120, 220, 255) if z.ocupacao else (95, 95, 95)
+            cor = (60, 150, 235) if z.ocupacao else (185, 182, 185)
             cv2.polylines(img, [p], True, cor, 2 if z.ocupacao else 1, cv2.LINE_AA)
             txt = f"{z.nome}  {z.ocupacao}  {z.tempo_total:.0f}s"
             cv2.putText(img, txt, tuple(p[0] + [4, -6]),
@@ -268,14 +325,76 @@ class Cena3D:
         for f in faces:
             poly = p[list(f)]
             sobre = img.copy()
-            cv2.fillConvexPoly(sobre, poly, (72, 66, 62))
-            cv2.addWeighted(sobre, 0.85, img, 0.15, 0, img)
-            cv2.polylines(img, [poly], True, (105, 98, 92), 1, cv2.LINE_AA)
+            # Movel CLARO e quase translucido, como as prateleiras brancas da
+            # referencia. No tema claro um bloco escuro rouba a atencao do
+            # corpo — e o corpo e o assunto.
+            cv2.fillConvexPoly(sobre, poly, (226, 224, 226))
+            cv2.addWeighted(sobre, 0.72, img, 0.28, 0, img)
+            cv2.polylines(img, [poly], True, (198, 194, 198), 1, cv2.LINE_AA)
 
         if rotulo:
             topo = p[[4, 5, 6, 7]].mean(axis=0).astype(int)
             cv2.putText(img, rotulo, tuple(topo), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.4, (170, 165, 160), 1, cv2.LINE_AA)
+                        0.4, (150, 146, 150), 1, cv2.LINE_AA)
+
+    # Seta no chao: a que distancia da pessoa, quanto mede, quanto abre.
+    # O recuo tira a seta de baixo das pernas. Menos que isso e ela fica
+    # escondida atras do proprio corpo em metade dos angulos de camera.
+    SETA_RECUO, SETA_COMPRIMENTO, SETA_LARGURA = 0.46, 0.34, 0.30
+
+    def _seta(self, img, e, cor):
+        """Uma seta no chao dizendo para onde ele esta virado.
+
+            quero que tenha uma mini seta na frente dele apontando para qual
+            direcao ele esta indo/se movimentando/parado olhando
+                                                        — Eduardo, 12/08
+
+        O RUMO NAO CABE NO CORPO. ENTAO ELE FICA NO CHAO.
+
+        De costas ou de frente, o boneco desenha quase o mesmo borrao — tres
+        esferas e umas linhas. E desde que as pernas pararam de andar, nem o
+        movimento aparece na silhueta. Duas informacoes que o sistema mede e
+        que o desenho estava jogando fora.
+
+        Botar isso no corpo (um "nariz", um ombro destacado) so funcionaria de
+        certos angulos, e brigaria com a silhueta limpa que ele desenhou. No
+        chao a seta e legivel de qualquer angulo da camera, nao disputa espaco
+        com o corpo, e ainda ganha a dimensao que faltava: ela ACENDE quando a
+        pessoa anda e apaga quando ela para.
+
+            Nao saber para onde alguem olha e diferente de saber que ele nao
+            se mexe. A seta mostra as duas, sem confundir uma com a outra.
+
+        Rumo desconhecido nao desenha seta nenhuma — o vazio e a resposta.
+        """
+        if e.rumo is None:
+            return
+
+        pes = e.juntas[[15, 16]].mean(axis=0)          # tornozelos, COCO-17
+        c, s = float(np.cos(e.rumo)), float(np.sin(e.rumo))
+        frente = np.array([-s, c])             # o mesmo giro que boneco._girar
+        lado = np.array([c, s])
+
+        base = pes[:2] + frente * self.SETA_RECUO
+        ponta = base + frente * self.SETA_COMPRIMENTO
+        meia = lado * (self.SETA_LARGURA / 2.0)
+
+        chao = np.array([[*ponta, 0.012],
+                         [*(base + meia), 0.012],
+                         [*(base - meia), 0.012]])
+        p, z = self.cam.projetar(chao)
+        if (z <= 0).any():
+            return
+
+        # Parado ainda desenha, so que apagado: "olhando para la, sem sair do
+        # lugar" e uma resposta, nao ausencia de resposta.
+        forca = 1.0 if e.andando else 0.55
+        tom = tuple(int(FUNDO[i] + (cor[i] - FUNDO[i]) * forca) for i in range(3))
+        cv2.fillConvexPoly(img, p.astype(np.int32), tom, cv2.LINE_AA)
+        # Contorno cheio nas duas: sem ele a seta apagada some no fundo claro,
+        # e "parado olhando para la" viraria "nao sei para onde ele olha" —
+        # exatamente a distincao que a seta existe para fazer.
+        cv2.polylines(img, [p.astype(np.int32)], True, cor, 1, cv2.LINE_AA)
 
     def _rastro(self, img, e, cor, faixas=6):
         """Rastro que esmaece para o passado, em POUCAS chamadas de desenho.
@@ -310,20 +429,40 @@ class Cena3D:
     # e a maior massa visivel, ombros e quadris sao articulacoes largas, e as
     # extremidades afinam. Sem essa variacao o boneco vira um colar de contas
     # iguais — que e exatamente a cara de diagrama que queremos perder.
+    # SO TRES COISAS TEM MASSA: cabeca, ombros e quadril.
+    #
+    #     eu desenhei para vc entender          — Eduardo, 12/08
+    #
+    # No desenho dele, cotovelo, pulso, joelho e tornozelo sao apenas LINHA.
+    # E ele esta certo: uma esfera em cada junta compete com as outras por
+    # atencao, e o olho perde a leitura do corpo.
+    #
+    #     Marcar tudo e o mesmo que nao marcar nada. O que da forma nao e a
+    #     quantidade de pontos: e QUAIS deles ganham peso.
+    #
+    # Sobra um pictograma — le-se num instante, de longe, num projetor.
     PESO_DA_JUNTA = {
-        0: 1.90,                                    # cabeca
-        5: 1.30, 6: 1.30,                           # ombros
-        7: 1.00, 8: 1.00,                           # cotovelos
-        9: 0.90, 10: 0.90,                          # pulsos
-        11: 1.30, 12: 1.30,                         # quadris
-        13: 1.10, 14: 1.10,                         # joelhos
-        15: 0.90, 16: 0.90,                         # tornozelos
+        0: 2.60,                # cabeca, a maior massa
+        5: 1.05, 6: 1.05,       # ombros
+        11: 1.00, 12: 1.00,     # quadris
     }
 
     def _raio(self, i, z):
-        """Raio da esfera em pixels: perspectiva x importancia anatomica."""
-        base = np.clip(52.0 / max(z, 0.3), 3.0, 18.0)
-        return max(2, int(base * self.PESO_DA_JUNTA.get(i, 0.8)))
+        """Raio da esfera em pixels. Zero para junta que nao ganha massa."""
+        peso = self.PESO_DA_JUNTA.get(i)
+        if peso is None:
+            return 0
+        base = np.clip(62.0 / max(z, 0.3), 4.0, 24.0)
+        return max(2, int(base * peso))
+
+    def _espessura(self, z):
+        """Largura do osso. Constante no corpo, so encolhe com a distancia.
+
+        Os ossos do desenho do Eduardo tem todos a mesma grossura — sao TRACO,
+        nao membro. Variar a espessura por junta traria de volta o efeito de
+        corpo inflado.
+        """
+        return float(np.clip(16.0 / max(z, 0.3), 1.5, 6.0))
 
     def _esqueleto(self, img, e):
         cor = CORES[e.id % len(CORES)]
@@ -365,26 +504,27 @@ class Cena3D:
         for a, b in sorted(OSSOS, key=lambda ab: -(z[ab[0]] + z[ab[1]])):
             if not (vis[a] and vis[b]):
                 continue
-            ra, rb = self._raio(i=a, z=z[a]), self._raio(i=b, z=z[b])
-            _osso(img, p[a], p[b], ra, rb, cor_viva)
+            esp = self._espessura((z[a] + z[b]) / 2)
+            _osso(img, p[a], p[b], esp, esp, cor_viva)
 
         for i in sorted(range(len(p)), key=lambda k: -z[k]):
             # Olhos e orelhas ficam de fora: a AiFi desenha a cabeca como UMA
             # esfera, e quatro pontinhos no rosto so poluem a silhueta.
-            if not vis[i] or i in (1, 2, 3, 4):
-                continue
             r = self._raio(i, z[i])
-            cv2.circle(img, tuple(p[i]), r, cor_viva, -1, cv2.LINE_AA)
-            # Realce fora do centro: e o que faz o circulo virar ESFERA.
-            cv2.circle(img, (p[i][0] - r // 3, p[i][1] - r // 3),
-                       max(1, r // 3), _clarear(cor_viva, 0.55), -1, cv2.LINE_AA)
+            if not vis[i] or r <= 0:
+                continue
+            _esfera(img, p[i], r, cor_viva)
 
-        cabeca = p[0]
+        # A etiqueta escapa a esfera da cabeca em vez de usar um recuo fixo.
+        # Com a cabeca pesando 2.60 o recuo antigo (+14) caia DENTRO dela, e o
+        # texto sumia. Quem cresce e o raio; entao e o raio que da o recuo.
+        cabeca, raio = p[0], self._raio(0, z[0])
         etq = f"#{e.id}" + ("  prevendo" if e.prevendo else "")
-        cv2.putText(img, etq, (cabeca[0] + 14, cabeca[1] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3, cv2.LINE_AA)
-        cv2.putText(img, etq, (cabeca[0] + 14, cabeca[1] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, cor, 1, cv2.LINE_AA)
+        canto = (int(cabeca[0] + raio + 6), int(cabeca[1] - raio + 4))
+        cv2.putText(img, etq, canto, cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45, FUNDO, 3, cv2.LINE_AA)
+        cv2.putText(img, etq, canto, cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45, cor, 1, cv2.LINE_AA)
 
     # ---------- principal ----------
     def _construir_base(self):
@@ -486,8 +626,13 @@ class Cena3D:
         # desenha de tras para a frente
         ordem = sorted(esqueletos,
                        key=lambda e: -self.cam.projetar([e.juntas[0]])[1][0])
+        # Rastro e seta vao ANTES de todos os corpos, nao antes de cada corpo:
+        # sao marcas de chao, e chao fica embaixo de todo mundo. Intercalar
+        # faria a seta de quem esta na frente passar por cima de quem esta
+        # atras.
         for e in ordem:
             self._rastro(img, e, CORES[e.id % len(CORES)])
+            self._seta(img, e, CORES[e.id % len(CORES)])
         for e in ordem:
             self._esqueleto(img, e)
 
