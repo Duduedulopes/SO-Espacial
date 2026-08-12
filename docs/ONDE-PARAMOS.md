@@ -1,4 +1,4 @@
-# Onde paramos — 12/08/2026
+# Onde paramos — 12/08/2026 (fim do dia)
 
 > Este arquivo existe para que o PROJETO seja suficiente para retomar o
 > trabalho. Nenhuma informação necessária deve morar fora do repositório —
@@ -191,6 +191,54 @@ banca, é um motivo legítimo, mas não é um motivo de engenharia. Alternativa
 não considerada até então: **Unity é C#**, que o Eduardo já domina, e daria uma
 simulação 3D melhor que Java escrito à mão.
 
+## COMECE AQUI — os quatro que a tela revelou em 12/08
+
+`apresentar.py` rodou pela primeira vez com hardware às 17:52 e mostrou, em
+uma linha só, quatro defeitos que nenhuma ferramenta anterior tornava
+visíveis. Em ordem de dano à demonstração:
+
+### 1. Palpite de prateleira sem leitura de braço  ← COMEÇA AQUI
+
+```
+bracos   esq ? dir ?      sem fonte          e mesmo assim:  P4
+```
+
+Os dois braços em `DESCONHECIDO`, nenhuma câmera reivindicando a leitura, e o
+classificador opinou assim mesmo. O braço é a evidência principal — é ele que
+diz de qual altura a mão veio.
+
+    o esqueleto ainda levanta os bracos sozinho ou nao levanta tudo
+                                                    — Eduardo, 12/08
+
+Onde mexer: `motor._palpitar()` alimenta `ClassificadorDePrateleira.observar()`
+a cada quadro. Ele precisa recusar o quadro quando `lado_que_alcanca(leitura)`
+não devolve lado. Ver `src/acao/prateleira.py` e `src/acao/corpo.py`.
+
+### 2. `TRACK_LOST`: três ids para uma pessoa
+
+```
+  #2  {'p1': 3, 'p3': 6, 'p4': 3, 'p5': 5}
+  #3  {'p1': 1}
+  #4  {'p2': 2, 'p3': 1, 'p4': 2}
+```
+
+Uma pessoa só na sala. Cada troca de id joga fora a estatura já fechada
+(`EscalaVertical._fechadas`) e reabre a contagem de unidades do zero — é o que
+inflou o total para 23. Três vezes por sessão desde 11/08.
+
+### 3. Postura `desconhecida` com a pessoa em pé
+
+Em pé, parado, na frente das três câmeras, e a postura não foi classificada.
+`verticalidade_da_coxa` é o sinal; ver por que ele não respondeu.
+
+### 4. 4,7 fps na tela (era 9,7 no `rodar.py`)
+
+Compor 1600×900 mais três miniaturas a cada quadro é caro. Candidatos: compor
+a faixa de câmeras a cada N quadros, reduzir a resolução da cena, e o ONNX que
+está pendente desde sempre.
+
+---
+
 ## Aberto, medido, não consertado
 
 - pico de 0,50 m/s durante `parado` (salto de rastreio)
@@ -206,7 +254,12 @@ python ferramentas/achar_ip.py --gravar     # o IP do tablet muda todo dia
 python ferramentas/conferir.py --so-cameras # laudo: brilho e enquadramento
 python ferramentas/conferir_altura.py       # gabarito contra a estante
 python ferramentas/conferir.py              # roteiro de ações completo
-python -m pytest testes/ -q                 # 262 testes
+python -m pytest testes/ -q                 # 491 testes
+
+python rodar.py                             # bancada: 4 janelas, painel, 9.7 fps
+python apresentar.py                        # A TELA: uma janela, QUEM/O QUE/QUANTAS
+python apresentar.py --tela-cheia           # o modo da banca (ESC ou q saem)
+python apresentar.py --falsas               # ensaiar sem hardware
 ```
 
 Git: `del .git\index.lock, .git\HEAD.lock -ErrorAction SilentlyContinue` antes
@@ -228,3 +281,18 @@ do commit — o sandbox deixa locks para trás.
   produção.
 - Aumentar a amostra de uma hipótese falsa não a torna verdadeira: torna o
   erro confiante.
+- Um movimento que não foi medido não é informação: é ruído com forma de perna.
+- Marcar tudo é o mesmo que não marcar nada. O que dá forma não é a quantidade
+  de pontos: é QUAIS deles ganham peso.
+- A mediana de uma janela deslizante acompanha o sinal. Quando o que se mede é
+  constante, acompanhar é o defeito.
+- O mesmo número serve a dois donos com exigências opostas. Duplicar o filtro é
+  mais barato que escolher um dono.
+- Um evento só pode ser contado depois de terminar. Contar no começo é contar
+  intenção, e intenção se desfaz.
+- Um sistema que não mostra o que usa está pedindo para não ser acreditado.
+- Copiar a estrutura de um laço sem copiar o que ele faz nos casos que não são
+  o caso feliz é como copiar só a parte do código que se entende.
+- O padrão é para o dia comum. Um modo que dificulta sair não pode ser o que
+  acontece quando você não pede nada.
+- Uma coluna que explica respostas inexistentes ensina a plateia a ignorá-la.
