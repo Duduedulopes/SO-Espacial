@@ -206,6 +206,36 @@ class LeituraDoCorpo:
     #
     # E ele e adimensional: nao precisa de metros, de calibracao, nem de saber
     # a altura da pessoa. Funciona igual para adulto e para crianca.
+    # ALCANCE: onde o pulso esta NO CORPO, em fracao de tronco.
+    #
+    #     0.0 = na altura do quadril      1.0 = na altura do ombro
+    #     negativo = abaixo do quadril    acima de 1 = acima do ombro
+    #
+    # POR QUE ESTE SINAL EXISTE, 12/08
+    #
+    # A altura da mao EM METROS precisa de tres coisas frageis ao mesmo tempo:
+    # o chao, a escala e a postura. Cada uma delas quebrou nesta semana, e a
+    # ultima quebrou porque a projecao vertical nao e linear numa camera de
+    # teto — a fracao da caixa nao vale a fracao do corpo.
+    #
+    # Este numero nao precisa de nenhuma das tres. E uma razao entre duas
+    # distancias medidas na MESMA vista, no mesmo referencial do corpo:
+    #
+    #     alcance = (z_pulso - z_quadril) / (z_ombro - z_quadril)
+    #
+    # Escala some na divisao. Chao nao entra. Inclinacao da lente afeta o
+    # numerador e o denominador juntos e se cancela em boa parte. Serve igual
+    # para adulto e crianca, porque e proporcao de corpo, nao medida de mundo.
+    #
+    #     Razao entre duas medidas do mesmo lugar sobrevive ao erro que
+    #     destroi cada uma delas sozinha.
+    #
+    # E o que decide prateleira nao e o centimetro: e QUAL das cinco. Uma
+    # razao estavel separa cinco faixas com folga; um metro instavel nao
+    # separa nem duas.
+    alcance_esq: float | None = None
+    alcance_dir: float | None = None
+
     verticalidade_coxa: float | None = None
 
     @property
@@ -850,7 +880,28 @@ class AnalisadorDeCorpo:
         leitura.braco_direito, leitura.altura_mao_dir = self._ler_braco(
             j, visivel, OMBRO_DIR, PULSO_DIR, lateral, frente, altura_quadril)
 
+        leitura.alcance_esq = self._alcance(j, visivel, OMBRO_ESQ, PULSO_ESQ)
+        leitura.alcance_dir = self._alcance(j, visivel, OMBRO_DIR, PULSO_DIR)
+
         return leitura
+
+    def _alcance(self, j, visivel, i_ombro, i_pulso):
+        """Onde o pulso esta NO CORPO, em fracao de tronco. Ver `alcance_dir`.
+
+        O quadril e a origem (z=0), entao `z_pulso` ja e a altura acima dele.
+        Divide-se pelo tronco daquela MESMA vista, no mesmo instante: os dois
+        numeros carregam o mesmo erro de escala, e a divisao o cancela.
+
+        Tronco curto demais e pessoa curvada ou reconstrucao ruim — dividir
+        por ele amplificaria o ruido em vez de normalizar.
+        """
+        if not _visivel(visivel, i_ombro, i_pulso, QUADRIL_ESQ, QUADRIL_DIR):
+            return None
+
+        tronco = float(j[i_ombro][2])          # ombro acima do quadril-origem
+        if tronco < self.tronco_minimo:
+            return None
+        return float(j[i_pulso][2]) / tronco
 
     # ------------------------------------------------------------ rumo
     def _rumo_dos_ombros(self, j, visivel):
@@ -1352,6 +1403,24 @@ class AnalisadorDeCorpo:
             setattr(final, lado, getattr(x, lado))
             setattr(final, campo_altura, getattr(x, campo_altura))
             setattr(final, campo_fonte, nome)
+
+        # O ALCANCE VEM DA MESMA VISTA QUE RESPONDEU O BRACO.
+        #
+        # Ele e uma razao interna daquela reconstrucao: misturar o pulso de
+        # uma camera com o tronco de outra descreveria um corpo que nao
+        # existe. `_combinar` ja escolheu a vista por merito acima; aqui so
+        # se herda a escolha.
+        for lado, campo_alcance in (("fonte_braco_esq", "alcance_esq"),
+                                    ("fonte_braco_dir", "alcance_dir")):
+            escolhida = getattr(final, lado)
+            for nome, x in zip(nomes, leituras):
+                if nome == escolhida and getattr(x, campo_alcance) is not None:
+                    setattr(final, campo_alcance, getattr(x, campo_alcance))
+                    break
+            else:
+                if getattr(final, campo_alcance) is None:
+                    setattr(final, campo_alcance,
+                            primeiro(lambda x: getattr(x, campo_alcance)))
 
         if final.verticalidade_coxa is None:
             final.verticalidade_coxa = primeiro(
