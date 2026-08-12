@@ -25,6 +25,11 @@ sys.path.insert(0, str(RAIZ))
 from src.app.orquestrador import Orquestrador       # noqa: E402
 from src.nucleo import log as logmod                # noqa: E402
 
+# Cadencia da caminhada. Duas passadas por segundo e o ritmo de
+# quem anda devagar numa loja — o boneco precisa de UMA cadencia,
+# e ela nao vem da medicao: vem de nao deslizar.
+PASSOS_POR_SEGUNDO = 2.0
+
 
 def main():
     p = argparse.ArgumentParser(description="SO Espacial — gemeo digital")
@@ -77,6 +82,7 @@ def main():
     if not args.sem_janela:
         import cv2
         from visual.cena3d import Cena3D, Esqueleto
+        from src.gemeo import boneco
         cena = Cena3D(960, 620, chao=app.planta.chao, calor_hz=4.0)
         app.planta.aplicar_na_cena(cena)
 
@@ -99,20 +105,52 @@ def main():
                 print("\n".join(app.painel()))
 
             if cena is not None:
-                esqueletos = [
-                    Esqueleto(id=p.id, juntas=p.esqueleto,
-                              visivel=p.juntas_visiveis,
-                              prevendo=bool(p.prevendo),
-                              historico=list(app.gemeo.trilhas.get(p.id, ())))
-                    for p in app.gemeo.pessoas.values() if p.tem_esqueleto
-                ]
-                # Quem nao tem esqueleto vira PINO, nao desaparece. Com duas
-                # pessoas em cena a associacao deixa de ser confiavel e nenhum
-                # esqueleto e montado — e a janela ficava vazia enquanto o
-                # sistema seguia dois rastros.
+                # O BONECO E ANIMADO PELA DESCRICAO, NAO PELAS JUNTAS CRUAS.
+                #
+                # Ate 12/08 esta lista usava `p.esqueleto` — a reconstrucao do
+                # MediaPipe, com todos os defeitos que dois dias de medicao
+                # tinham isolado: braco comprimido, junta extrapolada fora do
+                # quadro, ancora errada. O vocabulario fechado existia na
+                # camada que LE e nao existia na camada que DESENHA.
+                #
+                #     Se "deitado" nao esta no vocabulario, o boneco nao
+                #     consegue deitar.        — vocabulario.py, 10/08
+                #
+                # Agora `src/gemeo/boneco.py` MONTA as 17 juntas a partir da
+                # acao e da antropometria. Nenhuma coordenada de junta
+                # atravessa esta fronteira, que e exatamente o que a `Acao`
+                # promete no proprio docstring dela.
+                fase = (agora * PASSOS_POR_SEGUNDO) % 1.0
+                esqueletos = []
+                for p in app.gemeo.pessoas.values():
+                    item = app.espacial.acoes.get(p.id)
+                    if item is None:
+                        continue
+                    leitura = app.espacial.leituras.get(p.id)
+                    esqueletos.append(Esqueleto(
+                        id=p.id,
+                        juntas=boneco.montar(
+                            estatura=app.espacial.escala.estatura(p.id),
+                            x=p.x, y=p.y,
+                            rumo=(getattr(leitura, "rumo_corpo", None) or 0.0),
+                            postura=item[0].postura,
+                            locomocao=item[0].locomocao,
+                            braco_esq=item[0].braco_esquerdo,
+                            braco_dir=item[0].braco_direito,
+                            altura_mao_esq=item[0].altura_mao_esq,
+                            altura_mao_dir=item[0].altura_mao_dir,
+                            fase=fase),
+                        visivel=None,
+                        prevendo=bool(p.prevendo),
+                        historico=list(app.gemeo.trilhas.get(p.id, ()))))
+
+                # Quem ainda nao tem ACAO vira pino, nao desaparece. Antes o
+                # criterio era `tem_esqueleto`; agora e ter descricao, que e o
+                # que o desenho passou a consumir.
+                com_acao = set(app.espacial.acoes)
                 marcadores = [(p.id, p.x, p.y, bool(p.prevendo))
                               for p in app.gemeo.pessoas.values()
-                              if not p.tem_esqueleto]
+                              if p.id not in com_acao]
                 # DE QUAL PRATELEIRA A MAO VEIO, NO TITULO DA CENA.
                 #
                 # O palpite tem que ficar ao lado do boneco, no mesmo instante
