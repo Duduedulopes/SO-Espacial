@@ -113,7 +113,7 @@ QUADRIL_ESQ, QUADRIL_DIR = 11, 12
 TORNOZELO_ESQ, TORNOZELO_DIR = 15, 16
 
 
-def altura_do_quadril_vista_de_cima(juntas_2d, conf, v_horizonte, fator,
+def altura_do_quadril_vista_de_cima(juntas_2d, conf, caixa, v_horizonte, fator,
                                     minimo=0.10, maximo=1.45, limiar=0.5):
     """Altura do quadril acima do chao, medida DIRETO pela camera do alto.
 
@@ -157,17 +157,43 @@ def altura_do_quadril_vista_de_cima(juntas_2d, conf, v_horizonte, fator,
     Esta formula nao assume postura nenhuma. Ela mede onde o quadril ESTA, no
     quadro, seja de pe ou agachado.
 
+    O CHAO E A BASE DA CAIXA, NAO O TORNOZELO. ERREI ISSO NA PRIMEIRA VERSAO.
+
+    MEDIDO EM 12/08: a primeira versao usou a junta do TORNOZELO como `v_pe`, e
+    a ancora passou a ler 0,47 m para uma pessoa em pe — metade do valor certo.
+    Todas as prateleiras desabaram para a faixa de 0,44 a 0,60 m.
+
+    O motivo e consistencia de referencia. O `fator` foi calibrado assim:
+
+        razao = (y2 - y1) / (y2 - v_horizonte)      # chao.py, FiltroDePlausibilidade
+        fator = estatura_conhecida / razao
+
+    `y2` e a BASE DA CAIXA — o pixel mais baixo da pessoa, a sola do sapato.
+    O tornozelo fica alguns centimetros acima disso, e na imagem isso vira
+    dezenas de pixels. Trocar o ponto de referencia encolhe o numerador E o
+    denominador, e a razao resultante cai — sempre para menos.
+
+        Uma constante empirica so vale medida do MESMO jeito que sera usada.
+        Calibrei contra a base da caixa e apliquei contra o tornozelo: dois
+        chaos diferentes, e o erro nao apareceu como erro, apareceu como
+        pessoa agachada.
+
+    Usar `y2` tambem elimina a dependencia do tornozelo — que era justamente a
+    junta que ninguem enxerga. A caixa existe sempre que o detector viu a
+    pessoa.
+
     O QUE ELA COBRA, DECLARADO
 
-    Visto quase de cima, `v_pe - v_quadril` sao poucos pixels, e todo o erro
-    de deteccao das duas juntas cai direto no resultado. Pode sair ruidosa —
-    e o gabarito da estante vai dizer quanto, com numero, que e como as
-    outras decisoes deste projeto foram tomadas.
+    Visto quase de cima, `y2 - v_quadril` sao poucos pixels, e todo o erro de
+    deteccao cai direto no resultado. Pode sair ruidosa — e o gabarito da
+    estante vai dizer quanto, com numero, que e como as outras decisoes deste
+    projeto foram tomadas.
 
     `v_horizonte` chega como funcao da coluna: a linha do horizonte nao e
-    horizontal na imagem quando a lente esta girada.
+    horizontal na imagem quando a lente esta girada. E `u` e o centro da
+    caixa, o mesmo que `razao` usa — de novo, mesma referencia.
     """
-    if not fator or juntas_2d is None or conf is None:
+    if not fator or juntas_2d is None or conf is None or caixa is None:
         return None
 
     p = np.asarray(juntas_2d, dtype=float)
@@ -178,29 +204,23 @@ def altura_do_quadril_vista_de_cima(juntas_2d, conf, v_horizonte, fator,
     if not (c[QUADRIL_ESQ] > limiar and c[QUADRIL_DIR] > limiar):
         return None
     v_quadril = float((p[QUADRIL_ESQ][1] + p[QUADRIL_DIR][1]) / 2)
-    u_quadril = float((p[QUADRIL_ESQ][0] + p[QUADRIL_DIR][0]) / 2)
 
-    # PE: o mais BAIXO na imagem entre os visiveis — e o que esta no chao.
-    # Exigir os dois recusaria toda passada, em que um pe esta no ar; e o pe
-    # no ar mentiria sobre onde o plano do chao esta.
-    pes = [float(p[i][1]) for i in (TORNOZELO_ESQ, TORNOZELO_DIR)
-           if c[i] > limiar]
-    if not pes:
-        return None
-    v_pe = max(pes)
+    x1, y1, x2, y2 = (float(v) for v in caixa)
+    if v_quadril <= y1 or v_quadril >= y2:
+        return None          # quadril fora da propria caixa: reconstrucao ruim
 
     # `v_horizonte` devolve None quando a lente nao tem inclinacao suficiente
     # e o horizonte vai para o infinito. E configuracao legitima de camera,
     # nao erro — e sem horizonte esta conta nao existe.
-    vh = v_horizonte(u_quadril)
+    vh = v_horizonte((x1 + x2) / 2.0)
     if vh is None:
         return None
 
-    d = v_pe - vh
+    d = y2 - vh
     if d <= 1.0:            # pe na altura do horizonte, ou acima: impossivel
         return None
 
-    altura = fator * (v_pe - v_quadril) / d
+    altura = fator * (y2 - v_quadril) / d
     return altura if minimo <= altura <= maximo else None
 
 

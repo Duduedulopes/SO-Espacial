@@ -685,10 +685,10 @@ class SpatialEngine:
         r = rastros.get(pessoa.id)
         ext = [x for x in (r.ids_externos if r else ()) if x in self._ombros]
         if ext and self.plausibilidade is not None:
-            juntas, conf = self._ombros[ext[-1]]
+            tid = ext[-1]
             medida = altura_do_quadril_vista_de_cima(
-                juntas, conf, self.plausibilidade.v_horizonte,
-                self.escala.fator)
+                *self._ombros[tid], self._caixas.get(tid),
+                self.plausibilidade.v_horizonte, self.escala.fator)
             if medida is not None:
                 return medida
         return self.escala.altura_do_quadril(pessoa.id)

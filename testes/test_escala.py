@@ -190,21 +190,26 @@ FATOR = 5.25
 HORIZONTE = -400.0          # acima do topo da imagem, como numa camera de teto
 
 
-def cena(quadril_m, v_pe=460.0, fator=FATOR, horizonte=HORIZONTE):
-    """Monta juntas 2D coerentes com um quadril `quadril_m` acima do chao.
+def cena(quadril_m, y2=460.0, fator=FATOR, horizonte=HORIZONTE):
+    """Monta juntas 2D e CAIXA coerentes com um quadril `quadril_m` do chao.
+
+    `y2` e a base da caixa — o mesmo ponto contra o qual o `fator` foi
+    calibrado em `chao.py`. Usar o tornozelo aqui foi o defeito de 12/08: a
+    ancora leu 0,47 m para alguem em pe, e todas as prateleiras desabaram.
 
     Inverte a propria formula para gerar a entrada: se a conta estiver certa,
     ela devolve exatamente o valor pedido. Gerar com a formula e conferir com
     ela testaria tautologia — por isso os testes seguintes mexem em UMA coisa
     de cada vez e olham o SENTIDO da mudanca, nao so o valor.
     """
-    v_quadril = v_pe - quadril_m * (v_pe - horizonte) / fator
+    v_quadril = y2 - quadril_m * (y2 - horizonte) / fator
     p = np.zeros((17, 2))
     p[11] = [300.0, v_quadril]
     p[12] = [340.0, v_quadril]
-    p[15] = [310.0, v_pe]
-    p[16] = [330.0, v_pe - 20]      # o outro pe mais alto: o de baixo manda
-    return p, np.ones(17)
+    p[15] = [310.0, y2 - 18]        # tornozelo ACIMA da sola, como na vida
+    p[16] = [330.0, y2 - 30]
+    caixa = (280.0, v_quadril - 300.0, 360.0, y2)
+    return p, np.ones(17), caixa
 
 
 def horizonte_fixo(u):
@@ -212,8 +217,8 @@ def horizonte_fixo(u):
 
 
 def test_mede_o_quadril_de_quem_esta_em_pe():
-    p, c = cena(0.95)
-    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.95) < 0.01
+    p, c, caixa = cena(0.95)
+    assert abs(altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) - 0.95) < 0.01
 
 
 def test_mede_o_quadril_de_quem_agachou():
@@ -222,47 +227,73 @@ def test_mede_o_quadril_de_quem_agachou():
     Medido em 11/08: 1 cm de erro na prateleira de 1,90 m e 75 cm na de 0,15 m,
     porque a ancora era uma constante de pessoa em pe.
     """
-    p, c = cena(0.45)
-    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.45) < 0.01
+    p, c, caixa = cena(0.45)
+    assert abs(altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) - 0.45) < 0.01
 
 
 def test_quadril_mais_alto_na_imagem_significa_pessoa_mais_ereta():
     """Sentido da relacao, sem depender do valor exato."""
-    p_agachado, c = cena(0.45)
-    p_em_pe, _ = cena(0.95)
+    p_agachado, c, caixa = cena(0.45)
+    p_em_pe, _, caixa_em_pe = cena(0.95)
     assert p_em_pe[11][1] < p_agachado[11][1], "em pe, o quadril sobe na imagem"
-    assert (altura_do_alto(p_em_pe, c, horizonte_fixo, FATOR)
-            > altura_do_alto(p_agachado, c, horizonte_fixo, FATOR))
+    assert (altura_do_alto(p_em_pe, c, caixa_em_pe, horizonte_fixo, FATOR)
+            > altura_do_alto(p_agachado, c, caixa, horizonte_fixo, FATOR))
 
 
-def test_usa_o_pe_mais_BAIXO_na_imagem():
-    """O pe no ar mentiria sobre onde o plano do chao esta.
+def test_o_chao_e_a_BASE_DA_CAIXA_e_nao_o_tornozelo():
+    """O defeito de 12/08, virado em teste.
 
-    Exigir os dois pes recusaria toda passada; usar o errado deslocaria o
-    chao. O mais baixo na imagem e o que esta apoiado.
+    O `fator` foi calibrado como `estatura / ((y2-y1)/(y2-horizonte))`, com
+    `y2` = base da caixa. Aplicar contra o tornozelo — dezenas de pixels acima
+    da sola — encolhe numerador e denominador e derruba a razao.
+
+        Constante empirica so vale medida do MESMO jeito que sera usada.
+
+    Aqui o tornozelo esta 18 px acima da base. Se a conta usasse ele, o
+    resultado cairia bem abaixo de 0,95 — foi o que produziu 0,47 no gabarito.
     """
-    p, c = cena(0.95)
-    p[16][1] = 200.0                      # pe no ar, bem alto na imagem
-    assert abs(altura_do_alto(p, c, horizonte_fixo, FATOR) - 0.95) < 0.01
+    p, c, caixa = cena(0.95)
+    assert abs(altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) - 0.95) < 0.01
+
+    # E a prova de que a diferenca importa: refazendo a conta com o tornozelo.
+    v_torn = max(p[15][1], p[16][1])
+    v_quadril = p[11][1]
+    pelo_tornozelo = FATOR * (v_torn - v_quadril) / (v_torn - HORIZONTE)
+    assert pelo_tornozelo < 0.93, (
+        "se dar quase o mesmo, o cenario nao reproduz o defeito medido")
+
+
+def test_pe_no_ar_nao_atrapalha_mais():
+    """Com a caixa como chao, tornozelo nem entra na conta."""
+    p, c, caixa = cena(0.95)
+    p[15][1] = p[16][1] = 100.0
+    c[15] = c[16] = 0.0
+    assert abs(altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) - 0.95) < 0.01
+
+
+def test_sem_caixa_nao_responde():
+    p, c, _ = cena(0.95)
+    assert altura_do_alto(p, c, None, horizonte_fixo, FATOR) is None
+
+
+def test_quadril_fora_da_propria_caixa_e_recusado():
+    """Reconstrucao ruim poe o quadril acima da cabeca ou abaixo do pe."""
+    p, c, caixa = cena(0.95)
+    p[11][1] = p[12][1] = caixa[3] + 50.0      # abaixo da base
+    assert altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) is None
 
 
 def test_sem_os_dois_quadris_nao_responde():
     """Um visto e outro extrapolado da uma media com cara de medida."""
-    p, c = cena(0.95)
+    p, c, caixa = cena(0.95)
     c[12] = 0.0
-    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None
-
-
-def test_sem_nenhum_pe_nao_responde():
-    p, c = cena(0.95)
-    c[15] = c[16] = 0.0
-    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None
+    assert altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) is None
 
 
 def test_sem_calibracao_nao_responde():
     """Sem o fator nao ha metro nenhum a devolver."""
-    p, c = cena(0.95)
-    assert altura_do_alto(p, c, horizonte_fixo, None) is None
+    p, c, caixa = cena(0.95)
+    assert altura_do_alto(p, c, caixa, horizonte_fixo, None) is None
 
 
 def test_horizonte_no_infinito_nao_responde():
@@ -271,17 +302,17 @@ def test_horizonte_no_infinito_nao_responde():
     `FiltroDePlausibilidade.v_horizonte` devolve None nesse caso — e foi
     exatamente o ZeroDivisionError que apareceu ao ligar esta funcao.
     """
-    p, c = cena(0.95)
-    assert altura_do_alto(p, c, lambda u: None, FATOR) is None
+    p, c, caixa = cena(0.95)
+    assert altura_do_alto(p, c, caixa, lambda u: None, FATOR) is None
 
 
 def test_pe_acima_do_horizonte_e_impossivel():
-    p, c = cena(0.95)
-    assert altura_do_alto(p, c, lambda u: 9999.0, FATOR) is None
+    p, c, caixa = cena(0.95)
+    assert altura_do_alto(p, c, caixa, lambda u: 9999.0, FATOR) is None
 
 
 def test_resultado_fora_da_faixa_humana_e_recusado():
     """Reconstrucao ruim nao vira quadril de tres metros."""
-    p, c = cena(0.95)
+    p, c, caixa = cena(0.95)
     p[11][1] = p[12][1] = -5000.0        # quadril absurdamente alto
-    assert altura_do_alto(p, c, horizonte_fixo, FATOR) is None
+    assert altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) is None
