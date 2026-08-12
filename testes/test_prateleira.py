@@ -194,6 +194,8 @@ class LeituraFalsa:
     braco_esquerdo = "desconhecido"
     alcance_dir = 1.30
     alcance_esq = None
+    alcance_2d_dir = 1.12
+    alcance_2d_esq = None
     verticalidade_coxa = 0.98
 
 
@@ -201,6 +203,7 @@ def test_traduz_a_leitura_combinada_em_evidencia():
     ev = evidencia_de(LeituraFalsa(), lado="direita", encolhimento=0.99)
 
     assert ev.alcance == 1.30
+    assert ev.alcance_2d == 1.12, "o sinal 2D viaja junto com o 3D"
     assert ev.braco == "levantado"
     assert ev.viu_lateral is True and ev.viu_frontal is False
     assert ev.encolhimento == 0.99
@@ -286,3 +289,110 @@ def test_conferir_nao_testa_no_proprio_treino():
     assert taxa < 0.75, (
         "a segunda metade da p5 e igual a p1: acertar tudo aqui provaria que "
         "o teste esta olhando o proprio treino")
+
+
+# ------------------------------------------- o peso e MEDIDO, nao escolhido
+#
+# Em 12/08 os pesos eram constantes que eu escrevi. A primeira colheita real
+# mostrou o oposto do que supus:
+#
+#     encolhimento  1,00 1,00 1,01 1,00 1,06   nao separa   (peso 1.0)
+#     alcance         -- 0,07 0,19 0,17 1,54   so a p5      (peso 2.0)
+#     visto_frontal 0,00 0,48 0,67 0,72 0,09   SEPARA       (peso 0.5)
+#
+# Acerto: 16%, abaixo de sortear entre cinco. O unico sinal que discriminou
+# tinha o menor peso — e a correcao nao pode ser mexer nos numeros ate a nota
+# subir.
+#
+#     Peso escolhido a mao vira o lugar onde a esperanca do autor entra no
+#     classificador sem passar por medicao.
+
+from src.acao.prateleira import pesos_medidos                   # noqa: E402
+
+
+def test_sinal_que_nao_varia_recebe_peso_zero():
+    """O caso do encolhimento na colheita de 12/08."""
+    pesos = pesos_medidos([
+        Assinatura("p1", encolhimento=(1.00, 0.05), alcance=(-0.6, 0.12)),
+        Assinatura("p5", encolhimento=(1.00, 0.05), alcance=(1.5, 0.12)),
+    ])
+    assert pesos["encolhimento"] == 0.0
+    assert pesos["alcance"] > pesos["encolhimento"]
+
+
+def test_sinal_que_separa_recebe_peso_alto():
+    pesos = pesos_medidos([
+        Assinatura("p1", alcance_2d=(0.0, 0.10)),
+        Assinatura("p5", alcance_2d=(1.0, 0.10)),
+    ])
+    # |0 - 1| / (0.10 + 0.10) = 5.0 — separacao em unidades de tolerancia.
+    assert pesos["alcance_2d"] == pytest.approx(5.0)
+
+
+def test_visibilidade_que_separa_pesa_mais_que_a_que_nao_separa():
+    """`visto_frontal` foi o unico discriminante da colheita real."""
+    pesos = pesos_medidos([
+        Assinatura("p1", visto_frontal=0.00, visto_lateral=0.9),
+        Assinatura("p4", visto_frontal=0.72, visto_lateral=0.9),
+    ])
+    assert pesos["visto_frontal"] > 2.0
+    assert pesos["visto_lateral"] == 0.0
+
+
+def test_todas_dizendo_o_mesmo_braco_nao_distingue():
+    """Cinco prateleiras dizendo `ao_lado` nao separam nada, mesmo com 100%."""
+    iguais = [Assinatura(f"p{i}", bracos={"ao_lado": 1.0}) for i in range(1, 6)]
+    assert pesos_medidos(iguais)["braco"] == 0.0
+
+    variados = iguais[:4] + [Assinatura("p5", bracos={"levantado": 1.0})]
+    assert pesos_medidos(variados)["braco"] > 0.0
+
+
+def test_o_encolhimento_volta_a_pesar_quando_alguem_agacha():
+    """A razao do Eduardo para nao remover o sinal.
+
+        eu nao tiraria o encolhimento, pq e uma opcao, agachar para pegar um
+        produto ou nao
+
+    Naquela sessao ninguem agachou e o sinal ficou mudo. Remover seria remover
+    uma capacidade — o peso medido resolve sozinho, sem editar constante.
+    """
+    ninguem_agachou = [
+        Assinatura("p1", encolhimento=(1.00, 0.05)),
+        Assinatura("p5", encolhimento=(1.00, 0.05)),
+    ]
+    assert pesos_medidos(ninguem_agachou)["encolhimento"] == 0.0
+
+    alguem_agachou = [
+        Assinatura("p1", encolhimento=(0.55, 0.05)),
+        Assinatura("p5", encolhimento=(1.00, 0.05)),
+    ]
+    assert pesos_medidos(alguem_agachou)["encolhimento"] > 4.0
+
+
+def test_sinal_mudo_deixa_de_diluir_quem_fala():
+    """Nao basta pesar zero: o resultado tem que MELHORAR.
+
+    Duas prateleiras que so o `alcance_2d` separa, mais tres sinais mudos que
+    dizem a mesma coisa para as duas. Com peso fixo, os mudos empatariam a
+    disputa; com peso medido, eles somem e a margem fica folgada.
+    """
+    c = ClassificadorDePrateleira([
+        Assinatura("baixa", alcance_2d=(0.0, 0.10), coxa=(1.0, 0.06),
+                   encolhimento=(1.0, 0.05), bracos={"ao_lado": 1.0}),
+        Assinatura("alta", alcance_2d=(1.0, 0.10), coxa=(1.0, 0.06),
+                   encolhimento=(1.0, 0.05), bracos={"ao_lado": 1.0}),
+    ])
+    p = alimentar(c, Evidencia(alcance_2d=1.0, coxa=1.0,
+                               encolhimento=1.0, braco="ao_lado"))
+    assert p.prateleira == "alta"
+    assert p.firme, f"conf {p.confianca:.2f} margem {p.margem:.2f}"
+
+
+def test_declarar_recalcula_os_pesos():
+    """O poder de um sinal depende do CONJUNTO, nao de cada assinatura."""
+    c = ClassificadorDePrateleira([Assinatura("p1", alcance=(0.0, 0.1))])
+    assert c.pesos["alcance"] == 0.0, "uma assinatura so nao separa de nada"
+
+    c.declarar(Assinatura("p5", alcance=(1.0, 0.1)))
+    assert c.pesos["alcance"] == pytest.approx(5.0)

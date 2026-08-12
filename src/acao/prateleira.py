@@ -83,6 +83,14 @@ class Evidencia:
     # Razao entre duas medidas da MESMA vista: a escala se cancela.
     alcance: float | None = None
 
+    # O MESMO, medido em PIXELS da imagem em vez da reconstrucao 3D.
+    #
+    # Medido em 12/08: o `alcance` 3D colapsou nas prateleiras de baixo —
+    # 0,55 / 0,95 / 1,35 m deram todas "pulso na altura do quadril". A rede
+    # regride para o meio nas poses raras. Os landmarks 2D nao passam por essa
+    # reconstrucao. Ver `LeituraDoCorpo.alcance_2d_dir`.
+    alcance_2d: float | None = None
+
     # (frontal ou lateral) verticalidade da coxa. 1 = em pe, ~0.2 = agachado.
     # Nao depende do chao — e por isso sobreviveu quando o resto caiu.
     coxa: float | None = None
@@ -104,8 +112,103 @@ class Evidencia:
 
     def vazia(self):
         return all(getattr(self, c) is None for c in
-                   ("alcance", "coxa", "braco", "encolhimento",
+                   ("alcance", "alcance_2d", "coxa", "braco", "encolhimento",
                     "viu_frontal", "viu_lateral"))
+
+
+NUMERICOS = ("alcance", "alcance_2d", "coxa", "encolhimento")
+BINARIOS = ("visto_frontal", "visto_lateral")
+
+
+def pesos_medidos(assinaturas, piso=0.05):
+    """Quanto cada sinal REALMENTE separa as prateleiras. Medido, nao escolhido.
+
+    O QUE ACONTECEU EM 12/08 QUANDO OS PESOS ERAM CHUTADOS
+
+    Eu tinha fixado alcance=2.0, coxa=1.0, encolhimento=1.0, braco=1.5 e
+    visibilidade=0.5. A primeira colheita real mostrou o oposto do que eu
+    supus:
+
+        encolhimento   1,00  1,00  1,01  1,00  1,06   nao separa nada
+        coxa           0,83  0,98  0,64  0,91  0,97   nao separa nada
+        alcance          --  0,07  0,19  0,17  1,54   so a p5
+        visto_frontal  0,00  0,48  0,67  0,72  0,09   SEPARA
+
+        Acerto geral: 16% — abaixo de sortear entre cinco.
+
+    O unico sinal que discriminou tinha o MENOR peso. E a correcao nao pode
+    ser eu mexer nos numeros ate a nota subir: isso e ajustar o instrumento
+    para caber na resposta.
+
+        Peso escolhido a mao vira o lugar onde a esperanca do autor entra no
+        classificador sem passar por medicao.
+
+    COMO O PODER E MEDIDO, E POR QUE NAO E O ESPALHAMENTO TOTAL
+
+    A primeira versao usava `(maior - menor) / tolerancia_tipica`. Rodada
+    contra a colheita real, ela deu ao `alcance` o poder 10,08 — o maior de
+    todos — sendo que ele NAO separa p2, p3 e p4 entre si:
+
+        alcance   --   0,07   0,19   0,17   1,54
+
+    Uma prateleira fora da curva estica o espalhamento total e o sinal parece
+    forte. A mesma medida tambem deu 5,67 a `coxa`, dividindo por uma
+    tolerancia mediana de 0,06 enquanto a p3 tinha tolerancia 0,30 — o ruido
+    de uma prateleira sumia na mediana das outras.
+
+        Media de extremos descreve os extremos. Separar CINCO coisas e uma
+        pergunta sobre todos os pares, nao sobre o maior deles.
+
+    Entao o poder e a media da separacao PAR A PAR, cada par normalizado pelas
+    proprias tolerancias:
+
+        poder = media sobre (i,j) de  |centro_i - centro_j| / (tol_i + tol_j)
+
+    Um sinal que separa so um par tem media baixa e continua votando pouco —
+    sem ser apagado, porque aquele par ele resolve de verdade.
+
+    Centros todos iguais -> poder zero -> o sinal nao vota e nao dilui. E foi
+    exatamente o caso do encolhimento nesta colheita.
+
+    E ELE NAO E APAGADO — SO FICA CALADO ENQUANTO NAO TIVER O QUE DIZER
+
+        eu nao tiraria o encolhimento, pq e uma opcao, agachar para pegar um
+        produto ou nao                                     — Eduardo, 12/08
+
+    Ele esta certo: agachar e uma opcao real do cliente, e naquela sessao
+    ninguem agachou. Remover o sinal seria remover uma capacidade; o peso
+    medido resolve sozinho — no dia em que alguem agachar, o poder sobe e o
+    sinal volta a pesar, sem ninguem editar constante nenhuma.
+    """
+    pesos = {}
+
+    for campo in NUMERICOS:
+        faixas = [getattr(a, campo) for a in assinaturas
+                  if getattr(a, campo) is not None]
+        if len(faixas) < 2:
+            pesos[campo] = 0.0
+            continue
+        pares = [abs(a[0] - b[0]) / (a[1] + b[1])
+                 for i, a in enumerate(faixas) for b in faixas[i + 1:]
+                 if (a[1] + b[1]) > 1e-9]
+        pesos[campo] = sum(pares) / len(pares) if pares else 0.0
+
+    # BRACO: o poder e o quanto os rotulos preferidos DIFEREM entre prateleiras.
+    # Cinco prateleiras dizendo "ao_lado" nao distinguem nada, ainda que cada
+    # uma diga com 100% de certeza.
+    rotulos = [max(a.bracos, key=a.bracos.get) for a in assinaturas if a.bracos]
+    distintos = len(set(rotulos))
+    pesos["braco"] = (distintos - 1) / max(1, len(rotulos) - 1) * 3.0 if rotulos else 0.0
+
+    for campo in BINARIOS:
+        vs = [getattr(a, campo) for a in assinaturas
+              if getattr(a, campo) is not None]
+        # Fracoes ja vivem em [0,1]. Par a par pelo mesmo motivo dos
+        # numericos: separar UM par nao e separar cinco prateleiras.
+        pares = [abs(a - b) for i, a in enumerate(vs) for b in vs[i + 1:]]
+        pesos[campo] = (sum(pares) / len(pares)) * 6.0 if pares else 0.0
+
+    return {k: (v if v >= piso else 0.0) for k, v in pesos.items()}
 
 
 @dataclass
@@ -137,6 +240,7 @@ class Assinatura:
     altura: float | None = None        # so para relatorio humano
 
     alcance: tuple | None = None       # (centro, tolerancia)
+    alcance_2d: tuple | None = None
     coxa: tuple | None = None
     encolhimento: tuple | None = None
     bracos: dict = field(default_factory=dict)      # rotulo -> fracao
@@ -145,21 +249,24 @@ class Assinatura:
 
     amostras: int = 0
 
-    def pontuar(self, ev):
+    def pontuar(self, ev, pesos):
         """Quanto esta evidencia parece com esta prateleira. 0 a 1 por sinal.
 
         Cada sinal contribui de forma independente e a soma e normalizada pelo
         que efetivamente votou. Assim uma camera cega nao penaliza ninguem —
         ela so nao participa daquele quadro.
 
-        Devolve (pontos, quantos_sinais_votaram).
-        """
-        pontos, votos = 0.0, 0
+        `pesos` vem de `pesos_medidos`, nao de constante escrita a mao. Sinal
+        que nao separa recebe peso zero e deixa de diluir os que separam.
 
-        for valor, faixa, peso in ((ev.alcance, self.alcance, 2.0),
-                                   (ev.coxa, self.coxa, 1.0),
-                                   (ev.encolhimento, self.encolhimento, 1.0)):
-            if valor is None or faixa is None:
+        Devolve (pontos, quanto peso votou).
+        """
+        pontos, votos = 0.0, 0.0
+
+        for campo in NUMERICOS:
+            valor, faixa = getattr(ev, campo), getattr(self, campo)
+            peso = pesos.get(campo, 0.0)
+            if valor is None or faixa is None or peso <= 0:
                 continue
             centro, tolerancia = faixa
             if tolerancia <= 1e-9:
@@ -171,18 +278,19 @@ class Assinatura:
             pontos += peso * max(0.0, 1.0 - d)
             votos += peso
 
-        if ev.braco is not None and self.bracos:
-            pontos += 1.5 * self.bracos.get(ev.braco, 0.0)
-            votos += 1.5
+        peso_braco = pesos.get("braco", 0.0)
+        if ev.braco is not None and self.bracos and peso_braco > 0:
+            pontos += peso_braco * self.bracos.get(ev.braco, 0.0)
+            votos += peso_braco
 
         # O QUE NAO FOI VISTO TAMBEM VOTA.
-        for visto, esperado in ((ev.viu_frontal, self.visto_frontal),
-                                (ev.viu_lateral, self.visto_lateral)):
-            if visto is None or esperado is None:
+        for visto, campo in ((ev.viu_frontal, "visto_frontal"),
+                             (ev.viu_lateral, "visto_lateral")):
+            esperado, peso = getattr(self, campo), pesos.get(campo, 0.0)
+            if visto is None or esperado is None or peso <= 0:
                 continue
-            p = esperado if visto else (1.0 - esperado)
-            pontos += 0.5 * p
-            votos += 0.5
+            pontos += peso * (esperado if visto else (1.0 - esperado))
+            votos += peso
 
         return (pontos / votos if votos else 0.0), votos
 
@@ -214,10 +322,17 @@ class Palpite:
             um sinal nao apoia NENHUMA hipotese, ele nao esta escolhendo — ele
             esta avisando que a leitura daquele quadro nao presta.
 
-        Por isso o piso e 0,55: mais da metade da evidencia disponivel tem que
-        apontar ativamente para a vencedora. Um gesto limpo passa de 0,85.
+        Por isso o piso e 0,65: DOIS TERCOS da evidencia disponivel tem que
+        apontar ativamente para a vencedora. Com tres sinais, isso significa
+        que no maximo um pode estar mudo ou fora de faixa. Um gesto limpo
+        passa de 0,85 com folga.
+
+        O numero nao foi escolhido para o teste passar — foi escolhido para
+        que "firme" signifique algo defensavel: quase toda a evidencia
+        concorda. Quando um terco dela nao apoia ninguem, a resposta continua
+        saindo, marcada como provavel.
         """
-        return self.margem >= 0.15 and self.confianca >= 0.55
+        return self.margem >= 0.15 and self.confianca >= 0.65
 
     def __str__(self):
         estado = "" if self.firme else "  (provavel, nao certo)"
@@ -243,13 +358,20 @@ class ClassificadorDePrateleira:
     """
 
     def __init__(self, assinaturas=None, janela=20):
-        self.assinaturas = list(assinaturas or [])
         self.janela = janela
         self._historico = {}
+        self.assinaturas = []
+        self.pesos = {}
+        for a in (assinaturas or []):
+            self.declarar(a)
 
     def declarar(self, assinatura):
         self.assinaturas = [a for a in self.assinaturas
                             if a.id != assinatura.id] + [assinatura]
+        # Os pesos dependem do CONJUNTO: o poder de um sinal e o quanto ele
+        # separa as prateleiras UMAS DAS OUTRAS. Trocar uma assinatura muda o
+        # poder de todos, entao eles sao refeitos aqui e nao no construtor.
+        self.pesos = pesos_medidos(self.assinaturas)
 
     @property
     def pronto(self):
@@ -266,7 +388,7 @@ class ClassificadorDePrateleira:
 
         marcador = {}
         for a in self.assinaturas:
-            p, votos = a.pontuar(evidencia)
+            p, votos = a.pontuar(evidencia, self.pesos)
             if votos:
                 marcador[a.id] = p
 
@@ -331,6 +453,8 @@ def evidencia_de(leitura, lado="direita", encolhimento=None):
 
     return Evidencia(
         alcance=leitura.alcance_dir if dir_ else leitura.alcance_esq,
+        alcance_2d=(leitura.alcance_2d_dir if dir_
+                    else leitura.alcance_2d_esq),
         coxa=leitura.verticalidade_coxa,
         braco=braco if braco and braco != "desconhecido" else None,
         encolhimento=encolhimento,

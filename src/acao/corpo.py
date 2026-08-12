@@ -236,6 +236,38 @@ class LeituraDoCorpo:
     alcance_esq: float | None = None
     alcance_dir: float | None = None
 
+    # O MESMO ALCANCE, MEDIDO NA IMAGEM EM VEZ DA RECONSTRUCAO.
+    #
+    # MEDIDO EM 12/08, com o gabarito da estante:
+    #
+    #     prateleira   0,55 m   0,95 m   1,35 m   1,90 m
+    #     alcance 3D     0,07     0,19     0,17     1,54
+    #
+    # As tres primeiras deveriam dar algo como -0,5 / 0,0 / +0,7 e deram todas
+    # "pulso na altura do quadril". Acima do ombro (1,54) o sinal esta certo.
+    #
+    # E a mesma compressao perseguida o dia inteiro, agora localizada: nao era
+    # a ancora, e o `pose_world_landmarks`. Braco levantado e pose comum no
+    # treino do MediaPipe e sai bem; braco esticado para baixo, com a pessoa de
+    # lado para a lente, e pose rara e a rede regride para o meio.
+    #
+    # O UNICO SINAL QUE DISCRIMINOU naquela medicao foi "qual camera enxergou
+    # o pulso" — que e o unico que NAO passa pela reconstrucao 3D. Ele e pura
+    # geometria: a junta caiu dentro do retangulo, ou nao caiu.
+    #
+    #     Quando a reconstrucao e o elo fraco, medir na imagem ganha de
+    #     reconstruir no espaco.
+    #
+    # Entao aqui vai a mesma razao do `alcance`, calculada sobre os landmarks
+    # 2D em pixels, que sao o que a rede de fato prediz melhor:
+    #
+    #     alcance_2d = (y_quadril - y_pulso) / (y_quadril - y_ombro)
+    #
+    # Sinal invertido porque o y da imagem cresce para BAIXO. Continua sendo
+    # razao entre duas medidas da mesma vista: a escala se cancela igual.
+    alcance_2d_esq: float | None = None
+    alcance_2d_dir: float | None = None
+
     verticalidade_coxa: float | None = None
 
     @property
@@ -799,6 +831,10 @@ class AnalisadorDeCorpo:
                  # limiar so, porque sao a mesma pergunta: o corpo ainda esta
                  # na postura em que a referencia foi medida?
                  coxa_em_pe_acima=0.78,
+                 # Tronco minimo em PIXELS para a razao 2D valer. Abaixo disso
+                 # a pessoa esta longe demais ou a pose e ruim, e dividir por um
+                 # numero pequeno transforma ruido em sinal.
+                 tronco_px_minimo=20.0,
                  **kw_azimute):
         self.levantado_acima = levantado_acima
         self.estendido_alem = estendido_alem
@@ -810,6 +846,7 @@ class AnalisadorDeCorpo:
         self.quadril_max = quadril_max
         self.altura_maxima = altura_maxima
         self.coxa_em_pe_acima = coxa_em_pe_acima
+        self.tronco_px_minimo = tronco_px_minimo
         self.memoria_quadril = memoria_quadril
 
         self.azimute = EstimadorDeAzimute(**kw_azimute)
@@ -817,13 +854,15 @@ class AnalisadorDeCorpo:
 
     # ------------------------------------------------------------ principal
     def ler(self, pessoa_id, juntas_3d, visivel, inclinacao_rad=0.0,
+            juntas_2d=None,
             rumo_mundo=None, velocidade=0.0):
         """Atalho para UMA vista. Ver `ler_varias` para o caminho completo."""
         r = self._ler_uma(pessoa_id, juntas_3d, visivel, inclinacao_rad,
-                          rumo_mundo, velocidade)
+                          juntas_2d, rumo_mundo, velocidade)
         return r if r is not None else LeituraDoCorpo(motivo="sem pose")
 
     def _ler_uma(self, pessoa_id, juntas_3d, visivel, inclinacao_rad=0.0,
+                 juntas_2d=None,
                  rumo_mundo=None, velocidade=0.0):
         """Devolve uma `LeituraDoCorpo` a partir de UMA vista.
 
@@ -883,7 +922,36 @@ class AnalisadorDeCorpo:
         leitura.alcance_esq = self._alcance(j, visivel, OMBRO_ESQ, PULSO_ESQ)
         leitura.alcance_dir = self._alcance(j, visivel, OMBRO_DIR, PULSO_DIR)
 
+        leitura.alcance_2d_esq = self._alcance_2d(
+            juntas_2d, visivel, OMBRO_ESQ, PULSO_ESQ)
+        leitura.alcance_2d_dir = self._alcance_2d(
+            juntas_2d, visivel, OMBRO_DIR, PULSO_DIR)
+
         return leitura
+
+    def _alcance_2d(self, p2d, visivel, i_ombro, i_pulso):
+        """O alcance medido em PIXELS da imagem. Ver `alcance_2d_dir`.
+
+            (y_quadril - y_pulso) / (y_quadril - y_ombro)
+
+        O y da imagem cresce para baixo, entao o sinal e invertido em relacao
+        a versao 3D: pulso ACIMA do quadril tem y MENOR, e a subtracao nessa
+        ordem devolve positivo.
+
+        Tronco curto em pixels e pessoa muito longe, de costas, ou
+        reconstrucao ruim. Dividir por ele amplificaria o ruido.
+        """
+        if p2d is None:
+            return None
+        if not _visivel(visivel, i_ombro, i_pulso, QUADRIL_ESQ, QUADRIL_DIR):
+            return None
+
+        p = np.asarray(p2d, dtype=float)
+        y_quadril = (p[QUADRIL_ESQ][1] + p[QUADRIL_DIR][1]) / 2.0
+        tronco = y_quadril - p[i_ombro][1]
+        if tronco < self.tronco_px_minimo:
+            return None
+        return float((y_quadril - p[i_pulso][1]) / tronco)
 
     def _alcance(self, j, visivel, i_ombro, i_pulso):
         """Onde o pulso esta NO CORPO, em fracao de tronco. Ver `alcance_dir`.
@@ -1211,9 +1279,14 @@ class AnalisadorDeCorpo:
         """
         nomes = list(nomes or [f"vista{i}" for i in range(len(vistas))])
         leituras, rotulos = [], []
-        for i, (juntas, visivel) in enumerate(vistas):
+        # A vista chega como (juntas_3d, visivel) ou (juntas_3d, visivel,
+        # juntas_2d). O terceiro elemento e opcional para nao quebrar quem ja
+        # chamava com pares — e porque nem toda vista tem landmarks 2D.
+        for i, vista in enumerate(vistas):
+            juntas, visivel = vista[0], vista[1]
+            p2d = vista[2] if len(vista) > 2 else None
             r = self._ler_uma(
-                pessoa_id, juntas, visivel, inclinacao_rad,
+                pessoa_id, juntas, visivel, inclinacao_rad, p2d,
                 rumo_mundo if i == 0 else None,
                 velocidade if i == 0 else 0.0)
             if r is not None:
@@ -1411,7 +1484,9 @@ class AnalisadorDeCorpo:
         # existe. `_combinar` ja escolheu a vista por merito acima; aqui so
         # se herda a escolha.
         for lado, campo_alcance in (("fonte_braco_esq", "alcance_esq"),
-                                    ("fonte_braco_dir", "alcance_dir")):
+                                    ("fonte_braco_dir", "alcance_dir"),
+                                    ("fonte_braco_esq", "alcance_2d_esq"),
+                                    ("fonte_braco_dir", "alcance_2d_dir")):
             escolhida = getattr(final, lado)
             for nome, x in zip(nomes, leituras):
                 if nome == escolhida and getattr(x, campo_alcance) is not None:

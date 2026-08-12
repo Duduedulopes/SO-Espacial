@@ -623,7 +623,11 @@ class SpatialEngine:
                 continue
             if agora - candidata.t_mono > validade_s:
                 continue
-            vistas.append((candidata.juntas_3d, candidata.conf_2d))
+            # Os landmarks 2D viajam junto com os 3D. Medido em 12/08: a
+            # reconstrucao 3D comprime o braco esticado para baixo, e o unico
+            # sinal que separou as prateleiras foi o que NAO passa por ela.
+            vistas.append((candidata.juntas_3d, candidata.conf_2d,
+                           candidata.juntas_2d))
             nomes.append(papel)
 
         if not vistas:

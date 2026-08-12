@@ -1,0 +1,131 @@
+{
+  "_como": "assinatura de cada prateleira nas tres cameras, nao metros",
+  "_nao_e": "faixa de altura. Nenhum campo aqui e metrico — ver src/acao/prateleira.py",
+  "estante": "estante-aco-teste",
+  "lado": "direita",
+  "quando": "2026-08-12T12:09:35",
+  "acerto_fora_do_treino": 0.16,
+  "prateleiras": [
+    {
+      "id": "p1",
+      "nome": "Prateleira 1 (chao)",
+      "altura": 0.15,
+      "alcance": null,
+      "coxa": [
+        0.834,
+        0.06
+      ],
+      "encolhimento": [
+        1.0013,
+        0.05
+      ],
+      "bracos": {
+        "ao_lado": 1.0
+      },
+      "visto_frontal": 0.0,
+      "visto_lateral": 1.0,
+      "amostras": 39
+    },
+    {
+      "id": "p2",
+      "nome": "Prateleira 2",
+      "altura": 0.55,
+      "alcance": [
+        0.0687,
+        0.1456
+      ],
+      "coxa": [
+        0.9797,
+        0.06
+      ],
+      "encolhimento": [
+        1.0011,
+        0.0852
+      ],
+      "bracos": {
+        "ao_lado": 1.0
+      },
+      "visto_frontal": 0.481,
+      "visto_lateral": 0.519,
+      "amostras": 69
+    },
+    {
+      "id": "p3",
+      "nome": "Prateleira 3",
+      "altura": 0.95,
+      "alcance": [
+        0.186,
+        0.12
+      ],
+      "coxa": [
+        0.6394,
+        0.2997
+      ],
+      "encolhimento": [
+        1.0128,
+        0.05
+      ],
+      "bracos": {
+        "ao_lado": 0.829,
+        "estendido": 0.171
+      },
+      "visto_frontal": 0.671,
+      "visto_lateral": 0.329,
+      "amostras": 76
+    },
+    {
+      "id": "p4",
+      "nome": "Prateleira 4",
+      "altura": 1.35,
+      "alcance": [
+        0.1676,
+        0.4544
+      ],
+      "coxa": [
+        0.912,
+        0.0744
+      ],
+      "encolhimento": [
+        1.0014,
+        0.05
+      ],
+      "bracos": {
+        "ao_lado": 0.878,
+        "estendido": 0.122
+      },
+      "visto_frontal": 0.716,
+      "visto_lateral": 0.284,
+      "amostras": 74
+    },
+    {
+      "id": "p5",
+      "nome": "Prateleira 5 (topo)",
+      "altura": 1.9,
+      "alcance": [
+        1.5369,
+        0.12
+      ],
+      "coxa": [
+        0.9695,
+        0.06
+      ],
+      "encolhimento": [
+        1.06,
+        0.0718
+      ],
+      "bracos": {
+        "ao_lado": 0.143,
+        "levantado": 0.844,
+        "estendido": 0.013
+      },
+      "visto_frontal": 0.091,
+      "visto_lateral": 0.909,
+      "amostras": 77
+    }
+  ],
+  "_atencao": [
+    "Vale para ESTA pessoa e ESTE arranjo de cameras.",
+    "Mexeu em camera? Refaca. Outra pessoa muito mais alta ou baixa?",
+    "O alcance e proporcao de corpo e viaja bem; a visibilidade nao."
+  ]
+}

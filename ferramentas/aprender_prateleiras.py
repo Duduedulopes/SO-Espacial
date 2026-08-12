@@ -55,7 +55,7 @@ from ferramentas.conferir_altura import (                      # noqa: E402
     _mostrar_chamada, chamada_das_cameras,
 )
 from src.acao.prateleira import (                              # noqa: E402
-    Assinatura, ClassificadorDePrateleira, evidencia_de,
+    Assinatura, ClassificadorDePrateleira, evidencia_de, pesos_medidos,
 )
 from src.app.orquestrador import Orquestrador                  # noqa: E402
 from src.nucleo import log as logmod                           # noqa: E402
@@ -68,7 +68,8 @@ DESTINO = RAIZ / "config" / "prateleiras.json"
 
 # Tolerancia minima. Um agrupamento apertado demais recusaria a proxima
 # repeticao do mesmo gesto — ninguem pousa a mao duas vezes no mesmo ponto.
-TOLERANCIA_MINIMA = {"alcance": 0.12, "coxa": 0.06, "encolhimento": 0.05}
+TOLERANCIA_MINIMA = {"alcance": 0.12, "alcance_2d": 0.12,
+                     "coxa": 0.06, "encolhimento": 0.05}
 
 
 def encolhimento_de(app, pessoa_id):
@@ -171,7 +172,8 @@ def resumir(prateleira, evidencias):
     return Assinatura(
         id=prateleira["id"], nome=prateleira["nome"],
         altura=prateleira["altura"],
-        alcance=faixa("alcance"), coxa=faixa("coxa"),
+        alcance=faixa("alcance"), alcance_2d=faixa("alcance_2d"),
+        coxa=faixa("coxa"),
         encolhimento=faixa("encolhimento"),
         bracos={k: round(v / n, 3) for k, v in bracos.items()} if n else {},
         visto_frontal=fracao("viu_frontal"),
@@ -235,6 +237,15 @@ def boletim(colheita, prateleiras, assinaturas):
                       f"   lateral {_ou(a.visto_lateral, 0 if a.visto_lateral is None else 2):>6}")
     linhas += ["    Perder o pulso e EVIDENCIA: qual camera perdeu diz de que",
                "    lado da faixa a mao estava."]
+
+    # QUAL SINAL REALMENTE SEPARA. E o diagnostico mais util do relatorio:
+    # ele diz onde investir camera e luz, em vez de deixar adivinhar.
+    pesos = pesos_medidos(assinaturas)
+    linhas += ["", "  PODER DE CADA SINAL  (medido, nao escolhido):"]
+    for k, v in sorted(pesos.items(), key=lambda kv: -kv[1]):
+        barra = "#" * min(30, int(v * 3))
+        marca = "" if v > 0 else "   <-- mudo nesta colheita"
+        linhas.append(f"    {k:16} {v:6.2f}  {barra}{marca}")
 
     matriz, taxa = conferir(colheita, prateleiras)
     if matriz is None:
@@ -340,9 +351,21 @@ def main():
         "lado": args.lado,
         "quando": datetime.now().isoformat(timespec="seconds"),
         "acerto_fora_do_treino": round(taxa, 3),
+        # O BRUTO VIAJA JUNTO COM O RESUMO.
+        #
+        # A primeira versao gravou so a assinatura. Quando o acerto deu 16% e
+        # eu precisei entender POR QUE, o dado ja tinha sido descartado — e a
+        # unica saida era pedir ao Eduardo que refizesse a coleta inteira.
+        #
+        #     Resumo responde a pergunta que voce ja sabia fazer. O bruto
+        #     responde a proxima, que so aparece depois do resultado ruim.
+        "cruas": {pid: [{k: v for k, v in vars(e).items() if v is not None}
+                        for e in evs]
+                  for pid, evs in colheita.items()},
         "prateleiras": [{
             "id": a.id, "nome": a.nome, "altura": a.altura,
-            "alcance": a.alcance, "coxa": a.coxa,
+            "alcance": a.alcance, "alcance_2d": a.alcance_2d,
+            "coxa": a.coxa,
             "encolhimento": a.encolhimento, "bracos": a.bracos,
             "visto_frontal": a.visto_frontal, "visto_lateral": a.visto_lateral,
             "amostras": a.amostras,
