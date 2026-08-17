@@ -624,6 +624,17 @@ class SpatialEngine:
             self.escala.observar(
                 e.id, self.plausibilidade.razao(self._caixas[ext[-1]]),
                 em_pe=em_pe)
+
+            # A estatura vai para o rastreador, que a usa como assinatura
+            # quando precisa decidir se um id novo e alguem que ja esteve
+            # aqui. Ela ja foi medida para outro fim; reaproveita-la e de
+            # graca, e e a unica propriedade estavel da pessoa que este
+            # sistema calcula.
+            # `self.rastros` e o GerenciadorDeRastros; o parametro `rastros`
+            # desta funcao e o dicionario de rastros vivos. Nomes parecidos,
+            # coisas diferentes — vale a linha de aviso.
+            self.rastros.informar_estatura(e.id, self.escala.estatura(e.id))
+
         self.escala.esquecer({e.id for e in estados})
 
     def _ler_corpos(self, estados, rastros=None, validade_s=0.5):
