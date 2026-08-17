@@ -238,7 +238,8 @@ class Cena3D:
         largura_m = max(x1 - x0, y1 - y0, 3.0)
         self.cam.alvo = np.array([(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.95])
         self.cam.dist = float(np.clip(largura_m * 2.0, 5.5, 18.0))
-        self.moveis = []          # (x, y, largura, profundidade, altura, rotulo)
+        # (x_centro, y_centro, largura, profundidade, altura, rotulo, rumo)
+        self.moveis = []
 
         # ---- caches ----
         # MEDIDO em 08/08: o desenho custava 87 ms por quadro, MAIS que o YOLO.
@@ -264,14 +265,39 @@ class Cena3D:
 
     def _chave_camera(self):
         c = self.cam
+        # Os moveis inteiros entram na chave, e nao so QUANTOS sao: mover a
+        # estante sem mudar a contagem deixaria o desenho velho em cache, e o
+        # movel apareceria no lugar antigo ate a camera virtual girar.
         return (round(c.azimute, 4), round(c.elevacao, 4), round(c.dist, 3),
-                tuple(np.round(c.alvo, 3)), len(self.moveis))
+                tuple(np.round(c.alvo, 3)), tuple(self.moveis))
 
     def invalidar(self):
         self._base = None
 
-    def add_movel(self, x, y, larg, prof, alt, rotulo=""):
-        self.moveis.append((x, y, larg, prof, alt, rotulo))
+    def add_movel(self, x, y, larg, prof, alt, rotulo="", rumo=0.0):
+        """x, y sao o CENTRO do movel. `rumo` em radianos, para onde a face olha.
+
+        A convencao de centro e a de `estado.planta.Movel` e a de
+        `src.mundo.ambiente.Ambiente` — as tres precisam concordar, e ate
+        14/08 esta aqui discordava calada. Ver a nota em `Movel`.
+        """
+        self.moveis.append((x, y, larg, prof, alt, rotulo, float(rumo)))
+
+    @staticmethod
+    def pes_do_movel(m):
+        """Os quatro cantos do movel no chao, em metros.
+
+        Separado do desenho de proposito: e a unica parte de `_movel` que pode
+        estar certa ou errada, e desenhar numa imagem para conferir um numero
+        seria medir com a regua errada.
+        """
+        x, y, w, d = m[0], m[1], m[2], m[3]
+        rumo = m[6]
+        # cantos no referencial do proprio movel: (ao_longo, adiante)
+        meia = np.array([[-w / 2, -d / 2], [+w / 2, -d / 2],
+                         [+w / 2, +d / 2], [-w / 2, +d / 2]], dtype=float)
+        co, si = np.cos(rumo), np.sin(rumo)
+        return meia @ np.array([[co, si], [-si, co]]) + np.array([x, y])
 
     # ---------- pecas ----------
     def pintar_chao(self, img, textura, alfa, extent):
@@ -331,11 +357,22 @@ class Cena3D:
                      GRADE, 1, cv2.LINE_AA)
 
     def _movel(self, img, m):
-        x, y, w, d, h, rotulo = m
-        c = np.array([
-            [x, y, 0], [x + w, y, 0], [x + w, y + d, 0], [x, y + d, 0],
-            [x, y, h], [x + w, y, h], [x + w, y + d, h], [x, y + d, h],
-        ], dtype=float)
+        """Uma caixa GIRADA em torno do proprio centro.
+
+        A estante do quarto nao esta alinhada com os eixos da homografia, e
+        nao ha motivo para estar: ela foi encostada onde coube. Desenha-la
+        quadrada com a sala mostraria uma estante que nao existe, e — pior —
+        poria a face olhando para o lado errado, que e justamente o dado que
+        decide se a pessoa esta na frente dela.
+
+            A largura corre ao longo de (cos, sin); a profundidade, ao longo
+            da normal (-sin, cos). E a mesma convencao de `ambiente.relacao`,
+            e ela precisa ser a mesma, senao o desenho contradiz a conta.
+        """
+        h = m[4]
+        pes = self.pes_do_movel(m)
+        c = np.array([[px, py, 0] for px, py in pes]
+                     + [[px, py, h] for px, py in pes], dtype=float)
         p, z = self.cam.projetar(c)
         if z.min() <= 0:
             return
@@ -705,9 +742,11 @@ def _pose_andando(t, altura=1.75):
 
 if __name__ == "__main__":
     cena = Cena3D()
-    cena.add_movel(-1.2, 0.2, 0.6, 2.4, 1.6, "gondola A")
-    cena.add_movel(2.2, 0.2, 0.6, 2.4, 1.6, "gondola B")
-    cena.add_movel(0.2, 2.8, 1.6, 0.5, 0.9, "checkout")
+    # x, y sao o CENTRO — estes numeros ja vem convertidos do canto antigo.
+    cena.add_movel(-0.9, 1.4, 0.6, 2.4, 1.6, "gondola A")
+    cena.add_movel(2.5, 1.4, 0.6, 2.4, 1.6, "gondola B")
+    cena.add_movel(1.0, 3.05, 1.6, 0.5, 0.9, "checkout")
+    cena.add_movel(0.8, 0.4, 0.9, 0.3, 1.9, "estante girada", rumo=0.6)
 
     hist = {1: [], 2: []}
     t = 0.0

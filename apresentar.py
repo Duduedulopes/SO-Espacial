@@ -110,7 +110,9 @@ def _grau(rad):
 
 def main():
     p = argparse.ArgumentParser(description="SO Espacial — tela de apresentacao")
-    p.add_argument("--planta", default="loja/bancada.json")
+    # O quarto real. Ver a nota em `rodar.py`: a loja ficticia como padrao
+    # fazia a banca ver um cenario que nunca foi medido.
+    p.add_argument("--planta", default="loja/quarto.json")
     p.add_argument("--captura", default="1280x720")
     p.add_argument("--imgsz", type=int, default=320)
     p.add_argument("--conf", type=float, default=0.35)

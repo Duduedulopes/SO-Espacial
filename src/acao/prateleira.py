@@ -473,14 +473,37 @@ def carregar_assinaturas(dados):
 
 
 def lado_que_alcanca(leitura):
-    """Qual braco esta fazendo alguma coisa. Quem pega usa UM braco.
+    """Qual braco esta fazendo alguma coisa, ou None quando nenhum respondeu.
 
     Escolhe o de maior deslocamento em relacao ao quadril — o que se afastou
-    da posicao de repouso. Empate ou silencio devolve a direita, que e o lado
-    em que as assinaturas foram aprendidas.
+    da posicao de repouso.
+
+    O SILENCIO DOS DOIS DEVOLVE None, E ISSO E O CONSERTO DE 14/08.
+
+    Ate aqui, silencio devolvia "direita" — o lado em que as assinaturas
+    foram aprendidas. Parecia um padrao razoavel e era uma invencao: com os
+    dois bracos em DESCONHECIDO e nenhuma camera reivindicando a leitura, a
+    funcao afirmava que o braco direito estava alcancando. O `_palpitar`
+    acreditava, e a tela de 12/08 mostrou o resultado:
+
+        bracos   esq ? dir ?      sem fonte      e mesmo assim:  P4
+
+    Um palpite de prateleira sem evidencia de braco nao e um palpite ruim: e
+    um palpite sobre nada. O braco e quem diz de que altura a mao veio.
+
+        Um valor padrao que substitui a ausencia de medida transforma "nao
+        sei" em "sei", e e a mentira mais barata que um programa consegue
+        contar.
+
+    Um lado so medido continua valendo — meia evidencia e evidencia. O que
+    nao vale e nenhuma.
     """
-    esq = leitura.alcance_2d_esq if leitura.alcance_2d_esq is not None else leitura.alcance_esq
-    dir_ = leitura.alcance_2d_dir if leitura.alcance_2d_dir is not None else leitura.alcance_dir
+    esq = (leitura.alcance_2d_esq if leitura.alcance_2d_esq is not None
+           else leitura.alcance_esq)
+    dir_ = (leitura.alcance_2d_dir if leitura.alcance_2d_dir is not None
+            else leitura.alcance_dir)
+    if esq is None and dir_ is None:
+        return None
     if esq is None:
         return "direita"
     if dir_ is None:

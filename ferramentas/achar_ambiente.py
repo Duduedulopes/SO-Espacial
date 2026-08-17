@@ -69,6 +69,52 @@ def _quadro_estavel(app, papel, n=9, espera=0.12):
     return np.median(np.stack(pilha), axis=0).astype(np.uint8)
 
 
+def _portas(ambiente, chao, largura=0.45, fundura=0.55, folga=0.12):
+    """A entrada e a saida, DEDUZIDAS da estante — nao digitadas.
+
+        quero que ao lado da prateleira seja a entrada e a saida
+                                                    — Eduardo, 13/08
+
+    "Ao lado" so quer dizer alguma coisa depois que se sabe onde a estante
+    esta e para onde ela olha. Por isso estas duas zonas nascem aqui, no
+    mesmo instante em que o movel e medido, e nao num arquivo escrito a mao:
+    se a estante mudar de lugar, elas mudam junto.
+
+        Uma zona digitada envelhece calada no dia em que o movel se mexe.
+
+    LIMITACAO DECLARADA: `Zona` e um retangulo alinhado com os eixos, e a
+    estante pode estar girada. Entao o que sai daqui e a caixa alinhada em
+    volta do ponto certo — a posicao e deduzida, o formato e aproximado.
+    Para contar quem entrou e quem saiu isso basta; para medir area, nao.
+    """
+    ao_longo = np.array([np.cos(ambiente.rumo_da_face),
+                         np.sin(ambiente.rumo_da_face)])
+    centro = np.array([ambiente.x, ambiente.y])
+    # meia largura da estante + meia largura da porta + uma folga entre elas
+    afastamento = ambiente.largura / 2.0 + largura / 2.0 + folga
+    # meio passo a frente da face, para a porta ficar no lado por onde se anda
+    adiante = ambiente.normal * (fundura / 2.0)
+
+    xmin, xmax, ymin, ymax = chao
+    zonas = []
+    for nome, ident, lado in (("Entrada", "entrada", -1.0),
+                              ("Saida", "saida", +1.0)):
+        c = centro + ao_longo * (afastamento * lado) + adiante
+        z = {"id": ident, "nome": nome,
+             "x0": round(float(np.clip(c[0] - largura / 2, xmin, xmax)), 3),
+             "x1": round(float(np.clip(c[0] + largura / 2, xmin, xmax)), 3),
+             "y0": round(float(np.clip(c[1] - fundura / 2, ymin, ymax)), 3),
+             "y1": round(float(np.clip(c[1] + fundura / 2, ymin, ymax)), 3),
+             "movel": "estante-aco"}
+        # Zona que o clip esmagou nao e zona: e um risco no chao. Melhor nao
+        # existir do que existir com area zero e nunca acusar ninguem.
+        if z["x1"] - z["x0"] < 0.15 or z["y1"] - z["y0"] < 0.15:
+            print(f"  {nome} cairia fora do chao calibrado — nao gravei.")
+            continue
+        zonas.append(z)
+    return zonas
+
+
 def _gravar(ambiente, caminho="loja/quarto.json"):
     """Escreve o movel achado na planta, substituindo o anterior."""
     p = Path(caminho)
@@ -83,6 +129,8 @@ def _gravar(ambiente, caminho="loja/quarto.json"):
         "profundidade": round(ambiente.profundidade, 3),
         "altura": round(ambiente.altura, 3),
         "rumo_da_face": round(float(ambiente.rumo_da_face), 4),
+        "prateleiras": [{"id": i, "altura": round(float(a), 3)}
+                        for i, a in ambiente.prateleiras],
         "estante": "estante-aco-teste",
         "_medido_em": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "_por": list(ambiente.cameras),
@@ -94,6 +142,13 @@ def _gravar(ambiente, caminho="loja/quarto.json"):
             "Se a estante for movida, rode a ferramenta de novo. Editar este",
             "bloco a mao funciona e desfaz o motivo de ele existir."
         ]})
+
+    c = d["chao"]
+    d["zonas"] = [z for z in d.get("zonas", [])
+                  if z.get("id") not in ("entrada", "saida")]
+    d["zonas"] += _portas(ambiente,
+                          (c["xmin"], c["xmax"], c["ymin"], c["ymax"]))
+
     d.pop("_a_medir", None)
     p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 

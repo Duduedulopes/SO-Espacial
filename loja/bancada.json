@@ -11,11 +11,9 @@
     "E o mesmo motivo pelo qual o Autonomous precisa de StoreId — barato agora,",
     "caro depois."
   ],
-
   "id": "loja-bancada-teste",
   "nome": "Bancada de teste",
   "unidade": "m",
-
   "chao": {
     "xmin": -1.5,
     "xmax": 3.0,
@@ -23,50 +21,79 @@
     "ymax": 3.0,
     "_nota": "limites do piso navegavel, em metros, no mesmo sistema da homografia"
   },
-
   "moveis": [
     {
       "id": "gondola-a",
       "nome": "Gondola A",
       "tipo": "gondola",
-      "x": -1.3, "y": -0.2,
-      "largura": 0.5, "profundidade": 2.2, "altura": 1.5
+      "x": -1.05,
+      "y": 0.9,
+      "largura": 0.5,
+      "profundidade": 2.2,
+      "altura": 1.5
     },
     {
       "id": "gondola-b",
       "nome": "Gondola B",
       "tipo": "gondola",
-      "x": 1.6, "y": -0.2,
-      "largura": 0.5, "profundidade": 2.2, "altura": 1.5
+      "x": 1.85,
+      "y": 0.9,
+      "largura": 0.5,
+      "profundidade": 2.2,
+      "altura": 1.5
     },
     {
       "id": "checkout-1",
       "nome": "Checkout",
       "tipo": "checkout",
-      "x": -0.2, "y": 2.2,
-      "largura": 1.4, "profundidade": 0.5, "altura": 0.9
+      "x": 0.5,
+      "y": 2.45,
+      "largura": 1.4,
+      "profundidade": 0.5,
+      "altura": 0.9
     }
   ],
-
   "zonas": [
     {
       "id": "frente-a",
       "nome": "Frente A",
-      "x0": -0.8, "x1": -0.2, "y0": -0.2, "y1": 2.0,
+      "x0": -0.8,
+      "x1": -0.2,
+      "y0": -0.2,
+      "y1": 2.0,
       "movel": "gondola-a",
       "_nota": "A zona fica NA FRENTE da gondola, nao em cima dela: interessa onde a pessoa PARA para olhar."
     },
     {
       "id": "frente-b",
       "nome": "Frente B",
-      "x0": 1.0, "x1": 1.6, "y0": -0.2, "y1": 2.0,
+      "x0": 1.0,
+      "x1": 1.6,
+      "y0": -0.2,
+      "y1": 2.0,
       "movel": "gondola-b"
     },
     {
       "id": "fila-checkout",
       "nome": "Fila do checkout",
-      "x0": -0.2, "x1": 1.2, "y0": 1.7, "y1": 2.2,
+      "x0": -0.2,
+      "x1": 1.2,
+      "y0": 1.7,
+      "y1": 2.2,
       "movel": "checkout-1"
     }
+  ],
+  "_convencao": [
+    "x, y SAO O CENTRO DO MOVEL, nao o canto. Convertido em 14/08.",
+    "",
+    "Ate entao este arquivo guardava o canto e `src/mundo/ambiente.py` media o",
+    "centro. Os dois usavam o nome `x` para coisas diferentes, e nada quebrava:",
+    "o movel so aparecia meio corpo fora do lugar.",
+    "",
+    "    Duas partes que concordam no nome de um campo e discordam no que ele",
+    "    significa nao tem um erro: tem um acordo falso.",
+    "",
+    "O centro venceu porque um retangulo gira em torno do proprio centro, e",
+    "`rumo_da_face` so faz sentido a partir dele."
   ]
 }

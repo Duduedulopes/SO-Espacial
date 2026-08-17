@@ -742,7 +742,33 @@ class SpatialEngine:
         """
         if not self.prateleiras.pronto or leitura is None:
             return
+
+        # SEM BRACO NAO HA PALPITE. Consertado em 14/08.
+        #
+        # `lado_que_alcanca` devolve None quando nenhum dos dois bracos foi
+        # medido — antes ela devolvia "direita" por padrao, e este quadro
+        # entrava na votacao como se alguem tivesse esticado o braco.
+        #
+        #     Recusar um quadro custa um quadro. Aceitar um quadro vazio
+        #     custa a credibilidade de todos os outros.
+        #
+        # O classificador acumula votos: um quadro recusado apenas nao vota,
+        # e o palpite anterior continua valendo enquanto houver evidencia
+        # velha. Isso e diferente de apagar a resposta.
         lado = lado_que_alcanca(leitura)
+        if lado is None:
+            self._palpites_sem_braco = getattr(self, "_palpites_sem_braco", 0) + 1
+            return
+
+        # E se a camera que respondeu aquele braco nao existe, a leitura veio
+        # de lugar nenhum. `fonte_braco_*` e exatamente a coluna que a tela
+        # de 12/08 mostrava vazia enquanto o palpite aparecia cheio.
+        fonte = (leitura.fonte_braco_dir if lado == "direita"
+                 else leitura.fonte_braco_esq)
+        if not fonte:
+            self._palpites_sem_fonte = getattr(self, "_palpites_sem_fonte", 0) + 1
+            return
+
         self.prateleiras.observar(pessoa_id, evidencia_de(
             leitura, lado=lado,
             encolhimento=self._encolhimento.get(pessoa_id),

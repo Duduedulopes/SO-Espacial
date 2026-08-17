@@ -50,7 +50,19 @@ PAINEL_DAS_CAMERAS = (
 
 def main():
     p = argparse.ArgumentParser(description="SO Espacial — gemeo digital")
-    p.add_argument("--planta", default="loja/bancada.json")
+    # O QUARTO REAL, e nao a loja ficticia. Trocado em 14/08.
+    #
+    # `bancada.json` descreve duas gondolas e um checkout que nao existem em
+    # lugar nenhum. Enquanto ele foi o padrao, todo teste com camera mostrava
+    # o gemeo andando dentro de uma loja inventada — e a estante de verdade,
+    # que esta a um metro da pessoa, nao aparecia.
+    #
+    #     Um cenario de demonstracao que nao e o cenario medido nao ilustra o
+    #     sistema: ilustra outro sistema.
+    #
+    # `--planta loja/bancada.json` continua disponivel para ensaiar uma loja
+    # maior que o quarto.
+    p.add_argument("--planta", default="loja/quarto.json")
     p.add_argument("--captura", default="1280x720")
     p.add_argument("--imgsz", type=int, default=320)
     p.add_argument("--conf", type=float, default=0.35)

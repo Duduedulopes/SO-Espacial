@@ -24,6 +24,34 @@ from estado.ocupacao import MapaDeCalor, Zona
 
 @dataclass
 class Movel:
+    """Um movel no chao, em metros.
+
+    x, y SAO O CENTRO. Nao o canto. Isso precisa estar escrito porque as duas
+    convencoes convivem em qualquer projeto que desenhe retangulos, e a
+    diferenca entre elas e silenciosa: nada quebra, o movel so aparece meio
+    corpo fora do lugar.
+
+    ERRO DE 14/08, CORRIGIDO AQUI: `src/mundo/ambiente.py` media a estante e
+    devolvia o CENTRO; `visual/cena3d.py` montava a caixa de (x, y) ate
+    (x+largura, y+profundidade), ou seja, tratava o mesmo par como CANTO.
+    Uma estante de 0,92 x 0,30 apareceria 46 cm ao lado e 15 cm a frente do
+    lugar onde ela esta — sem erro nenhum na tela.
+
+        Duas partes que concordam no nome de um campo e discordam no que ele
+        significa nao tem um erro: tem um acordo falso.
+
+    O centro venceu porque a rotacao exige um: um retangulo gira em torno do
+    proprio centro, e `rumo_da_face` so faz sentido a partir dele.
+
+    rumo_da_face   radianos, para onde a FACE do movel olha. A largura corre
+                   ao longo de (cos, sin); a profundidade, ao longo da normal
+                   (-sin, cos). Zero deixa a largura no eixo x, que e o
+                   comportamento antigo — por isso o padrao nao quebra nada.
+
+    prateleiras    [(id, altura_m)] medidas com trena, quando houver. Elas
+                   vem do gabarito, nao das cameras: o que as cameras
+                   acrescentam e ONDE o movel esta e para onde ele olha.
+    """
     id: str
     nome: str
     tipo: str
@@ -32,6 +60,9 @@ class Movel:
     largura: float
     profundidade: float
     altura: float
+    rumo_da_face: float = 0.0
+    prateleiras: list = field(default_factory=list)
+    estante: str | None = None
 
 
 @dataclass
@@ -49,7 +80,11 @@ class Planta:
 
         moveis = [
             Movel(m["id"], m["nome"], m.get("tipo", "movel"),
-                  m["x"], m["y"], m["largura"], m["profundidade"], m["altura"])
+                  m["x"], m["y"], m["largura"], m["profundidade"], m["altura"],
+                  rumo_da_face=float(m.get("rumo_da_face", 0.0)),
+                  prateleiras=[(p["id"], float(p["altura"]))
+                               for p in m.get("prateleiras", [])],
+                  estante=m.get("estante"))
             for m in d.get("moveis", [])
         ]
 
@@ -68,7 +103,8 @@ class Planta:
 
     def aplicar_na_cena(self, cena):
         for m in self.moveis:
-            cena.add_movel(m.x, m.y, m.largura, m.profundidade, m.altura, m.nome)
+            cena.add_movel(m.x, m.y, m.largura, m.profundidade, m.altura,
+                           m.nome, rumo=m.rumo_da_face)
 
     def novo_mapa_de_calor(self, px_por_m=60, meia_vida_s=90.0):
         return MapaDeCalor(*self.chao, px_por_m=px_por_m, meia_vida_s=meia_vida_s)
