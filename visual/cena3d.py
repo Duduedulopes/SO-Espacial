@@ -218,6 +218,26 @@ class Cena3D:
                  calor_hz=4.0):
         self.cam = CameraVirtual(largura, altura)
         self.chao = chao
+
+        # A CAMERA MIRA O CENTRO DO PISO DECLARADO, NAO UM PONTO FIXO.
+        #
+        # `CameraVirtual` nasceu com alvo em (0.5, 0.5), que era o centro da
+        # bancada de teste — e funcionou enquanto o chao foi aquele. Com
+        # `loja/quarto.json` (0..2 em x e y) o alvo passou a cair no canto e
+        # metade da tela virou fundo vazio.
+        #
+        #     Constante que so vale para um caso deixa de ser constante no
+        #     dia em que aparece o segundo caso.
+        #
+        # A distancia tambem sai da planta: uma sala de 2 m e uma de 10 m nao
+        # se enquadram do mesmo lugar.
+        # A distancia considera a ALTURA DAS PESSOAS, nao so a planta. Numa
+        # sala de 2 m quem domina o enquadramento e o corpo de 1,8 m em pe, e
+        # nao o piso — enquadrar so pelo chao corta a cabeca do boneco.
+        x0, x1, y0, y1 = chao
+        largura_m = max(x1 - x0, y1 - y0, 3.0)
+        self.cam.alvo = np.array([(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.95])
+        self.cam.dist = float(np.clip(largura_m * 2.0, 5.5, 18.0))
         self.moveis = []          # (x, y, largura, profundidade, altura, rotulo)
 
         # ---- caches ----
