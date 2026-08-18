@@ -318,6 +318,37 @@ def _ancoras(pontos, pixels, h, calib, quantas=60):
         dentro_mundo.append((x, y))
 
     if not dentro_nuvem:
+        # QUANDO NAO SOBRA NADA, DIGA ONDE ELES FORAM PARAR.
+        #
+        # Duas corridas terminaram com "zero ancoras" e nada mais. Zero e uma
+        # contagem, nao um diagnostico: nao distingue "o plano nao e o chao"
+        # de "o chao esta fora do retangulo" de "os pixels nao correspondem
+        # aos pontos".
+        #
+        #     Um relatorio de falha que so informa a falha obriga a proxima
+        #     corrida a ser outra tentativa, em vez de uma resposta.
+        todos = []
+        for i in np.where(no_chao)[0][::37]:
+            try:
+                m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
+            except Exception:
+                continue
+            if m is not None:
+                todos.append(np.asarray(m).ravel()[:2])
+        if todos:
+            t = np.array(todos)
+            print(f"    o plano tem {int(no_chao.sum())} pontos, e em metros "
+                  f"eles caem em")
+            print(f"      x {t[:, 0].min():+7.2f} a {t[:, 0].max():+7.2f}   "
+                  f"(area vai de 0 a {lx})")
+            print(f"      y {t[:, 1].min():+7.2f} a {t[:, 1].max():+7.2f}   "
+                  f"(area vai de 0 a {ly})")
+            print(f"      mediana ({np.median(t[:, 0]):+.2f}, "
+                  f"{np.median(t[:, 1]):+.2f})")
+            px = pixels[np.where(no_chao)[0]]
+            print(f"    e na imagem, esses pontos ocupam")
+            print(f"      x {px[:, 0].min():.0f} a {px[:, 0].max():.0f} px   "
+                  f"y {px[:, 1].min():.0f} a {px[:, 1].max():.0f} px")
         return np.zeros((0, 3)), np.zeros((0, 2))
 
     # 3. e SO ENTAO amostra, espalhado, entre os que sobraram
