@@ -17,8 +17,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ferramentas.achar_ambiente import _portas          # noqa: E402
-from src.mundo.ambiente import Ambiente                 # noqa: E402
+from ferramentas.achar_ambiente import _extrapolado, _portas   # noqa: E402
+from src.mundo.ambiente import Ambiente                        # noqa: E402
+
+CALIB = {"largura_m": 1.65, "altura_m": 1.32}
 
 CHAO = (-2.0, 2.0, -2.0, 2.0)
 
@@ -89,3 +91,45 @@ def test_cabem_no_chao_quando_cabem():
     for z in _portas(_estante(), CHAO):
         assert xmin <= z["x0"] < z["x1"] <= xmax
         assert ymin <= z["y0"] < z["y1"] <= ymax
+
+
+# ------------------------------------------- fora da area que foi calibrada
+#
+# Medido em 18/08, com as tres cameras ligadas. A ferramenta achou a estante
+# em (+1,79, +0,29) — e a homografia foi ajustada num retangulo de
+# 1,65 x 1,32 m com origem em (0,0). O centro caiu 14 cm ALEM da borda.
+#
+# O resultado apareceu nas dimensoes: 1,01 x 0,23 m contra 0,92 x 0,30 de
+# trena. Um eixo esticou 10%, o outro encolheu 24% — que e a assinatura da
+# extrapolacao projetiva, e nao de ruido, que erraria os dois para o mesmo
+# lado.
+#
+#     Erro que cresce numa direcao e encolhe na outra nao e imprecisao: e
+#     outra regra sendo aplicada.
+
+def test_dentro_da_area_nao_acusa():
+    assert _extrapolado(0.80, 0.60, CALIB) is False
+
+
+def test_o_canto_exato_ainda_esta_dentro():
+    assert _extrapolado(1.65, 1.32, CALIB) is False
+
+
+def test_a_estante_de_18_08_e_acusada():
+    """O caso real que motivou o aviso."""
+    assert _extrapolado(1.79, 0.29, CALIB) is True
+
+
+def test_um_pouco_atras_da_origem_ainda_passa():
+    """Cinco centimetros de margem: a borda medida nao e uma parede."""
+    assert _extrapolado(-0.04, 0.50, CALIB) is False
+
+
+def test_dez_centimetros_atras_da_origem_e_acusado():
+    assert _extrapolado(-0.10, 0.50, CALIB) is True
+
+
+def test_sem_calibracao_declarada_nao_acusa_nada():
+    """Nao ha como dizer 'fora' sem saber onde e o dentro."""
+    assert _extrapolado(99.0, 99.0, {}) is False
+    assert _extrapolado(99.0, 99.0, {"largura_m": 0, "altura_m": 0}) is False

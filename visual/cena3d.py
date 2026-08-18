@@ -369,7 +369,7 @@ class Cena3D:
             da normal (-sin, cos). E a mesma convencao de `ambiente.relacao`,
             e ela precisa ser a mesma, senao o desenho contradiz a conta.
         """
-        h = m[4]
+        h, rotulo = m[4], m[5]
         pes = self.pes_do_movel(m)
         c = np.array([[px, py, 0] for px, py in pes]
                      + [[px, py, h] for px, py in pes], dtype=float)

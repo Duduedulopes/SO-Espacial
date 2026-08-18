@@ -69,6 +69,28 @@ def _quadro_estavel(app, papel, n=9, espera=0.12):
     return np.median(np.stack(pilha), axis=0).astype(np.uint8)
 
 
+def _extrapolado(x, y, calib, margem=0.05):
+    """Este ponto esta FORA do retangulo em que a homografia foi ajustada?
+
+    A homografia foi resolvida a partir de quatro cantos de um retangulo de
+    1,65 x 1,32 m marcado no chao. Dentro dele, ela interpola entre medidas
+    reais. Fora dele, ela EXTRAPOLA — e extrapolacao projetiva nao degrada
+    devagar: o erro cresce rapido e de forma torta, esticando um eixo e
+    encolhendo o outro conforme se aproxima da linha do horizonte.
+
+        Uma calibracao mede o que ela viu. Perguntar a ela sobre o lado de
+        fora nao devolve um numero pior: devolve um numero com outra regra.
+
+    Por isso a resposta aqui nao e recusar — e AVISAR. Quem esta olhando a
+    cena consegue julgar; um programa que apaga a medida sem explicar, nao.
+    """
+    lx = float(calib.get("largura_m") or 0.0)
+    ly = float(calib.get("altura_m") or 0.0)
+    if lx <= 0 or ly <= 0:
+        return False
+    return not (-margem <= x <= lx + margem and -margem <= y <= ly + margem)
+
+
 def _portas(ambiente, chao, largura=0.45, fundura=0.55, folga=0.12):
     """A entrada e a saida, DEDUZIDAS da estante — nao digitadas.
 
@@ -198,6 +220,8 @@ def main():
             cabe = (gab.cabe(c.lado_maior, gab.largura)
                     and gab.cabe(c.lado_menor, gab.profundidade))
             marca = "  <-- cabe no gabarito" if cabe else ""
+            if _extrapolado(c.centro[0], c.centro[1], calib):
+                marca += "  [FORA DA AREA CALIBRADA]"
             print(f"    {c.lado_maior:.2f} x {c.lado_menor:.2f} m  "
                   f"em ({c.centro[0]:+.2f}, {c.centro[1]:+.2f}){marca}")
 
@@ -219,6 +243,26 @@ def main():
                   f"por: {'+'.join(achado.cameras)}")
             if not achado.confiavel:
                 print("  UMA CAMERA SO — arriscado. Confira olhando a cena.")
+
+            if _extrapolado(achado.x, achado.y, calib):
+                lx, ly = calib.get("largura_m"), calib.get("altura_m")
+                print()
+                print("  !! ESTA ESTANTE ESTA FORA DA AREA CALIBRADA !!")
+                print(f"     a homografia foi ajustada em 0..{lx} x 0..{ly} m,")
+                print(f"     e o centro achado caiu em ({achado.x:+.2f}, "
+                      f"{achado.y:+.2f}).")
+                print()
+                print("     Fora do retangulo medido a homografia extrapola, e")
+                print("     extrapolacao projetiva estica um eixo e encolhe o")
+                print("     outro. Compare com a trena:")
+                print(f"       gabarito  {gab.largura:.2f} x "
+                      f"{gab.profundidade:.2f} m")
+                print(f"       medido    {achado.largura:.2f} x "
+                      f"{achado.profundidade:.2f} m")
+                print()
+                print("     O conserto NAO e afrouxar a tolerancia: e recalibrar")
+                print("     com um retangulo que inclua a pegada da estante.")
+                print("       python calibracao/homografia.py")
             if args.gravar:
                 _gravar(achado, args.planta)
                 print(f"\n  gravado em {args.planta}")

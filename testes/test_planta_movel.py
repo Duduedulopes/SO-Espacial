@@ -120,6 +120,54 @@ def test_o_movel_entra_na_chave_do_cache():
     assert cena._chave_camera() != antes
 
 
+# ------------------------------------------------------- desenhar de verdade
+#
+# ESTES TESTES EXISTEM PORQUE OS DE CIMA NAO BASTARAM.
+#
+# `pes_do_movel` foi testado por todos os angulos e passou. O `_movel`, que
+# CHAMA `pes_do_movel` e desenha, ficou com uma variavel orfa (`rotulo`) da
+# refatoracao — e os 570 testes seguiram verdes, porque nenhum deles chegava
+# a desenhar um movel. O erro so apareceu com as tres cameras ligadas, na
+# primeira vez que o quarto tinha uma estante dentro.
+#
+#     Testar a funcao que faz a conta e testar a conta. Enquanto ninguem
+#     chamar quem usa a conta, o caminho ate ela continua sem prova.
+#
+# Desenhar num quadro de 320x240 custa milissegundos. Era o que faltava.
+
+def test_desenhar_uma_cena_com_movel_nao_estoura():
+    cena = Cena3D(320, 240, chao=(0, 2, 0, 2))
+    cena.add_movel(1.0, 0.5, 0.92, 0.30, 1.90, "Estante", rumo=0.9)
+    img = cena.desenhar([], titulo="teste")
+    assert img.shape == (240, 320, 3)
+
+
+def test_desenhar_movel_sem_rotulo_tambem_nao_estoura():
+    cena = Cena3D(320, 240, chao=(0, 2, 0, 2))
+    cena.add_movel(1.0, 0.5, 0.92, 0.30, 1.90)
+    assert cena.desenhar([]) is not None
+
+
+def test_desenhar_a_planta_inteira_do_arquivo(tmp_path):
+    """O caminho completo: JSON -> Planta -> Cena -> imagem."""
+    cena = Cena3D(320, 240, chao=(0, 2, 0, 2))
+    _planta(tmp_path, rumo_da_face=2.55).aplicar_na_cena(cena)
+    assert cena.desenhar([]) is not None
+
+
+def test_desenhar_o_quarto_real():
+    """A planta que o `rodar.py` carrega por padrao. Foi ela que estourou."""
+    cena = Cena3D(320, 240, chao=(0, 2, 0, 2))
+    Planta.carregar("loja/quarto.json").aplicar_na_cena(cena)
+    assert cena.desenhar([]) is not None
+
+
+def test_desenhar_a_bancada():
+    cena = Cena3D(320, 240, chao=(-1.5, 3.0, -1.5, 3.0))
+    Planta.carregar("loja/bancada.json").aplicar_na_cena(cena)
+    assert cena.desenhar([]) is not None
+
+
 # ------------------------------------------------------- a loja ficticia
 def test_bancada_migrada_cabe_no_chao():
     """A conversao canto->centro nao pode ter jogado movel para fora do piso."""

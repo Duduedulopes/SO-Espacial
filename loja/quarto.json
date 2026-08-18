@@ -53,18 +53,6 @@
     "    Um numero que ja existe em algum lugar nao deve ser reescrito noutro.",
     "    Deve ser LIDO de onde ele mora."
   ],
-  "_a_medir": [
-    "ONDE FICA A ESTANTE NESTE SISTEMA — ainda nao sei, e nao vou chutar.",
-    "",
-    "Preciso de dois numeros, medidos com a trena no chao a partir do canto de",
-    "origem da calibracao (o primeiro ponto que voce clicou):",
-    "",
-    "    1. distancia do canto (0,0) ate a lateral esquerda da estante, em x",
-    "    2. distancia do canto (0,0) ate a face frontal da estante, em y",
-    "",
-    "Com esses dois, a estante entra no mesmo mundo que a pessoa — e ai olhar",
-    "para a cena passa a responder se a leitura esta certa."
-  ],
   "_arranjo_fisico": [
     "COMO AS TRES CAMERAS E A ESTANTE ESTAO DISPOSTAS. Observado em 13/08.",
     "",
@@ -103,5 +91,34 @@
     "Se confirmado, a saida NAO e melhorar a frontal: e a lateral assumir o",
     "braco quando a pessoa esta virada para a estante. Cada camera responde o",
     "que enxerga; nenhuma precisa enxergar tudo."
+  ],
+  "_a_medir": [
+    "A ESTANTE FOI ACHADA EM 18/08 E A MEDIDA FOI RECUSADA. Por mim, nao pela",
+    "ferramenta — ela achou e gravou; quem leu o numero depois foi que viu.",
+    "",
+    "    achado    1,01 x 0,23 m  em (+1,79, +0,29)",
+    "    trena     0,92 x 0,30 m",
+    "",
+    "O centro caiu 14 cm ALEM da borda do retangulo de calibracao (1,65 x 1,32,",
+    "origem em 0,0). Fora dele a homografia extrapola, e extrapolacao projetiva",
+    "estica um eixo e encolhe o outro: +10% na largura, -24% na profundidade.",
+    "",
+    "    Erro que cresce numa direcao e encolhe na outra nao e imprecisao: e",
+    "    outra regra sendo aplicada.",
+    "",
+    "Guardar esse numero seria fixar no arquivo uma estante que nao existe, e",
+    "todo o resto passaria a medir distancia ate ela. Melhor vazio e declarado.",
+    "",
+    "O CONSERTO, e nao e afrouxar tolerancia:",
+    "",
+    "    python calibracao/homografia.py",
+    "",
+    "marcando um retangulo que INCLUA a pegada da estante. Depois:",
+    "",
+    "    python ferramentas/achar_ambiente.py --ver",
+    "    python ferramentas/achar_ambiente.py --gravar",
+    "",
+    "Sinal de que deu certo: a ferramenta para de imprimir",
+    "'[FORA DA AREA CALIBRADA]' e as dimensoes chegam perto de 0,92 x 0,30."
   ]
 }
