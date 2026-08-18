@@ -202,13 +202,32 @@ def amarrar(nuvem, poses_vggt, ancoras_nuvem, ancoras_mundo):
     Devolve `Mapa`, ou None quando a amarracao nao fecha.
     """
     p = np.asarray(nuvem, dtype=float).reshape(-1, 3)
-    if not len(p) or len(ancoras_nuvem) < 2:
+    a3 = np.asarray(ancoras_nuvem, dtype=float).reshape(-1, 3)
+    if not len(p) or len(a3) < 3:
         return None
 
-    achado = plano_dominante(p)
-    if achado is None:
-        return None
-    normal, no_plano, _ = achado
+    # O CHAO SAI DAS ANCORAS, E NAO DE UMA BUSCA NA NUVEM INTEIRA.
+    #
+    # Consertado em 18/08, na terceira corrida. Aqui havia um RANSAC sobre os
+    # 82 mil pontos das tres cameras, exigindo que 30% deles caissem no plano.
+    # Mas so a camera do alto olha para o chao: a frontal ve o vao da estante
+    # e a lateral ve parede, mesa e prateleira do outro lado. O piso e
+    # MINORIA na nuvem toda, e a busca falhava — recusando o mapa inteiro.
+    #
+    # E ela nem precisava acontecer. As ancoras que chegam aqui JA sao pontos
+    # de chao: foram escolhidas pelo RANSAC rodado na camera que enxerga o
+    # piso, e sao as unicas com correspondencia em metros.
+    #
+    #     Procurar de novo o que ja foi achado nao e redundancia inofensiva:
+    #     e dar a duas partes do programa a chance de discordar sobre o mesmo
+    #     fato.
+    #
+    # O plano sai por SVD nas ancoras — sem RANSAC, porque elas ja estao
+    # limpas, e a menor direcao de espalhamento de um conjunto plano E a
+    # normal dele.
+    centro_ancoras = a3.mean(axis=0)
+    _, _, vt = np.linalg.svd(a3 - centro_ancoras)
+    normal, no_plano = vt[2], centro_ancoras
 
     giro = _de_pe(normal, p)
     p_reto = (giro @ (p - no_plano).T).T

@@ -197,36 +197,28 @@ def test_o_chao_e_achado_em_qualquer_escala():
             f"na escala {escala} o plano achado nao e horizontal"
 
 
-def test_a_tolerancia_absoluta_achata_a_cena():
-    """O sintoma real do defeito: a cena reconstruida perde a altura.
+def test_a_tolerancia_absoluta_erra_o_chao():
+    """O defeito, agora medido onde ele ainda vive: em `plano_dominante`.
 
-    Contar pontos no plano nao serve de prova — o que estraga o mapa e o
-    plano achado nao ser o chao, e o `_de_pe` girar a cena inteira em cima
-    dele. A medida certa e a altura que sobra depois de amarrar.
+    Depois de 18/08 o `amarrar` deixou de procurar o plano — ele recebe as
+    ancoras, que ja SAO pontos de chao. Mas `_ancoras` continua usando o
+    RANSAC para escolhe-las, e ali a espessura ainda decide tudo.
+
+    Numa nuvem de escala 1/18, a tolerancia absoluta de 0,02 equivale a 37 cm:
+    o plano deixa de ser o chao e vira uma fatia grossa da cena.
     """
-    verdade = _quarto(semente=7)
-    nuvem = _embaralhar(verdade, escala=1 / 18.3, giro=0.4, tomba=0.2)
-    chao = np.where(verdade[:, 2] < 1e-6)[0][:40]
+    nuvem = _quarto(semente=7) * (1 / 18.3)
+    cima = np.array([0.0, 0.0, 1.0])
 
-    bom = amarrar(nuvem, {}, nuvem[chao], verdade[chao, :2])
-    assert bom is not None
-    assert bom.nuvem[:, 2].max() == pytest.approx(2.4, abs=0.15)
+    normal, _, _ = plano_dominante(nuvem)              # espessura relativa
+    assert abs(abs(float(normal @ cima)) - 1.0) < 0.05, \
+        "com espessura relativa o chao devia sair horizontal"
 
-    # e agora com a tolerancia absoluta que existia ate 18/08
-    import src.mundo.mapeamento as m
-    guardado = m.FRACAO_DA_ESPESSURA
-    try:
-        # 0,02 sobre uma nuvem de escala 1/18,3 e o mesmo que uma fracao
-        # enorme da diagonal — reproduz exatamente o defeito
-        m.FRACAO_DA_ESPESSURA = 0.2
-        ruim = amarrar(nuvem, {}, nuvem[chao], verdade[chao, :2])
-    finally:
-        m.FRACAO_DA_ESPESSURA = guardado
-
-    achatou = ruim is None or ruim.nuvem[:, 2].max() < 2.0
-    assert achatou, (
-        "com espessura grande a cena devia achatar — se nao achata, este "
-        "teste parou de descrever o defeito de 18/08")
+    grossa = plano_dominante(nuvem, tolerancia=0.02)   # o erro de 18/08
+    errou = grossa is None or abs(abs(float(grossa[0] @ cima)) - 1.0) > 0.05
+    assert errou, (
+        "com 37 cm de espessura o plano devia deixar de ser o chao — se "
+        "nao deixa, este teste parou de descrever o defeito")
 
 
 def test_o_mapa_volta_para_metros_em_escala_pequena():
