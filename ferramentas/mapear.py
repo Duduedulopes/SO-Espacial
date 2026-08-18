@@ -48,8 +48,28 @@ quarto, medido com trena. Casar um no outro custa dez pontos do chao.
     Deve ser LIDO de onde ele mora.
 """
 import argparse
+import os
 import sys
 from pathlib import Path
+
+# O DOWNLOADER CLASSICO, E NAO O XET. Decidido em 18/08, medindo.
+#
+# O xet baixa comprimido e depois RECONSTROI o arquivo:
+#
+#     downloading bytes:   2,63 GB
+#     reconstructing file: 5,03 GB
+#
+# Precisa do espaco dos dois ao mesmo tempo — mais de 7 GB para um peso de 5.
+# E quando falta, ele nao para: vai ate o meio e morre com "Background writer
+# channel closed", deixando dois gigabytes de lixo que a proxima tentativa
+# encontra pela frente.
+#
+#     Um download que falha sem limpar o que escreveu nao custa uma tentativa:
+#     custa todas as seguintes, cada vez com menos espaco.
+#
+# O downloader classico escreve direto, sem a etapa de reconstrucao.
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
