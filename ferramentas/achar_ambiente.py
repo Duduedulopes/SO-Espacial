@@ -53,19 +53,55 @@ from src.mundo.detectores import candidatos_do_alto         # noqa: E402
 from src.nucleo import log as logmod                        # noqa: E402
 
 
-def _quadro_estavel(app, papel, n=9, espera=0.12):
-    """A mediana de n quadros. Sombra, reflexo e quem passa somem na mediana."""
+def _quadro_estavel(app, papel, n=9, espera=0.12, limite_s=30.0):
+    """A mediana de n quadros. Sombra, reflexo e quem passa somem na mediana.
+
+    ESPERA POR TEMPO, NAO POR NUMERO DE VOLTAS. Consertado em 18/08.
+
+    Antes este laco dava `n * 3` voltas de 0,12 s — 3,2 segundos no total — e
+    desistia. So que a C920 do teto leva perto de NOVE segundos entre o
+    programa registrar a camera e o evento CAMERA_CONNECTED aparecer: abrir o
+    dispositivo, negociar resolucao e o auto-exposicao assentar.
+
+        [09:44:55] cameras   registrada  papel=alto
+        [09:45:04] EVENTO    CAMERA_CONNECTED  papel=alto
+
+    A ferramenta desistia aos 3,2 s e imprimia "a camera do alto nao entregou
+    quadro" — uma frase verdadeira sobre um fato que ainda nao tinha
+    acontecido. Rodar duas vezes seguidas "funcionava" porque a segunda pegava
+    a camera ja quente, o que fazia o defeito parecer capricho do hardware.
+
+        Um limite de tentativas e um limite de tempo disfarcado, e o disfarce
+        cai no dia em que o hardware demora. Se o que se espera e tempo,
+        espere tempo.
+
+    E enquanto espera, DIZ que esta esperando: silencio de trinta segundos e
+    indistinguivel de travamento.
+    """
     pilha = []
-    for _ in range(n * 3):
+    comeco = time.monotonic()
+    avisado = False
+    while time.monotonic() - comeco < limite_s:
         instante = app.passo()
         q = instante.get(papel) if instante else None
         if q is not None and q.imagem is not None:
             pilha.append(q.imagem.astype(np.float32))
             if len(pilha) >= n:
                 break
+        else:
+            decorrido = time.monotonic() - comeco
+            if decorrido > 2.0 and not avisado:
+                print(f"  esperando a camera '{papel}' acordar "
+                      f"(ate {limite_s:.0f}s)...", flush=True)
+                avisado = True
         time.sleep(espera)
+
     if not pilha:
+        print(f"  a camera '{papel}' nao entregou quadro em "
+              f"{time.monotonic() - comeco:.0f}s.")
         return None
+    if len(pilha) < n:
+        print(f"  atencao: mediana de {len(pilha)} quadros, e nao de {n}.")
     return np.median(np.stack(pilha), axis=0).astype(np.uint8)
 
 
@@ -182,6 +218,8 @@ def main():
     p.add_argument("--gravar", action="store_true")
     p.add_argument("--ver", action="store_true")
     p.add_argument("--falsas", action="store_true")
+    p.add_argument("--espera", type=float, default=30.0,
+                   help="segundos a esperar a camera do alto acordar")
     p.add_argument("--log", default="WARNING")
     args = p.parse_args()
 
@@ -209,9 +247,11 @@ def main():
 
     try:
         print("  olhando o ambiente...")
-        alto = _quadro_estavel(app, "alto")
+        alto = _quadro_estavel(app, "alto", limite_s=args.espera)
         if alto is None:
-            print("  a camera do alto nao entregou quadro.\n")
+            print("  Confira se a C920 esta ligada e se nenhum outro programa")
+            print("  esta com ela aberta. Para ver o que o sistema enxerga:")
+            print("      python ferramentas/cameras.py\n")
             return
 
         candidatos = candidatos_do_alto(alto, H)

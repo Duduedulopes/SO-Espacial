@@ -10,6 +10,7 @@ metro, muito depois de o commit ter sido esquecido.
 """
 import math
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ferramentas.achar_ambiente import _extrapolado, _portas   # noqa: E402
+from ferramentas.achar_ambiente import (                       # noqa: E402
+    _extrapolado, _portas, _quadro_estavel)
 from src.mundo.ambiente import Ambiente                        # noqa: E402
 
 CALIB = {"largura_m": 1.65, "altura_m": 1.32}
@@ -133,3 +135,80 @@ def test_sem_calibracao_declarada_nao_acusa_nada():
     """Nao ha como dizer 'fora' sem saber onde e o dentro."""
     assert _extrapolado(99.0, 99.0, {}) is False
     assert _extrapolado(99.0, 99.0, {"largura_m": 0, "altura_m": 0}) is False
+
+
+# ------------------------------------------- esperar a camera do alto acordar
+#
+# Medido em 18/08. A C920 do teto leva perto de nove segundos entre o programa
+# registrar a camera e o CAMERA_CONNECTED aparecer:
+#
+#     [09:44:55] cameras   registrada  papel=alto
+#     [09:45:04] EVENTO    CAMERA_CONNECTED  papel=alto
+#
+# O laco de espera dava `n * 3` voltas de 0,12 s — 3,2 s — e desistia com
+# "a camera do alto nao entregou quadro". Uma frase verdadeira sobre um fato
+# que ainda nao tinha acontecido.
+#
+#     Um limite de tentativas e um limite de tempo disfarcado, e o disfarce
+#     cai no dia em que o hardware demora.
+
+class _Quadro:
+    def __init__(self, img):
+        self.imagem = img
+
+
+class _AppPreguicoso:
+    """Nao entrega nada antes de `demora` segundos, como a camera de verdade."""
+
+    def __init__(self, demora):
+        self.demora = demora
+        self.t0 = time.monotonic()
+        self.voltas = 0
+
+    def passo(self):
+        self.voltas += 1
+        if time.monotonic() - self.t0 < self.demora:
+            return None
+        return {"alto": _Quadro(np.full((6, 6, 3), 120, np.uint8))}
+
+
+def test_camera_lenta_ainda_e_esperada():
+    """O conserto: nove segundos de espera nao sao falha, sao a C920."""
+    app = _AppPreguicoso(0.8)
+    assert _quadro_estavel(app, "alto", n=3, espera=0.02, limite_s=10) is not None
+
+
+def test_o_limite_antigo_teria_falhado():
+    """A prova de que o teste tem dentes: 3,2 s nao alcancavam a camera."""
+    app = _AppPreguicoso(0.8)
+    assert _quadro_estavel(app, "alto", n=3, espera=0.02, limite_s=0.3) is None
+
+
+def test_desiste_no_tempo_pedido_e_nao_trava():
+    inicio = time.monotonic()
+    assert _quadro_estavel(_AppPreguicoso(99), "alto", n=3, espera=0.02,
+                           limite_s=0.5) is None
+    assert time.monotonic() - inicio < 2.0, "passou muito do limite"
+
+
+def test_app_que_nunca_devolve_dicionario_nao_estoura():
+    class Mudo:
+        def passo(self):
+            return None
+    assert _quadro_estavel(Mudo(), "alto", n=3, espera=0.02,
+                           limite_s=0.3) is None
+
+
+def test_a_mediana_ignora_o_quadro_estranho():
+    """O motivo de existir a mediana: sombra, reflexo, alguem passando."""
+    class ComUmIntruso:
+        def __init__(self):
+            self.n = 0
+
+        def passo(self):
+            self.n += 1
+            valor = 250 if self.n == 3 else 100   # um quadro fora da curva
+            return {"alto": _Quadro(np.full((6, 6, 3), valor, np.uint8))}
+
+    m = _quadro_estavel(ComUmIntruso(), "alto", n=9, espera=0.0, limite_s=5)
+    assert int(m[0, 0, 0]) == 100, "o intruso vazou para a mediana"
