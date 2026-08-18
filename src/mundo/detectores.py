@@ -173,7 +173,13 @@ def _linhas_horizontais(bordas, comprimento_min, inclinacao_max_graus=12.0):
     if segs is None:
         return []
     fora = []
-    for x1, y1, x2, y2 in segs[:, 0]:
+    # `segs[:, 0]` supoe a forma (N, 1, 4) que o OpenCV devolvia. Versoes
+    # recentes devolvem (N, 4), e a mesma linha passa a desempacotar um
+    # inteiro. `reshape(-1, 4)` vale para as duas.
+    #
+    #     Codigo que depende da forma exata de um retorno de terceiro quebra
+    #     numa atualizacao que nao e sua.
+    for x1, y1, x2, y2 in segs.reshape(-1, 4):
         dx, dy = float(x2 - x1), float(y2 - y1)
         if abs(dx) < 1e-6:
             continue
