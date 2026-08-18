@@ -6,9 +6,23 @@
 ANTES DA PRIMEIRA VEZ
 
     pip install torch torchvision
-    pip install git+https://github.com/facebookresearch/vggt.git
+    pip install --no-deps git+https://github.com/facebookresearch/vggt.git
+    pip install huggingface_hub safetensors einops
 
 O VGGT NAO ESTA NO PyPI — e repositorio do GitHub.
+
+E O `--no-deps` NAO E GAMBIARRA, e a parte que mais importa aqui.
+
+O VGGT pina `numpy<2`. Em Python novo nao existe wheel pronta do numpy 1.26,
+entao o pip tenta COMPILAR do zero, e para com
+
+    ERROR: Unknown compiler(s): [['icl'], ['cl'], ['cc'], ['gcc'], ...]
+
+que parece falta de compilador e e, na verdade, um pino conservador de outra
+biblioteca. O codigo do VGGT roda com numpy 2.
+
+    Instalar um compilador para satisfazer um pino que ninguem precisa e
+    consertar o sintoma no lugar mais caro possivel.
 
 LICENCA: o peso padrao (`facebook/VGGT-1B`) e nao-comercial e baixa sem
 cadastro nenhum — cobre trabalho academico, que e o uso de hoje. Para uso
@@ -65,7 +79,12 @@ def _vggt(imagens, peso):
         raise SystemExit(
             f"\n  falta {e.name}. O VGGT nao esta no PyPI — e do GitHub:\n\n"
             f"      pip install torch torchvision\n"
-            f"      pip install git+https://github.com/facebookresearch/vggt.git\n")
+            f"      pip install --no-deps "
+            f"git+https://github.com/facebookresearch/vggt.git\n"
+            f"      pip install huggingface_hub safetensors einops\n\n"
+            f"  O --no-deps evita que o pip tente compilar numpy 1.26 do zero\n"
+            f"  por causa de um pino conservador. Sem ele o erro e\n"
+            f"  'Unknown compiler(s)', que parece outra coisa.\n")
 
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  VGGT em {dispositivo}"
