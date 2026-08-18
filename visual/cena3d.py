@@ -274,14 +274,16 @@ class Cena3D:
     def invalidar(self):
         self._base = None
 
-    def add_movel(self, x, y, larg, prof, alt, rotulo="", rumo=0.0):
+    def add_movel(self, x, y, larg, prof, alt, rotulo="", rumo=0.0,
+                  prateleiras=()):
         """x, y sao o CENTRO do movel. `rumo` em radianos, para onde a face olha.
 
         A convencao de centro e a de `estado.planta.Movel` e a de
         `src.mundo.ambiente.Ambiente` — as tres precisam concordar, e ate
         14/08 esta aqui discordava calada. Ver a nota em `Movel`.
         """
-        self.moveis.append((x, y, larg, prof, alt, rotulo, float(rumo)))
+        self.moveis.append((x, y, larg, prof, alt, rotulo, float(rumo),
+                            tuple(float(a) for _, a in prateleiras)))
 
     @staticmethod
     def pes_do_movel(m):
@@ -370,7 +372,13 @@ class Cena3D:
             e ela precisa ser a mesma, senao o desenho contradiz a conta.
         """
         h, rotulo = m[4], m[5]
+        alturas = m[7] if len(m) > 7 else ()
         pes = self.pes_do_movel(m)
+
+        if alturas:
+            self._estante(img, pes, h, alturas, rotulo)
+            return
+
         c = np.array([[px, py, 0] for px, py in pes]
                      + [[px, py, h] for px, py in pes], dtype=float)
         p, z = self.cam.projetar(c)
@@ -393,6 +401,58 @@ class Cena3D:
             topo = p[[4, 5, 6, 7]].mean(axis=0).astype(int)
             cv2.putText(img, rotulo, tuple(topo), cv2.FONT_HERSHEY_SIMPLEX,
                         0.4, (150, 146, 150), 1, cv2.LINE_AA)
+
+    def _estante(self, img, pes, altura, alturas, rotulo=""):
+        """A estante de aco como ela e: cinco bandejas e quatro montantes.
+
+            vc ja poderia fazer extamente ela como um objeto do nosso ambiente
+            virtual MAIS PRECISA FICAR IGUAL!          — Eduardo, 18/08
+
+        Um bloco macico e uma estante e um armario e uma geladeira. Desenhado
+        assim, o gemeo mostrava um paralelepipedo onde existe uma prateleira
+        vazada — e a pergunta que o sistema inteiro responde e DE QUAL DAS
+        CINCO a mao veio. Se as cinco nao aparecem, a resposta nao tem onde
+        pousar.
+
+            Um bloco fechado nao representa uma estante: representa o espaco
+            que ela ocupa. Sao coisas diferentes, e a diferenca e exatamente
+            a informacao que interessa.
+
+        As alturas nao sao inventadas nem espacadas por conta: vem de
+        `loja/estante.json`, medidas com trena — 0,15 / 0,55 / 0,95 / 1,35 /
+        1,90. Desenhar niveis igualmente espacados seria bonito e mentiroso.
+        """
+        # Cada bandeja e o mesmo retangulo do chao, subido ate a altura dela.
+        for k, z in enumerate(sorted(alturas)):
+            c = np.array([[px, py, z] for px, py in pes], dtype=float)
+            p, prof = self.cam.projetar(c)
+            if prof.min() <= 0:
+                continue
+            p = p.astype(int)
+            sobre = img.copy()
+            cv2.fillConvexPoly(sobre, p, (222, 220, 222))
+            cv2.addWeighted(sobre, 0.80, img, 0.20, 0, img)
+            cv2.polylines(img, [p], True, (176, 172, 176), 1, cv2.LINE_AA)
+
+        # Montantes: quatro cantoneiras do chao ao topo. Sao eles que dao a
+        # silhueta de estante — sem os quatro, as bandejas flutuam.
+        for canto in range(4):
+            px, py = pes[canto]
+            c = np.array([[px, py, 0.0], [px, py, altura]], dtype=float)
+            p, prof = self.cam.projetar(c)
+            if prof.min() <= 0:
+                continue
+            p = p.astype(int)
+            cv2.line(img, tuple(p[0]), tuple(p[1]), (158, 154, 158), 2,
+                     cv2.LINE_AA)
+
+        if rotulo:
+            c = np.array([[pes[:, 0].mean(), pes[:, 1].mean(), altura]])
+            p, prof = self.cam.projetar(c)
+            if prof.min() > 0:
+                cv2.putText(img, rotulo, tuple(p[0].astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 146, 150), 1,
+                            cv2.LINE_AA)
 
     # Seta no chao: a que distancia da pessoa, quanto mede, quanto abre.
     # O recuo tira a seta de baixo das pernas. Menos que isso e ela fica

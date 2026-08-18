@@ -104,7 +104,8 @@ class Planta:
     def aplicar_na_cena(self, cena):
         for m in self.moveis:
             cena.add_movel(m.x, m.y, m.largura, m.profundidade, m.altura,
-                           m.nome, rumo=m.rumo_da_face)
+                           m.nome, rumo=m.rumo_da_face,
+                           prateleiras=m.prateleiras)
 
     def novo_mapa_de_calor(self, px_por_m=60, meia_vida_s=90.0):
         return MapaDeCalor(*self.chao, px_por_m=px_por_m, meia_vida_s=meia_vida_s)

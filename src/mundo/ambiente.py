@@ -198,7 +198,23 @@ def _casar_lados(vista, gab):
     nao esta na imagem — esta no gabarito. Como 0,92 e 0,30 diferem por um
     fator de 3, a resposta e inequivoca mesmo com erro grosseiro.
 
-    Devolve (largura, profundidade, rumo_da_face) ou None se nao for ela.
+    DEVOLVE APENAS O RUMO, e essa e a correcao de 18/08.
+
+    Antes esta funcao devolvia tambem `lado_maior` e `lado_menor` — os valores
+    MEDIDOS — e `reconhecer` os gravava como as dimensoes da estante. Em 18/08
+    isso escreveu no `quarto.json` uma estante de 1,01 x 0,23 m, quando a
+    estante mede 0,92 x 0,30 e isso esta escrito com trena em
+    `loja/estante.json` desde 11/08.
+
+        A camera nao foi chamada para medir o movel. Ela foi chamada para
+        dizer ONDE ele esta. Medir o que ja foi medido com trena e trocar uma
+        certeza por uma estimativa.
+
+    O tamanho visto continua servindo — para RECONHECER, que e comparar e
+    decidir se aquilo pode ser ela, e para saber qual lado e qual. Depois
+    disso ele nao tem mais utilidade e nao deve sobreviver a esta funcao.
+
+    Devolve `rumo_da_face` em radianos, ou None se o retangulo nao for ela.
     """
     # Hipotese A: o lado maior e a largura (o caso normal).
     if vista.lado_maior >= vista.lado_menor:
@@ -212,12 +228,12 @@ def _casar_lados(vista, gab):
             # ja E a normal para r = a. Somar 90 graus aqui foi o defeito que
             # os testes de relacao pegaram: punha a face virada para o lado,
             # e toda distancia "a frente" dava zero.
-            return vista.lado_maior, vista.lado_menor, vista.angulo
+            return vista.angulo
     # Hipotese B: o maior e a profundidade — estante de lado para a camera.
     if (gab.cabe(vista.lado_maior, gab.profundidade)
             and gab.cabe(vista.lado_menor, gab.largura)):
         # Aqui a largura esta no lado MENOR, girado 90 graus do maior.
-        return vista.lado_menor, vista.lado_maior, vista.angulo + math.pi / 2
+        return vista.angulo + math.pi / 2
     return None
 
 
@@ -252,10 +268,9 @@ def reconhecer(gabarito, do_alto=None, da_frente=None, da_lateral=None):
     if do_alto is None:
         return None
 
-    casado = _casar_lados(do_alto, gabarito)
-    if casado is None:
+    rumo = _casar_lados(do_alto, gabarito)
+    if rumo is None:
         return None                 # o retangulo visto nao tem o tamanho dela
-    largura, profundidade, rumo = casado
 
     cameras = ["alto"]
     conferidas = 0
@@ -276,10 +291,27 @@ def reconhecer(gabarito, do_alto=None, da_frente=None, da_lateral=None):
     if float(n @ para_dentro) < 0:
         rumo = rumo + math.pi
 
+    # AS DIMENSOES SAO AS DA TRENA. SEMPRE.
+    #
+    # Nenhum numero de camera entra aqui. Largura, profundidade, altura e as
+    # cinco prateleiras vem inteiras de `loja/estante.json`, medidas a mao em
+    # 11/08. O que a camera acrescenta sao tres numeros e mais nada:
+    #
+    #     x, y            onde ela esta no chao
+    #     rumo_da_face    para que lado a face olha
+    #
+    # Em 18/08 este retorno gravou 1,01 x 0,23 m — a leitura da camera — numa
+    # estante que mede 0,92 x 0,30. O `achar_ambiente._gravar` ja dizia, na
+    # propria nota que escreve no arquivo, que as dimensoes vinham do
+    # gabarito. Dizia e nao fazia.
+    #
+    #     Documentacao que descreve a intencao em vez do codigo e pior que
+    #     nenhuma: ela faz o leitor parar de conferir.
     return Ambiente(x=float(do_alto.centro[0]), y=float(do_alto.centro[1]),
                     rumo_da_face=float(math.atan2(math.sin(rumo),
                                                   math.cos(rumo))),
-                    largura=largura, profundidade=profundidade,
+                    largura=gabarito.largura,
+                    profundidade=gabarito.profundidade,
                     altura=gabarito.altura, prateleiras=gabarito.prateleiras,
                     cameras=tuple(cameras), alturas_conferidas=conferidas)
 

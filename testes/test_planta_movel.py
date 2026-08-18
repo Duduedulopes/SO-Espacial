@@ -116,7 +116,7 @@ def test_o_movel_entra_na_chave_do_cache():
     cena = Cena3D(320, 240, chao=(0, 2, 0, 2))
     cena.add_movel(1.0, 0.5, 0.9, 0.3, 1.9, "e")
     antes = cena._chave_camera()
-    cena.moveis[0] = (1.4, 0.5, 0.9, 0.3, 1.9, "e", 0.0)
+    cena.moveis[0] = (1.4, 0.5, 0.9, 0.3, 1.9, "e", 0.0, ())
     assert cena._chave_camera() != antes
 
 
