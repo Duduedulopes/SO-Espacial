@@ -8,8 +8,12 @@ ANTES DA PRIMEIRA VEZ
     pip install torch torchvision
     pip install git+https://github.com/facebookresearch/vggt.git
 
-O VGGT NAO ESTA NO PyPI — e repositorio do GitHub. `pip install vggt` falha
-com "No matching distribution found", que foi o que aconteceu em 18/08.
+O VGGT NAO ESTA NO PyPI — e repositorio do GitHub.
+
+LICENCA: o peso padrao (`facebook/VGGT-1B`) e nao-comercial e baixa sem
+cadastro nenhum — cobre trabalho academico, que e o uso de hoje. Para uso
+comercial existe `--comercial`, que usa o `VGGT-1B-Commercial` e exige um
+formulario no HuggingFace. Mesma qualidade; muda so a licenca.
 
 Os pesos baixam sozinhos na primeira execucao (~2 GB) e ficam guardados.
 
@@ -45,7 +49,7 @@ from src.mundo.mapeamento import amarrar                       # noqa: E402
 PAPEIS = ("alto", "frontal", "lateral")
 
 
-def _vggt(imagens):
+def _vggt(imagens, peso):
     """Poses e nuvem, sem calibracao. Devolve (nuvem, poses, pontos_do_alto).
 
     `pontos_do_alto` sao os pontos da nuvem que a camera do alto enxerga, com
@@ -67,20 +71,21 @@ def _vggt(imagens):
     print(f"  VGGT em {dispositivo}"
           f"{' (sem GPU: vai levar alguns minutos)' if dispositivo == 'cpu' else ''}")
 
-    # O CHECKPOINT COMERCIAL, e nao o original.
+    # DOIS PESOS, E A ESCOLHA E DE LICENCA, NAO DE QUALIDADE.
     #
-    # `facebook/VGGT-1B` e nao-comercial. Este projeto tem dossie de
-    # investimento e modelo de franquia — usar o peso errado seria construir o
-    # produto sobre uma licenca que ele nao pode cumprir, e o problema so
-    # apareceria quando ja fosse caro trocar.
+    #   facebook/VGGT-1B              nao-comercial, baixa sem cadastro
+    #   facebook/VGGT-1B-Commercial   permite uso comercial, exige formulario
+    #                                 no HuggingFace (aprovacao automatica)
     #
-    # O acesso ao `-Commercial` exige preencher um formulario no HuggingFace
-    # (aprovacao automatica). O desempenho e o mesmo, ou levemente melhor.
+    # O desempenho e equivalente. O padrao aqui e o gratuito porque hoje isto
+    # e trabalho academico — e trabalho academico esta coberto por ele.
     #
-    #     Licenca e requisito de projeto, nao burocracia do fim. Descobrir
-    #     tarde qual peso podia ser usado custa a arquitetura inteira.
-    modelo = VGGT.from_pretrained(
-        "facebook/VGGT-1B-Commercial").to(dispositivo).eval()
+    #     Exigir a licenca comercial antes de existir uso comercial e cobrar
+    #     hoje o preco de um problema de amanha.
+    #
+    # No dia em que a Smart Store for vendida ou licenciada, `--comercial`
+    # troca o peso. E uma linha, e o resto do codigo nao muda.
+    modelo = VGGT.from_pretrained(peso).to(dispositivo).eval()
     lote = load_and_preprocess_images(imagens).to(dispositivo)
 
     with torch.no_grad():
@@ -134,6 +139,9 @@ def main():
     p.add_argument("--pasta", default="dados/levantamento")
     p.add_argument("--saida", default="loja/mapa.npz")
     p.add_argument("--gravar", action="store_true")
+    p.add_argument("--comercial", action="store_true",
+                   help="peso de licenca comercial; exige "
+                        "formulario no HuggingFace")
     args = p.parse_args()
 
     pasta = RAIZ / args.pasta
@@ -149,7 +157,9 @@ def main():
     h, calib = carregar_homografia()
     print(f"  homografia: {calib.get('largura_m')} x {calib.get('altura_m')} m")
 
-    nuvem, poses, do_alto, pixels = _vggt(imagens)
+    peso = ('facebook/VGGT-1B-Commercial' if args.comercial
+            else 'facebook/VGGT-1B')
+    nuvem, poses, do_alto, pixels = _vggt(imagens, peso)
     print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
 
     na_nuvem, no_mundo = _ancoras(do_alto, pixels, h)
