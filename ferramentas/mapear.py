@@ -135,9 +135,11 @@ def _vggt(imagens):
         r, t = m[i][:3, :3], m[i][:3, 3]
         poses[papel] = (-r.T @ t, r.T @ np.array([0.0, 0.0, 1.0]))
 
-    do_alto = mapa_de_pontos[0][firme[0]].reshape(-1, 3)
-    pixels = np.argwhere(firme[0])[:, ::-1].astype(float)
+    # grade inteira, sem a mascara de confianca — ver a nota em `_dust3r`
     alt, larg = firme[0].shape
+    do_alto = mapa_de_pontos[0].reshape(-1, 3)
+    grade = np.stack(np.meshgrid(np.arange(larg), np.arange(alt)), axis=-1)
+    pixels = grade.reshape(-1, 2).astype(float)
     original = cv2.imread(imagens[0])
     pixels[:, 0] *= original.shape[1] / larg
     pixels[:, 1] *= original.shape[0] / alt
@@ -255,13 +257,37 @@ def _dust3r(imagens):
 
     # a vista 0 e a do alto — a unica com homografia, e por isso a unica que
     # pode virar ancora
-    do_alto = pontos[0][mascaras[0]]
-    pixels = np.argwhere(mascaras[0])[:, ::-1].astype(float)
+    # A ANCORA USA A GRADE INTEIRA, SEM A MASCARA DE CONFIANCA.
+    #
+    # Este e o defeito das seis corridas de 18/08 que terminaram em zero.
+    #
+    # A mascara do DUSt3R guarda so os pontos de alta confianca — e a
+    # confianca destas redes despenca em superficie lisa e sem textura. O chao
+    # do quarto e ladrilho liso: a rede confia na estante, nos moveis e nas
+    # quinas, e DESCARTA justamente o piso.
+    #
+    # O retangulo calibrado, por sua vez, e quase todo piso liso. Medido: dos
+    # 307.200 pixels da imagem, 92.240 caem dentro dele — e nenhum deles
+    # sobrevivia a mascara.
+    #
+    #     A confianca da rede mede o quanto a PROFUNDIDADE dali e incerta.
+    #     Nao mede se o pixel serve de referencia. Filtrar ancora por ela e
+    #     usar uma regua para responder outra pergunta.
+    #
+    # E a profundidade baixa nao atrapalha aqui: a ancora nao precisa da
+    # altura do ponto, so da correspondencia entre o pixel e o metro. Quem
+    # da o metro e a homografia, que e exata no chao.
+    #
+    # A nuvem que vai para o desenho continua filtrada — ali a confianca
+    # importa, porque ali o que se ve e a profundidade.
+    alt, larg = mascaras[0].shape
+    do_alto = pontos[0].reshape(-1, 3)
+    grade = np.stack(np.meshgrid(np.arange(larg), np.arange(alt)), axis=-1)
+    pixels = grade.reshape(-1, 2).astype(float)
 
     # os pixels sao do quadro redimensionado para 512; a homografia foi feita
     # no tamanho original. Sem esta conversao a ancora aponta para o lugar
     # errado, e o mapa inteiro sai deslocado sem erro nenhum na tela.
-    alt, larg = mascaras[0].shape
     original = cv2.imread(imagens[0])
     pixels[:, 0] *= original.shape[1] / larg
     pixels[:, 1] *= original.shape[0] / alt
@@ -310,7 +336,9 @@ def _ancoras(pontos, pixels, h, calib, quantas=60):
 
     # 1. QUEM E CHAO: quem a homografia coloca dentro do retangulo aferido
     candidatos, no_mundo = [], []
-    for i in range(len(pontos)):
+    # de 3 em 3: 196 mil pontos um a um custa minutos, e o chao nao
+    # muda entre pixels vizinhos.
+    for i in range(0, len(pontos), 3):
         try:
             m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
         except Exception:
