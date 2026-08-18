@@ -113,8 +113,10 @@ def _vggt(imagens):
 
     mapa_de_pontos = saida["world_points"][0].cpu().numpy()
     confianca = saida["world_points_conf"][0].cpu().numpy()
-    firme = confianca > np.quantile(confianca, 0.5)
-    nuvem = mapa_de_pontos[firme].reshape(-1, 3)
+    # TUDO que a camera enxergou, sem cortar pela confianca — ver a nota
+    # em `_dust3r`.
+    firme = confianca > -np.inf
+    nuvem = mapa_de_pontos.reshape(-1, 3)
 
     from vggt.utils.pose_enc import pose_encoding_to_extri_intri
     m, _ = pose_encoding_to_extri_intri(saida["pose_enc"], lote.shape[-2:])
@@ -242,7 +244,23 @@ def _dust3r(imagens):
         m = matrizes[i]
         poses[papel] = (m[:3, 3], m[:3, :3] @ np.array([0.0, 0.0, 1.0]))
 
-    nuvem = np.vstack([p[m] for p, m in zip(pontos, mascaras)])
+    # TUDO QUE AS CAMERAS ENXERGARAM. Sem mascara de confianca.
+    #
+    #     a camera precisa reproduzir TODO O CHAO QUE ELA ENXERGAR e as
+    #     outras cameras precisam reproduzir TUDO QUE ELAS ENXERGAREM
+    #                                             — Eduardo, 18/08
+    #
+    # A mascara guardava so os pontos de alta confianca, e a confianca destas
+    # redes despenca em superficie lisa: parede branca, ladrilho, bandeja de
+    # aco. Ou seja, ela descartava exatamente o comodo e guardava as quinas.
+    #
+    #     A confianca da rede mede o quanto a PROFUNDIDADE dali e incerta.
+    #     Usa-la para decidir o que EXISTE e trocar a pergunta.
+    #
+    # Ponto de profundidade incerta ainda esta na direcao certa: ele erra em
+    # quanto esta longe, nao em existir. Para desenhar o comodo isso basta, e
+    # sem ele o comodo fica com buraco onde ha parede lisa.
+    nuvem = np.vstack([p.reshape(-1, 3) for p in pontos])
 
     # a vista 0 e a do alto — a unica com homografia, e por isso a unica que
     # pode virar ancora
