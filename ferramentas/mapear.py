@@ -1,59 +1,49 @@
-"""As tres cameras mapeiam o quarto. Roda uma vez, sem clique nenhum.
+"""As tres cameras montam o ambiente. A estante e a regua.
 
     python ferramentas/mapear.py            olha e mostra
-    python ferramentas/mapear.py --gravar   escreve loja/mapa.npz
+    python ferramentas/mapear.py --gravar   escreve em loja/quarto.json
+    python ferramentas/mapear.py --vggt     usa o VGGT (peso de 5 GB)
 
 ANTES DA PRIMEIRA VEZ
 
     git clone --recursive https://github.com/naver/dust3r.git
     pip install roma einops scipy trimesh matplotlib tqdm
 
-E SO ISSO — nao ha `pip install` do proprio DUSt3R.
+Nao ha `pip install` do proprio DUSt3R: ele nao tem setup.py, e uma pasta de
+codigo, e este arquivo a poe no caminho de import sozinho.
 
-O repositorio nao tem `setup.py` nem `pyproject.toml`: ele nao e um pacote,
-e uma pasta de codigo para ser usada de onde esta. `pip install -e dust3r`
-responde
+O QUE ACONTECE
 
-    ERROR: does not appear to be a Python project
+    1. le os tres quadros salvos em dados/levantamento
+    2. a rede devolve uma nuvem densa, sem calibracao nenhuma
+    3. o plano dominante vira o CHAO, e a cena deita sobre ele
+    4. tiradas as paredes, o que sobe e a ESTANTE
+    5. altura dela / 1,90 m de trena  ->  a ESCALA, e tudo vira metro
+    6. o contorno do piso  ->  a AREA de movimento
 
-que soa como repositorio quebrado e e so uma expectativa errada de quem
-instala. Este arquivo poe a pasta no caminho de import sozinho.
+A ESTANTE E A REGUA, E ISSO E O QUE MUDOU EM 18/08.
 
-DUAS REDES, A MESMA SAIDA
+Seis corridas tentaram tirar o metro da homografia, encaixando a nuvem no
+retangulo de 1,65 x 1,32 m. Todas terminaram em zero ancoras — e o motivo
+final foi humilde: a mascara de confianca da rede descarta piso liso, e
+aquele retangulo e quase todo piso liso.
 
-    padrao      DUSt3R,  peso de 2,3 GB   (CC BY-NC-SA, nao-comercial)
-    --vggt      VGGT,    peso de 5,0 GB   (melhor nas avaliacoes)
+Mas o metro nunca precisou vir de la. A estante mede 1,90 m com trena e esta
+no meio da cena.
 
-Os dois convivem porque a fronteira esta no lugar certo: `amarrar` acha o
-chao, casa com a homografia e devolve metros — e nao pergunta de qual rede
-veio a nuvem.
+    Quando um objeto de dimensao conhecida esta na cena, ele e a regua. Ir
+    buscar a escala noutro instrumento e atravessar a rua para pegar o que
+    esta na mao.
 
-    Quando dois caminhos entregam a mesma coisa, escolher entre eles deixa
-    de ser arquitetura e vira uma opcao de linha de comando.
-
-Vale rodar os dois na MESMA cena. Se discordarem muito, o problema esta na
-captura e nao no modelo — e isso e um diagnostico, nao um empate.
-
-O QUE ACONTECE, EM ORDEM
-
-    1. le os quadros salvos em dados/levantamento
-    2. DUSt3R devolve a pose das tres e uma nuvem densa, sem calibracao
-    3. o chao da nuvem e casado com a homografia, que ja esta em metros
-    4. sai o mapa: cameras situadas e ambiente reconstruido, tudo em metros
-
-O PASSO 3 E O QUE PRENDE O MAPA A REALIDADE.
-
-Estas redes resolvem a geometria a menos de uma similaridade: forma certa,
-tamanho e orientacao arbitrarios. A homografia da camera do alto ja define
-metro neste quarto, medida com trena. Casar uma na outra custa sessenta
-pontos do chao.
-
-    Um numero que ja existe em algum lugar nao deve ser reescrito noutro.
-    Deve ser LIDO de onde ele mora.
+O que sai daqui e o ambiente que as cameras viram — chao, estante e area de
+movimento, em metros, no formato que o `rodar.py` ja le.
 """
 import argparse
+import json
+import math
 import os
 import sys
+import time
 from pathlib import Path
 
 # O DOWNLOADER CLASSICO, E NAO O XET. Decidido em 18/08, medindo.
@@ -81,9 +71,8 @@ sys.path.insert(0, str(RAIZ))
 import cv2                                                    # noqa: E402
 import numpy as np                                            # noqa: E402
 
-from percepcao.chao import carregar_homografia, para_metros    # noqa: E402
-from src.mundo.mapeamento import (amarrar,                     # noqa: E402
-                                  plano_dominante)
+from src.mundo.ambiente import Gabarito                        # noqa: E402
+from src.mundo.mapeamento import montar                        # noqa: E402
 
 PAPEIS = ("alto", "frontal", "lateral")
 
@@ -294,94 +283,10 @@ def _dust3r(imagens):
     return nuvem, poses, do_alto, pixels
 
 
-def _ancoras(pontos, pixels, h, calib, quantas=60):
-    """As ancoras: pontos da nuvem que estao no chao MEDIDO.
-
-    A HOMOGRAFIA E O DETECTOR DE CHAO. Repensado em 18/08, sexta corrida.
-
-    As cinco versoes anteriores comecavam por um RANSAC procurando o plano do
-    chao na nuvem da camera do alto, e so depois perguntavam quais daqueles
-    pontos caiam na area calibrada. Zero caiam, sempre.
-
-    O erro estava na ordem, e ele e conceitual: a camera do alto olha uma cena
-    onde a estante ocupa metade do quadro. O maior plano dali pode ser a
-    lateral da estante ou a parede — e foi. Depois eu pedia a homografia as
-    coordenadas de um plano que nao e o piso, e ela respondia com numeros de
-    outra regua.
-
-    Mas a homografia NAO PRECISA que ninguem ache o chao para ela. Ela foi
-    ajustada sobre um retangulo de piso real, medido com trena. Um pixel que
-    mapeia para dentro desse retangulo esta olhando para o chao — isso e
-    definicao, nao estimativa.
-
-        O instrumento que foi aferido sobre uma superficie ja sabe reconhecer
-        aquela superficie. Procura-la de novo por outro metodo e desconfiar
-        da unica medida certa que existe no problema.
-
-    A ordem certa, entao:
-
-        1. os PIXELS decidem quem e chao       — pela homografia
-        2. a NUVEM diz a que altura cada um esta
-        3. o plano ajustado sobre esses ja e o piso, e o RANSAC so limpa
-           o que sobrou de movel dentro do retangulo
-
-    O passo 3 continua existindo porque dentro do retangulo pode haver o pe da
-    estante ou uma caixa — mas agora ele trabalha sobre um conjunto que ja e
-    quase todo chao, que e onde RANSAC funciona bem.
-    """
-    lx = float(calib.get("largura_m") or 0.0)
-    ly = float(calib.get("altura_m") or 0.0)
-    if lx <= 0:
-        return np.zeros((0, 3)), np.zeros((0, 2))
-
-    # 1. QUEM E CHAO: quem a homografia coloca dentro do retangulo aferido
-    candidatos, no_mundo = [], []
-    # de 3 em 3: 196 mil pontos um a um custa minutos, e o chao nao
-    # muda entre pixels vizinhos.
-    for i in range(0, len(pontos), 3):
-        try:
-            m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
-        except Exception:
-            continue
-        if m is None:
-            continue
-        x, y = np.asarray(m).ravel()[:2]
-        if not (0.0 <= x <= lx and 0.0 <= y <= ly):
-            continue
-        candidatos.append(pontos[i])
-        no_mundo.append((x, y))
-
-    if len(candidatos) < 8:
-        print(f"    so {len(candidatos)} pixels da camera do alto caem dentro")
-        print(f"    do retangulo de {lx} x {ly} m. Ela precisa enxergar mais")
-        print(f"    da area marcada no piso.")
-        return np.zeros((0, 3)), np.zeros((0, 2))
-
-    candidatos = np.array(candidatos)
-    no_mundo = np.array(no_mundo)
-    print(f"    {len(candidatos)} pixels caem dentro do retangulo")
-
-    # 2. e 3. entre eles, o plano dominante E o piso — o RANSAC so tira o pe
-    # da estante e a caixa que porventura estejam dentro do retangulo
-    achado = plano_dominante(candidatos)
-    if achado is not None:
-        _, _, no_piso = achado
-        if no_piso.sum() >= 8:
-            candidatos, no_mundo = candidatos[no_piso], no_mundo[no_piso]
-            print(f"    {int(no_piso.sum())} deles no plano do piso")
-
-    # espalhado, e nao os primeiros: ancora concentrada num canto fixa a
-    # rotacao mal mesmo com residuo pequeno
-    idx = np.arange(len(candidatos))
-    if len(idx) > quantas:
-        idx = np.linspace(0, len(idx) - 1, quantas, dtype=int)
-    return candidatos[idx], no_mundo[idx]
-
-
 def main():
     p = argparse.ArgumentParser(description="as 3 cameras mapeiam o quarto")
     p.add_argument("--pasta", default="dados/levantamento")
-    p.add_argument("--saida", default="loja/mapa.npz")
+    p.add_argument("--planta", default="loja/quarto.json")
     p.add_argument("--gravar", action="store_true")
     p.add_argument("--vggt", action="store_true",
                    help="usa o VGGT em vez do DUSt3R (peso de 5 GB)")
@@ -397,48 +302,88 @@ def main():
     print(f"\n  {len(imagens)} vistas: "
           f"{', '.join(Path(i).stem for i in imagens)}")
 
-    h, calib = carregar_homografia()
-    print(f"  homografia: {calib.get('largura_m')} x {calib.get('altura_m')} m")
+    gab = Gabarito.de_arquivo("loja/estante.json")
+    print(f"  a regua: a estante tem {gab.altura:.2f} m de altura, de trena")
 
     rede = _vggt if args.vggt else _dust3r
-    nuvem, poses, do_alto, pixels = rede(imagens)
-    print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
+    nuvem, poses, _, _ = rede(imagens)
+    print(f"  nuvem: {len(nuvem)} pontos, {len(poses)} poses")
 
-    na_nuvem, no_mundo = _ancoras(do_alto, pixels, h, calib)
-    print(f"  ancoras no chao e dentro da area calibrada: {len(na_nuvem)}")
-    if len(na_nuvem):
-        print(f"    espalhadas por x {no_mundo[:, 0].min():.2f}..."
-              f"{no_mundo[:, 0].max():.2f}   "
-              f"y {no_mundo[:, 1].min():.2f}...{no_mundo[:, 1].max():.2f} m")
-    if len(na_nuvem) < 8:
+    amb = montar(nuvem, gab)
+    if amb is None:
         raise SystemExit(
-            "\n  poucas ancoras. O chao reconstruido quase nao\n"
-            "  cruza o retangulo de calibracao — a camera do alto\n"
-            "  precisa enxergar a fita marcada no piso.\n")
+            "\n  nao consegui montar o ambiente. Ou a nuvem nao tem um chao\n"
+            "  reconhecivel, ou nao ha nada alto o bastante para ser a\n"
+            "  estante. Confira as tres imagens em dados/levantamento.\n")
 
-    mapa = amarrar(nuvem, poses, na_nuvem, no_mundo)
-    if mapa is None:
-        raise SystemExit("\n  a amarracao nao fechou. A nuvem nao tem um chao\n"
-                         "  reconhecivel, ou as ancoras cairam fora dele.\n")
-
-    print(f"\n  MAPA  escala {mapa.escala:.3f}   "
-          f"residuo {mapa.residuo_m * 100:.1f} cm   "
-          f"{len(mapa.nuvem)} pontos")
-    x0, x1, y0, y1 = mapa.chao
-    print(f"  chao  x {x0:+.2f} a {x1:+.2f}   y {y0:+.2f} a {y1:+.2f} m")
-    print(f"  altura reconstruida ate {mapa.nuvem[:, 2].max():.2f} m")
-    for papel, (c, _) in mapa.poses.items():
-        print(f"    {papel:<8} em ({c[0]:+.2f}, {c[1]:+.2f}, {c[2]:+.2f}) m")
-    if not mapa.pronto:
-        print("\n  MENOS DE DUAS CAMERAS — o mapa nao se sustenta.")
+    x0, x1, y0, y1 = amb.chao
+    ex, ey, rumo = amb.estante
+    print(f"\n  AMBIENTE   escala {amb.escala:.2f}")
+    print(f"  chao       {x1 - x0:.2f} x {y1 - y0:.2f} m de area para andar")
+    print(f"  altura     {amb.altura_da_cena:.2f} m ate o ponto mais alto")
+    print(f"  estante    em ({ex:+.2f}, {ey:+.2f}) m, "
+          f"face a {math.degrees(rumo):+.0f} graus")
+    print(f"  nuvem      {len(amb.nuvem)} pontos em metros")
 
     if args.gravar:
-        np.savez(RAIZ / args.saida, nuvem=mapa.nuvem, escala=mapa.escala,
-                 residuo_m=mapa.residuo_m,
-                 **{f"pose_{k}": v[0] for k, v in mapa.poses.items()})
-        print(f"\n  gravado em {args.saida}\n")
+        _gravar_planta(amb, gab, args.planta)
+        np.savez(RAIZ / "loja" / "nuvem.npz", pontos=amb.nuvem)
+        print(f"\n  gravado em {args.planta} e loja/nuvem.npz")
+        print("\n  agora:  python rodar.py\n")
     else:
         print("\n  (nao gravei — use --gravar)\n")
+
+
+def _gravar_planta(amb, gab, caminho):
+    """Escreve o ambiente na planta que o `rodar.py` ja le.
+
+    O chao, a estante com as medidas de trena, e a entrada e a saida
+    deduzidas dela. E o mesmo formato de sempre — o que mudou foi de onde os
+    numeros vieram.
+    """
+    from ferramentas.achar_ambiente import _portas
+    from src.mundo.ambiente import Ambiente
+
+    x0, x1, y0, y1 = amb.chao
+    ex, ey, rumo = amb.estante
+
+    caminho = RAIZ / caminho
+    d = json.loads(caminho.read_text(encoding="utf-8"))
+    d["chao"] = {"xmin": round(x0, 3), "xmax": round(x1, 3),
+                 "ymin": round(y0, 3), "ymax": round(y1, 3),
+                 "_nota": ["Contorno do piso que as cameras reconstruiram.",
+                           "Nao e um numero digitado: e o que elas viram."]}
+    d["moveis"] = [{
+        "id": "estante-aco", "nome": "Estante", "tipo": "estante",
+        "x": round(ex, 3), "y": round(ey, 3),
+        "largura": round(gab.largura, 3),
+        "profundidade": round(gab.profundidade, 3),
+        "altura": round(gab.altura, 3),
+        "rumo_da_face": round(float(rumo), 4),
+        "prateleiras": [{"id": i, "altura": round(float(a), 3)}
+                        for i, a in gab.prateleiras],
+        "estante": "estante-aco-teste",
+        "_medido_em": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "_por": "as 3 cameras; a altura de trena deu a escala",
+        "_nota": [
+            "POSICAO achada pelas cameras. DIMENSOES da trena.",
+            "",
+            "A escala do mundo saiu da altura da estante: 1,90 m medidos",
+            "divididos pela altura dela na nuvem. Nenhuma homografia entrou",
+            "nesta conta.",
+            "",
+            "    Quando um objeto de dimensao conhecida esta na cena, ele e",
+            "    a regua.",
+        ]}]
+
+    est = Ambiente(x=ex, y=ey, rumo_da_face=float(rumo),
+                   largura=gab.largura, profundidade=gab.profundidade,
+                   altura=gab.altura, prateleiras=gab.prateleiras,
+                   cameras=("alto", "frontal", "lateral"))
+    d["zonas"] = _portas(est, (x0, x1, y0, y1))
+    d.pop("_a_medir", None)
+    caminho.write_text(json.dumps(d, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
 
 
 if __name__ == "__main__":

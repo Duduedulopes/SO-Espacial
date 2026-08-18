@@ -1,41 +1,39 @@
-"""As tres cameras mapeiam o lugar. Sem clique, sem gabarito de calibracao.
+"""O ambiente que as cameras entregam. A estante e a regua.
 
-    Faca com que as 3 cameras facam um mapeamento do lugar, recriem em tempo
-    real e captem o gemeo digital nesse ambiente     — Eduardo, 18/08
+    eu so preciso que esse ambiente virtual esteja sendo mostrado na minha
+    interface da maneira correta e que eu consiga visualizar o gemeo, a
+    estante, o chao e uma area para se movimentar de uma forma coerente
+                                                    — Eduardo, 18/08
 
-O METODO, E POR QUE ESTE E NAO OUTRO
+O QUE MUDOU, E POR QUE ELE ESTAVA CERTO
 
-VGGT (Visual Geometry Grounded Transformer) recebe imagens de cameras SEM
-CALIBRACAO NENHUMA e devolve, numa passagem so, a pose de cada uma e uma nuvem
-de pontos densa da cena. Nao pede tabuleiro de xadrez, nao pede objeto de
-dimensao conhecida, nao pede correspondencia marcada a mao.
+A versao anterior forcava a nuvem reconstruida a caber dentro do retangulo de
+1,65 x 1,32 m da homografia. Seis corridas terminaram em zero ancoras, e o
+motivo final foi humilde: a mascara de confianca do DUSt3R descarta piso liso,
+e o retangulo calibrado e quase todo piso liso.
 
-Isso importa aqui por um motivo concreto: as tres cameras olham a estante de
-angulos muito diferentes e quase nao compartilham textura. O COLMAP — o
-caminho classico de structure-from-motion — e justamente onde ele sofre: poucas
-imagens e parede lisa. As redes desta familia foram feitas para sobreposicao
-escassa e ganham do COLMAP com poucas vistas.
+Mas o retangulo nunca foi necessario. Ele entrou porque eu tirava dele o
+METRO — e o metro ja existia num lugar mais simples e mais firme:
 
-    Tres tentativas foram gastas pedindo que uma pessoa marcasse cantos na
-    tela. Marcar a mao nao era o projeto: era o atalho que eu tomei por nao
-    ter procurado o metodo.
+    a estante mede 1,90 m de altura, medida com trena
 
-O QUE ELE DEVOLVE, E O QUE FALTA NELE
+Achar a coisa alta em cima do chao e dividir pela altura conhecida da a
+escala. Nenhuma homografia, nenhuma ancora, nenhuma correspondencia.
 
-VGGT resolve a geometria a menos de uma SIMILARIDADE: escala, rotacao e
-translacao globais ficam indeterminadas. A nuvem esta certa em forma e errada
-em tamanho e orientacao, porque nada na imagem diz quantos metros tem um pixel.
+    Quando um objeto de dimensao conhecida esta na cena, ele e a regua. Ir
+    buscar a escala noutro instrumento e atravessar a rua para pegar o que
+    esta na mao.
 
-E aqui este projeto tem uma vantagem que quase ninguem tem: a homografia da
-camera do alto JA define um sistema de coordenadas em metros, medido com trena
-em 1,65 x 1,32 m. Entao a ancora nao precisa ser inventada.
+A ORDEM, E ELA CABE EM CINCO LINHAS
 
-    Um numero que ja existe em algum lugar nao deve ser reescrito noutro.
-    Deve ser LIDO de onde ele mora.
+    1. plano dominante da nuvem      -> o CHAO, e ele vira z = 0
+    2. o que fica ACIMA do chao      -> os objetos
+    3. o maior aglomerado alto       -> a ESTANTE
+    4. altura dela / 1,90            -> a ESCALA, e tudo vira metro
+    5. o contorno do chao            -> a AREA de movimento
 
-Amarrar o mapa a homografia, em vez de criar um sistema novo, e o que faz o
-gemeo digital e o ambiente mapeado viverem no MESMO mundo — que era o problema
-desde o comeco.
+O que sai daqui e o ambiente que as cameras viram, em metros, pronto para
+desenhar. Nao e o ambiente que eu queria que elas vissem.
 """
 from __future__ import annotations
 
@@ -44,77 +42,71 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-# Fracao dos pontos que precisa cair no plano para ele ser o chao.
-#
-# O chao e a maior superficie plana de um quarto vazio. Trinta por cento e
-# folgado o bastante para um quarto com moveis e apertado o bastante para nao
-# aceitar uma parede como chao.
-FRACAO_DO_CHAO = 0.30
-
 # Espessura do plano, como FRACAO do tamanho da nuvem.
 #
-# ERRO DE 18/08, E ELE CUSTOU O DIA: aqui havia `TOLERANCIA_PLANO = 0.02`, um
-# numero absoluto. Mas a nuvem destas redes NAO TEM UNIDADE — a escala e
-# arbitraria e so vira metro depois de `amarrar`. Na corrida real a escala
-# medida foi 18,3, entao a tolerancia valia
-#
-#     0,02 x 18,3 = 0,37 METROS de espessura
-#
-# Com isso o "plano" aceitava o chao, a base da estante, a caixa ao lado e
-# meio metro de parede, tudo na mesma fatia. O RANSAC nao achava o chao:
-# achava a maior fatia grossa da cena. Depois `_de_pe` girava aquilo para
-# ficar horizontal e achatava o resto — o quarto saiu com 4,5 m de largura e
-# 0,66 de altura.
+# Absoluto nao serve: a nuvem destas redes nasce sem unidade, e a escala so
+# aparece no passo 4. Um numero fixo aqui vale centimetros numa cena e metros
+# noutra.
 #
 #     Uma tolerancia absoluta sobre um dado sem unidade nao e frouxa nem
-#     apertada: e indefinida ate alguem medir a escala, que e justamente o
-#     que ainda nao aconteceu.
-#
-# Meio por cento da diagonal da nuvem e a mesma espessura em qualquer escala.
-FRACAO_DA_ESPESSURA = 0.005
+#     apertada: e indefinida ate alguem medir a escala.
+FRACAO_DA_ESPESSURA = 0.004
 
-# Escala minima aceitavel entre a nuvem e o mundo. Abaixo disso a similaridade
-# degenerou e o mapa nao esta amarrado a coisa nenhuma.
-ESCALA_MINIMA = 1e-6
+# Fracao dos pontos que precisa cair no plano para ele ser o chao.
+#
+# Baixo de proposito. Numa cena com estante, mesa e parede, o piso pode ser
+# minoria — e continuar sendo o piso. Exigir maioria e supor um quarto vazio.
+FRACAO_DO_CHAO = 0.12
+
+# A partir de que altura, em fracao da altura da estante, um ponto conta como
+# "objeto" e nao como chao sujo.
+ACIMA_DO_CHAO = 0.15
 
 
 @dataclass
-class Mapa:
-    """O lugar, mapeado e ja em metros no sistema da homografia."""
-    poses: dict = field(default_factory=dict)      # papel -> (posicao, olhar)
+class Ambiente3D:
+    """O lugar, em metros, do jeito que as cameras entregaram."""
     nuvem: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
     escala: float = 0.0
-    residuo_m: float = 0.0
-    pontos_ancora: int = 0
+    estante: tuple | None = None       # (x, y, rumo) em metros
+    altura_da_cena: float = 0.0
 
     @property
     def pronto(self):
-        return len(self.poses) >= 2 and self.escala > ESCALA_MINIMA
+        return len(self.nuvem) > 100 and self.escala > 0
 
     @property
     def chao(self):
-        """Os limites do piso reconstruido, em metros: (xmin, xmax, ymin, ymax)."""
+        """A area de movimento: (xmin, xmax, ymin, ymax) em metros.
+
+        Sai do CONTORNO do piso reconstruido, e nao de um numero digitado. Se
+        a camera enxergou tres metros de chao, a area tem tres metros.
+        """
         if not len(self.nuvem):
             return None
-        baixo, alto = self.nuvem.min(axis=0), self.nuvem.max(axis=0)
-        return (float(baixo[0]), float(alto[0]), float(baixo[1]), float(alto[1]))
+        rasos = self.nuvem[self.nuvem[:, 2] < 0.10]
+        if len(rasos) < 20:
+            rasos = self.nuvem
+        # percentis e nao extremos: um ponto solto no fundo do corredor
+        # esticaria o piso ate ele
+        x0, x1 = np.percentile(rasos[:, 0], [2, 98])
+        y0, y1 = np.percentile(rasos[:, 1], [2, 98])
+        return (float(x0), float(x1), float(y0), float(y1))
 
 
-def plano_dominante(pontos, tolerancia=None, tentativas=200, semente=0):
+def plano_dominante(pontos, tolerancia=None, tentativas=300, semente=0):
     """O maior plano da nuvem — num quarto, o chao. RANSAC.
 
-    Devolve (normal_unitaria, ponto_do_plano, mascara_dos_inliers).
+    Devolve (normal_unitaria, ponto_do_plano, mascara_dos_inliers), ou None.
 
-    RANSAC e nao minimos quadrados porque a nuvem tem parede, movel e ruido: um
-    ajuste que usa todos os pontos encontra o plano que agrada a todos e nao
-    descreve nenhum.
+    RANSAC e nao minimos quadrados porque a nuvem tem parede, movel e ruido:
+    um ajuste que usa todos os pontos encontra o plano que agrada a todos e
+    nao descreve nenhum.
     """
     p = np.asarray(pontos, dtype=float).reshape(-1, 3)
     if len(p) < 3:
         return None
 
-    # A espessura sai do proprio dado quando ninguem a impoe: uma fracao da
-    # diagonal da nuvem vale o mesmo em qualquer escala.
     if tolerancia is None:
         diagonal = float(np.linalg.norm(p.max(axis=0) - p.min(axis=0)))
         tolerancia = max(diagonal * FRACAO_DA_ESPESSURA, 1e-9)
@@ -137,48 +129,14 @@ def plano_dominante(pontos, tolerancia=None, tentativas=200, semente=0):
     return melhor
 
 
-def similaridade(origem, destino):
-    """A transformacao 2D que leva `origem` em `destino`: escala, giro, deslocamento.
-
-    Umeyama. Devolve (escala, rotacao_2x2, deslocamento, residuo_medio).
-
-    Sem escala isolada nao ha metro: a nuvem do VGGT nasce adimensional, e e
-    exatamente este numero que a converte. Por isso ele sai como valor de
-    primeira classe, e nao escondido dentro de uma matriz 3x3.
-    """
-    a = np.asarray(origem, dtype=float).reshape(-1, 2)
-    b = np.asarray(destino, dtype=float).reshape(-1, 2)
-    if len(a) < 2 or len(a) != len(b):
-        return None
-
-    ca, cb = a.mean(axis=0), b.mean(axis=0)
-    a0, b0 = a - ca, b - cb
-    variancia = float((a0 ** 2).sum() / len(a))
-    if variancia < 1e-12:
-        return None
-
-    u, s, vt = np.linalg.svd((b0.T @ a0) / len(a))
-    d = np.eye(2)
-    # O determinante negativo seria um espelhamento — e espelhar um mapa nao e
-    # um movimento rigido: seria trocar esquerda por direita no mundo inteiro.
-    if np.linalg.det(u @ vt) < 0:
-        d[1, 1] = -1.0
-    r = u @ d @ vt
-    escala = float(np.trace(np.diag(s) @ d) / variancia)
-    deslocamento = cb - escala * (r @ ca)
-    residuo = float(np.linalg.norm(
-        (escala * (r @ a.T).T + deslocamento) - b, axis=1).mean())
-    return escala, r, deslocamento, residuo
-
-
-def _de_pe(normal, pontos):
-    """Gira a nuvem para o plano do chao virar z = 0 e o resto ficar acima."""
+def _de_pe(normal):
+    """A rotacao que deita o plano do chao: normal -> (0, 0, 1)."""
     n = np.asarray(normal, dtype=float)
     n = n / np.linalg.norm(n)
     if n[2] < 0:
         n = -n
     eixo = np.cross(n, np.array([0.0, 0.0, 1.0]))
-    seno = np.linalg.norm(eixo)
+    seno = float(np.linalg.norm(eixo))
     if seno < 1e-9:
         return np.eye(3)
     eixo = eixo / seno
@@ -189,71 +147,131 @@ def _de_pe(normal, pontos):
     return np.eye(3) + math.sin(ang) * k + (1 - math.cos(ang)) * (k @ k)
 
 
-def amarrar(nuvem, poses_vggt, ancoras_nuvem, ancoras_mundo):
-    """Poe o mapa em metros, no sistema de coordenadas que ja existe.
+def sem_paredes(pontos, quantas=3):
+    """Tira os planos VERTICAIS da nuvem ja deitada. Sobra o que e movel.
 
-    `ancoras_nuvem`   pontos do chao NA NUVEM, adimensionais
-    `ancoras_mundo`   os mesmos pontos em METROS, pela homografia
+    A PAREDE E MAIS ALTA QUE A ESTANTE, e por isso "o que sobe" nao basta.
 
-    O VGGT resolve a geometria a menos de uma similaridade — a forma esta
-    certa, o tamanho e a orientacao nao. Estes dois conjuntos sao a unica coisa
-    que amarra um no outro, e eles vem da calibracao que ja existia.
+    Um quarto tem 2,5 m de pe-direito e a estante tem 1,90. Procurar o ponto
+    mais alto encontra a parede — e a pegada dela, sendo uma faixa longa na
+    borda do quarto, arrasta o retangulo da estante para o lado.
 
-    Devolve `Mapa`, ou None quando a amarracao nao fecha.
+    O que separa os dois nao e altura: e FORMA. Parede e um plano vertical
+    grande; estante e um volume compacto. Depois de deitar o chao, plano
+    vertical tem normal quase horizontal — a componente z dela e quase zero.
+
+        Altura nao distingue movel de parede. Ambos sobem. O que distingue e
+        que a parede e chapada e o movel tem os quatro lados.
+
+    Remove ate `quantas` planos verticais grandes, um por vez.
+    """
+    p = np.asarray(pontos, dtype=float).reshape(-1, 3)
+
+    # O CHAO SAI PRIMEIRO, e sem isso o resto nao acontece.
+    #
+    # A nuvem que chega aqui ainda tem o piso, e o piso E o plano dominante.
+    # A primeira volta do laco o encontrava, via que ele e horizontal, e
+    # parava — sem nunca chegar na parede.
+    #
+    #     Procurar a segunda coisa mais comum sem tirar a primeira e
+    #     encontrar a primeira de novo.
+    #
+    # Depois de deitar, o chao esta em z ~ 0. Tirar a faixa rasa deixa so o
+    # que sobe: parede e movel.
+    alto_da_cena = float(np.percentile(p[:, 2], 99.0))
+    if alto_da_cena > 0:
+        p = p[p[:, 2] > alto_da_cena * 0.05]
+
+    for _ in range(quantas):
+        if len(p) < 200:
+            break
+        achado = plano_dominante(p)
+        if achado is None:
+            break
+        normal, _, dentro = achado
+        # vertical: a normal deita, entao |z| dela e pequeno
+        if abs(float(normal[2])) > 0.35:
+            break                       # ja nao e parede; para de tirar
+        if dentro.sum() < 0.10 * len(p):
+            break                       # plano pequeno demais para ser parede
+        p = p[~dentro]
+    return p
+
+
+def achar_estante(pontos, largura_alvo, profundidade_alvo):
+    """A estante na nuvem ja deitada: (x, y, rumo, altura) em unidades da nuvem.
+
+    A ESTANTE E O VOLUME COMPACTO QUE SOBE, depois de tiradas as paredes.
+
+    Procura o aglomerado alto com maior extensao horizontal e ajusta um
+    retangulo girado sobre a pegada dele. O rumo sai do lado maior.
+
+    Devolve None quando nao ha nada alto o bastante: dizer "nao achei" e uma
+    resposta, e desenhar uma estante onde nao ha e que nao e.
+    """
+    import cv2
+
+    p = sem_paredes(np.asarray(pontos, dtype=float).reshape(-1, 3))
+    if len(p) < 50:
+        return None
+
+    teto = float(np.percentile(p[:, 2], 99.0))
+    if teto <= 0:
+        return None
+
+    altos = p[p[:, 2] > teto * 0.40]
+    if len(altos) < 30:
+        return None
+
+    pegada = altos[:, :2].astype(np.float32)
+    (cx, cy), (w, h), ang = cv2.minAreaRect(pegada)
+    if w < 1e-9 or h < 1e-9:
+        return None
+
+    # o lado maior e a largura da face; o rumo sai dele, na convencao do
+    # projeto (normal = -sin r, cos r)
+    rumo = math.radians(ang) if w >= h else math.radians(ang) + math.pi / 2
+    return (float(cx), float(cy), float(rumo), teto)
+
+
+def montar(nuvem, gabarito):
+    """A nuvem crua vira ambiente em metros. E o passo unico deste modulo.
+
+    `gabarito` precisa ter `.altura` — a altura da estante medida com trena.
+    E ela que da o metro:
+
+        escala = altura_de_trena / altura_da_estante_na_nuvem
+
+    Devolve `Ambiente3D`, ou None quando nao ha chao reconhecivel.
     """
     p = np.asarray(nuvem, dtype=float).reshape(-1, 3)
-    a3 = np.asarray(ancoras_nuvem, dtype=float).reshape(-1, 3)
-    if not len(p) or len(a3) < 3:
+    if len(p) < 100:
         return None
 
-    # O CHAO SAI DAS ANCORAS, E NAO DE UMA BUSCA NA NUVEM INTEIRA.
-    #
-    # Consertado em 18/08, na terceira corrida. Aqui havia um RANSAC sobre os
-    # 82 mil pontos das tres cameras, exigindo que 30% deles caissem no plano.
-    # Mas so a camera do alto olha para o chao: a frontal ve o vao da estante
-    # e a lateral ve parede, mesa e prateleira do outro lado. O piso e
-    # MINORIA na nuvem toda, e a busca falhava — recusando o mapa inteiro.
-    #
-    # E ela nem precisava acontecer. As ancoras que chegam aqui JA sao pontos
-    # de chao: foram escolhidas pelo RANSAC rodado na camera que enxerga o
-    # piso, e sao as unicas com correspondencia em metros.
-    #
-    #     Procurar de novo o que ja foi achado nao e redundancia inofensiva:
-    #     e dar a duas partes do programa a chance de discordar sobre o mesmo
-    #     fato.
-    #
-    # O plano sai por SVD nas ancoras — sem RANSAC, porque elas ja estao
-    # limpas, e a menor direcao de espalhamento de um conjunto plano E a
-    # normal dele.
-    centro_ancoras = a3.mean(axis=0)
-    _, _, vt = np.linalg.svd(a3 - centro_ancoras)
-    normal, no_plano = vt[2], centro_ancoras
-
-    giro = _de_pe(normal, p)
-    p_reto = (giro @ (p - no_plano).T).T
-    ancoras_retas = (giro @ (np.asarray(ancoras_nuvem, dtype=float)
-                             - no_plano).T).T
-
-    casado = similaridade(ancoras_retas[:, :2], ancoras_mundo)
-    if casado is None:
+    # 1. o chao
+    achado = plano_dominante(p)
+    if achado is None:
         return None
-    escala, r2, desloc, residuo = casado
-    if escala < ESCALA_MINIMA:
+    normal, no_plano, _ = achado
+
+    # 2. deitar: o chao vira z = 0 e o resto fica acima
+    giro = _de_pe(normal)
+    deitada = (giro @ (p - no_plano).T).T
+    # se o grosso da cena ficou abaixo de zero, a normal apontava para baixo
+    if np.median(deitada[:, 2]) < 0:
+        deitada[:, 2] *= -1.0
+
+    # 3. e 4. a estante da a escala
+    achada = achar_estante(deitada, gabarito.largura, gabarito.profundidade)
+    if achada is None:
         return None
+    cx, cy, rumo, alto_na_nuvem = achada
+    if alto_na_nuvem <= 1e-9:
+        return None
+    escala = float(gabarito.altura) / alto_na_nuvem
 
-    r3 = np.eye(3)
-    r3[:2, :2] = r2
-    final = escala * (r3 @ p_reto.T).T
-    final[:, 0] += desloc[0]
-    final[:, 1] += desloc[1]
+    em_metros = deitada * escala
+    estante = (cx * escala, cy * escala, rumo)
 
-    poses = {}
-    for papel, (posicao, olhar) in poses_vggt.items():
-        c = escala * (r3 @ (giro @ (np.asarray(posicao, dtype=float)
-                                    - no_plano)))
-        c[0] += desloc[0]
-        c[1] += desloc[1]
-        poses[papel] = (c, (r3 @ (giro @ np.asarray(olhar, dtype=float))))
-
-    return Mapa(poses=poses, nuvem=final, escala=escala,
-                residuo_m=residuo * escala, pontos_ancora=len(ancoras_mundo))
+    return Ambiente3D(nuvem=em_metros, escala=escala, estante=estante,
+                      altura_da_cena=float(em_metros[:, 2].max()))
