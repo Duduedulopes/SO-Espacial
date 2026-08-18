@@ -19,17 +19,20 @@ responde
 que soa como repositorio quebrado e e so uma expectativa errada de quem
 instala. Este arquivo poe a pasta no caminho de import sozinho.
 
-POR QUE DUSt3R E NAO VGGT
+DUAS REDES, A MESMA SAIDA
 
-O VGGT e melhor e foi a primeira escolha. O peso dele tem 5 GB, e depois de
-quatro tentativas nao coube nos 8 GB livres da maquina — o downloader precisa
-do dobro, e cada falha deixava lixo para a seguinte. O DUSt3R e da mesma
-familia, resolve o mesmo problema, e o peso tem 2,3 GB.
+    padrao      DUSt3R,  peso de 2,3 GB   (CC BY-NC-SA, nao-comercial)
+    --vggt      VGGT,    peso de 5,0 GB   (melhor nas avaliacoes)
 
-    O metodo certo que nao roda na maquina que existe nao e o metodo certo.
-    E uma preferencia.
+Os dois convivem porque a fronteira esta no lugar certo: `amarrar` acha o
+chao, casa com a homografia e devolve metros — e nao pergunta de qual rede
+veio a nuvem.
 
-LICENCA: CC BY-NC-SA, nao-comercial — cobre o uso academico de hoje.
+    Quando dois caminhos entregam a mesma coisa, escolher entre eles deixa
+    de ser arquitetura e vira uma opcao de linha de comando.
+
+Vale rodar os dois na MESMA cena. Se discordarem muito, o problema esta na
+captura e nao no modelo — e isso e um diagnostico, nao um empate.
 
 O QUE ACONTECE, EM ORDEM
 
@@ -83,6 +86,62 @@ from src.mundo.mapeamento import (amarrar,                     # noqa: E402
                                   plano_dominante)
 
 PAPEIS = ("alto", "frontal", "lateral")
+
+
+def _vggt(imagens):
+    """O mesmo contrato do _dust3r, pelo VGGT. Devolve (nuvem, poses, do_alto, pixels).
+
+    OS DOIS CONVIVEM PORQUE A FRONTEIRA ESTA NO LUGAR CERTO.
+
+    `amarrar` acha o chao, casa com a homografia e devolve metros — e nao
+    pergunta de qual rede veio a nuvem. Entao trocar de modelo custa uma
+    funcao com esta assinatura, e nada mais no programa muda.
+
+        Quando dois caminhos entregam a mesma coisa, escolher entre eles
+        deixa de ser arquitetura e vira uma opcao de linha de comando.
+
+    O VGGT e melhor nas avaliacoes e mais caro em disco: 5 GB contra 2,3. Com
+    espaco, vale comparar os dois na MESMA cena — se discordarem muito, o
+    problema esta na captura, nao no modelo.
+    """
+    try:
+        import torch
+        from vggt.models.vggt import VGGT
+        from vggt.utils.load_fn import load_and_preprocess_images
+    except ImportError as e:
+        raise SystemExit(
+            f"\n  falta {e.name}. O VGGT tambem e do GitHub:\n\n"
+            f"      pip install --no-deps "
+            f"git+https://github.com/facebookresearch/vggt.git\n")
+
+    dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"  VGGT em {dispositivo} — peso de 5 GB na primeira vez")
+
+    modelo = VGGT.from_pretrained("facebook/VGGT-1B").to(dispositivo).eval()
+    lote = load_and_preprocess_images(imagens).to(dispositivo)
+    with torch.no_grad():
+        saida = modelo(lote)
+
+    mapa_de_pontos = saida["world_points"][0].cpu().numpy()
+    confianca = saida["world_points_conf"][0].cpu().numpy()
+    firme = confianca > np.quantile(confianca, 0.5)
+    nuvem = mapa_de_pontos[firme].reshape(-1, 3)
+
+    from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+    m, _ = pose_encoding_to_extri_intri(saida["pose_enc"], lote.shape[-2:])
+    m = m[0].cpu().numpy()
+    poses = {}
+    for i, papel in enumerate(PAPEIS[:len(m)]):
+        r, t = m[i][:3, :3], m[i][:3, 3]
+        poses[papel] = (-r.T @ t, r.T @ np.array([0.0, 0.0, 1.0]))
+
+    do_alto = mapa_de_pontos[0][firme[0]].reshape(-1, 3)
+    pixels = np.argwhere(firme[0])[:, ::-1].astype(float)
+    alt, larg = firme[0].shape
+    original = cv2.imread(imagens[0])
+    pixels[:, 0] *= original.shape[1] / larg
+    pixels[:, 1] *= original.shape[0] / alt
+    return nuvem, poses, do_alto, pixels
 
 
 def _dust3r(imagens):
@@ -258,6 +317,8 @@ def main():
     p.add_argument("--pasta", default="dados/levantamento")
     p.add_argument("--saida", default="loja/mapa.npz")
     p.add_argument("--gravar", action="store_true")
+    p.add_argument("--vggt", action="store_true",
+                   help="usa o VGGT em vez do DUSt3R (peso de 5 GB)")
     args = p.parse_args()
 
     pasta = RAIZ / args.pasta
@@ -273,7 +334,8 @@ def main():
     h, calib = carregar_homografia()
     print(f"  homografia: {calib.get('largura_m')} x {calib.get('altura_m')} m")
 
-    nuvem, poses, do_alto, pixels = _dust3r(imagens)
+    rede = _vggt if args.vggt else _dust3r
+    nuvem, poses, do_alto, pixels = rede(imagens)
     print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
 
     na_nuvem, no_mundo = _ancoras(do_alto, pixels, h)
