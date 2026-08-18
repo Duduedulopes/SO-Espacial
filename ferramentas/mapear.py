@@ -140,6 +140,29 @@ def _dust3r(imagens):
             f"  As que ele costuma pedir, de uma vez:\n"
             f"      pip install roma einops scipy trimesh matplotlib tqdm\n")
 
+    # CONFERE O DISCO ANTES DE BAIXAR, e nao depois de treze minutos.
+    #
+    # Seis tentativas morreram por falta de espaco em 18/08, cada uma depois
+    # de baixar gigabytes. E o numero enganava: cada falha deixava restolho
+    # para a seguinte, entao o espaco livre CAIA a cada tentativa — e quando
+    # o processo morria, o Python apagava o temporario dele e o espaco
+    # voltava. Quem olhava o Windows depois via 7 GB; quem comecava a
+    # proxima encontrava 2.
+    #
+    #     Conferir um recurso depois de gasta-lo nao e conferir: e narrar.
+    #
+    # Meia hora de download perdida por uma verificacao de tres linhas.
+    import shutil
+    livre = shutil.disk_usage(Path.home()).free / 1e9
+    if livre < 3.0:
+        raise SystemExit(
+            f"\n  so ha {livre:.1f} GB livres, e o peso precisa de 2,3 mais\n"
+            f"  folga. Provavelmente sao downloads pela metade de tentativas\n"
+            f"  anteriores — cada falha deixa o pedaco para tras:\n\n"
+            f'      Remove-Item "$env:USERPROFILE\\.cache\\huggingface" '
+            f"-Recurse -Force\n")
+    print(f"  disco: {livre:.1f} GB livres")
+
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  DUSt3R em {dispositivo}"
           f"{' (sem GPU: alguns minutos)' if dispositivo == 'cpu' else ''}")
