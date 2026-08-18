@@ -6,18 +6,18 @@
 ANTES DA PRIMEIRA VEZ
 
     git clone --recursive https://github.com/naver/dust3r.git
-    pip install --no-deps -e dust3r
     pip install roma einops
 
-O `--no-deps` NAO E GAMBIARRA. Sem ele o pip tenta recompilar numpy por causa
-de um pino conservador, nao acha compilador C no Windows e para com
+E SO ISSO — nao ha `pip install` do proprio DUSt3R.
 
-    ERROR: Unknown compiler(s): [['icl'], ['cl'], ['cc'], ['gcc'], ...]
+O repositorio nao tem `setup.py` nem `pyproject.toml`: ele nao e um pacote,
+e uma pasta de codigo para ser usada de onde esta. `pip install -e dust3r`
+responde
 
-que parece falta de compilador e nao e.
+    ERROR: does not appear to be a Python project
 
-    Instalar um compilador para satisfazer um pino que ninguem precisa e
-    consertar o sintoma no lugar mais caro possivel.
+que soa como repositorio quebrado e e so uma expectativa errada de quem
+instala. Este arquivo poe a pasta no caminho de import sozinho.
 
 POR QUE DUSt3R E NAO VGGT
 
@@ -101,6 +101,15 @@ def _dust3r(imagens):
     LICENCA: CC BY-NC-SA, nao-comercial. Cobre o uso academico de hoje. No
     dia em que a Smart Store for vendida, este e um dos itens a revisitar.
     """
+    # A PASTA CLONADA ENTRA NO CAMINHO DE IMPORT.
+    #
+    # O DUSt3R nao se instala; ele mora onde foi clonado. `croco` e submodulo
+    # dele e precisa entrar tambem — sem isso o import falha em `models.croco`
+    # com uma mensagem que parece falta de dependencia.
+    for pasta in (RAIZ / "dust3r", RAIZ / "dust3r" / "croco"):
+        if pasta.is_dir() and str(pasta) not in sys.path:
+            sys.path.insert(0, str(pasta))
+
     try:
         import torch
         from dust3r.cloud_opt import GlobalAlignerMode, global_aligner
@@ -113,10 +122,10 @@ def _dust3r(imagens):
             f"\n  falta {e.name}. O DUSt3R e do GitHub, nao do PyPI:\n\n"
             f"      git clone --recursive "
             f"https://github.com/naver/dust3r.git\n"
-            f"      pip install --no-deps -e dust3r\n"
             f"      pip install roma einops\n\n"
-            f"  O --no-deps evita que o pip tente recompilar numpy, que foi o\n"
-            f"  que travou a instalacao do VGGT.\n")
+            f"  Clone DENTRO de {RAIZ.name}. Nao ha pip install do DUSt3R:\n"
+            f"  ele nao tem setup.py, e uma pasta de codigo, e este arquivo\n"
+            f"  a poe no caminho de import sozinho.\n")
 
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  DUSt3R em {dispositivo}"

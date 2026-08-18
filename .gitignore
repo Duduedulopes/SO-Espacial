@@ -23,3 +23,6 @@ dados/
 
 # configuração local (câmera, caminhos, credenciais)
 config.local.yaml
+
+# clonado, nao versionado: e codigo de terceiro usado de onde esta
+dust3r/
