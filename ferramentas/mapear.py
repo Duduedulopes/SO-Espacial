@@ -67,7 +67,20 @@ def _vggt(imagens):
     print(f"  VGGT em {dispositivo}"
           f"{' (sem GPU: vai levar alguns minutos)' if dispositivo == 'cpu' else ''}")
 
-    modelo = VGGT.from_pretrained("facebook/VGGT-1B").to(dispositivo).eval()
+    # O CHECKPOINT COMERCIAL, e nao o original.
+    #
+    # `facebook/VGGT-1B` e nao-comercial. Este projeto tem dossie de
+    # investimento e modelo de franquia — usar o peso errado seria construir o
+    # produto sobre uma licenca que ele nao pode cumprir, e o problema so
+    # apareceria quando ja fosse caro trocar.
+    #
+    # O acesso ao `-Commercial` exige preencher um formulario no HuggingFace
+    # (aprovacao automatica). O desempenho e o mesmo, ou levemente melhor.
+    #
+    #     Licenca e requisito de projeto, nao burocracia do fim. Descobrir
+    #     tarde qual peso podia ser usado custa a arquitetura inteira.
+    modelo = VGGT.from_pretrained(
+        "facebook/VGGT-1B-Commercial").to(dispositivo).eval()
     lote = load_and_preprocess_images(imagens).to(dispositivo)
 
     with torch.no_grad():
