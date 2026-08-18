@@ -81,6 +81,24 @@ class Ambiente3D:
 
         Sai do CONTORNO do piso reconstruido, e nao de um numero digitado. Se
         a camera enxergou tres metros de chao, a area tem tres metros.
+
+        E ELE INCLUI A ESTANTE, com folga. Consertado em 18/08, olhando a
+        cena.
+
+        As cameras so reconstroem o piso que ENXERGAM, e a estante fica
+        justamente onde elas param de ver chao — atras dela ha parede, e sob
+        ela ha sombra. O contorno cru saiu com 1,19 x 1,93 m e a estante
+        pendurada 12 cm fora da quina.
+
+        Geometricamente nao era erro: era exatamente o que as cameras viram.
+        Mas um piso que termina no meio do movel nao descreve o comodo — e
+        quem olha a cena ve um defeito, com razao.
+
+            O que a camera enxerga e o piso visivel. O que o comodo tem e o
+            piso mais o que esta apoiado nele.
+
+        Uma folga de meio metro em volta tambem devolve o que a sombra da
+        estante e o angulo das lentes comeram.
         """
         if not len(self.nuvem):
             return None
@@ -91,7 +109,17 @@ class Ambiente3D:
         # esticaria o piso ate ele
         x0, x1 = np.percentile(rasos[:, 0], [2, 98])
         y0, y1 = np.percentile(rasos[:, 1], [2, 98])
-        return (float(x0), float(x1), float(y0), float(y1))
+
+        if self.estante is not None:
+            ex, ey, _ = self.estante
+            # meia diagonal da estante, para ela caber inteira em qualquer giro
+            meio = 0.55
+            x0, x1 = min(x0, ex - meio), max(x1, ex + meio)
+            y0, y1 = min(y0, ey - meio), max(y1, ey + meio)
+
+        folga = 0.50
+        return (float(x0 - folga), float(x1 + folga),
+                float(y0 - folga), float(y1 + folga))
 
 
 def plano_dominante(pontos, tolerancia=None, tentativas=300, semente=0):
