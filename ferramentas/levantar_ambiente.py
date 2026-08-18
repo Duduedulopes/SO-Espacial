@@ -74,11 +74,49 @@ from src.nucleo import log as logmod                          # noqa: E402
 # A ordem em que os pontos sao pedidos. Comeca pelos pes porque sao os que
 # ancoram a escala no chao, e segue de baixo para cima — a mesma ordem em que
 # o olho percorre uma estante.
-def _ordem(modelo):
+def _ordem(modelo, de_cima=False):
+    """A ordem em que os pontos sao pedidos.
+
+    OS PES VAO POR ULTIMO, e isso e conserto de 18/08.
+
+    A primeira versao pedia os quatro pes primeiro, "porque ancoram a escala
+    no chao". Bonito e errado na pratica: os pes sao os UNICOS pontos que
+    nenhuma camera enxerga — ficam escondidos debaixo das cinco bandejas. A
+    ferramenta abria pedindo, em sequencia, quatro coisas invisiveis.
+
+        Uma interface que comeca pedindo o que nao existe na tela ensina, em
+        quatro segundos, que ela nao sabe o que esta mostrando.
+
+    E nem faz falta: o PnP deduz onde o pe cai depois, a partir das bandejas.
+
+    `de_cima=True` inverte a ordem das bandejas — a camera do teto enxerga a
+    de 1,90 primeiro e a de 0,15 nunca.
+    """
     pes = [n for n in modelo if n.startswith("pe_")]
     resto = sorted((n for n in modelo if not n.startswith("pe_")),
-                   key=lambda n: modelo[n][2])
-    return pes + resto
+                   key=lambda n: modelo[n][2], reverse=de_cima)
+    return resto + pes
+
+
+def _legivel(nome):
+    """`p3_esq_frente` -> `bandeja 3 (0,95 m) - esquerda da FRENTE`.
+
+    O nome tecnico serve ao codigo. Para quem esta com o mouse na mao, ele e
+    um enigma — e enigma na barra de titulo faz a pessoa nao clicar.
+    """
+    if nome.startswith("--"):
+        return nome
+    partes = nome.split("_")
+    if partes[0] == "pe":
+        onde = " ".join(partes[1:]).replace("esq", "ESQUERDO").replace(
+            "dir", "DIREITO").replace("frente", "da FRENTE").replace(
+            "fundo", "do FUNDO")
+        return f"pe {onde}  (escondido? aperte ESPACO)"
+    altura = {"p1": "0,15", "p2": "0,55", "p3": "0,95",
+              "p4": "1,35", "p5": "1,90"}.get(partes[0], "?")
+    lado = partes[1].replace("esq", "ESQUERDA").replace("dir", "DIREITA")
+    face = partes[2].replace("frente", "da FRENTE").replace("fundo", "do FUNDO")
+    return f"bandeja {partes[0][1:]} ({altura} m) - {lado} {face}"
 
 
 def _marcar(imagem, papel, modelo, minimo=6):
@@ -101,13 +139,21 @@ def _marcar(imagem, papel, modelo, minimo=6):
       2. o terminal narra: quantos cliques chegaram, e onde.
       3. ENTER com menos que o minimo NAO sai. Explica e continua esperando.
     """
-    marcados, ordem, i = {}, _ordem(modelo), 0
+    marcados, ordem, i = {}, _ordem(modelo, de_cima=(papel == "alto")), 0
     janela = f"levantamento - {papel}"
-    clique = {}
+    clique = {"eventos": 0, "botoes": 0}
     recado, recado_ate = "", 0.0
 
     def ao_clicar(evento, x, y, *_):
+        # CONTA TODO EVENTO DE MOUSE, e nao so o clique valido.
+        #
+        # Na corrida de 18/08 a janela abriu, ninguem marcou nada, e o
+        # programa nao soube dizer se os cliques nao chegavam ou se ninguem
+        # clicou. Sao causas opostas e o conserto de uma nao serve para a
+        # outra — vale um contador de duas linhas para nunca mais confundir.
+        clique["eventos"] += 1
         if evento == cv2.EVENT_LBUTTONDOWN:
+            clique["botoes"] += 1
             clique["p"] = (float(x), float(y))
 
     cv2.namedWindow(janela, cv2.WINDOW_AUTOSIZE)
@@ -125,8 +171,16 @@ def _marcar(imagem, papel, modelo, minimo=6):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, (60, 230, 60), 1)
         alvo = ordem[i] if i < len(ordem) else "-- pronto --"
         cv2.rectangle(tela, (0, 0), (tela.shape[1], 46), (24, 24, 28), -1)
-        cv2.putText(tela, f"{papel}   marque: {alvo}", (10, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (240, 240, 240), 1)
+        # A INSTRUCAO PRECISA SER UM VERBO, e nao um rotulo.
+        #
+        # A versao anterior escrevia "marque: p5_esq_frente" e quem estava na
+        # frente da tela leu aquilo como um titulo. Ninguem clicou, e a
+        # ferramenta ficou tres corridas achando que o mouse estava quebrado.
+        #
+        #     Uma interface que informa o estado sem dizer a acao esta
+        #     conversando consigo mesma.
+        cv2.putText(tela, f"CLIQUE NO CANTO:  {_legivel(alvo)}", (10, 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (120, 235, 120), 1)
         cor = (150, 150, 160) if len(marcados) >= minimo else (110, 140, 245)
         cv2.putText(tela, f"{len(marcados)}/{minimo} marcados   "
                           f"ESPACO pula   z desfaz   ENTER termina   ESC sai",
@@ -159,6 +213,15 @@ def _marcar(imagem, papel, modelo, minimo=6):
             recado_ate = time.monotonic() + 3.0
             print(f"  ainda nao: {len(marcados)} de {minimo}. "
                   f"ESC pula esta camera.")
+            # O diagnostico que faltava: o mouse chegou aqui?
+            if clique["eventos"] == 0:
+                print("  O MOUSE NAO MANDOU NENHUM EVENTO PARA ESTA JANELA.")
+                print("  Clique DENTRO da imagem, nao na barra de titulo. Se")
+                print("  ainda assim nao contar, o callback nao esta ligando —")
+                print("  me avise, que ha caminho sem janela nenhuma.")
+            elif clique["botoes"] == 0:
+                print(f"  o mouse passou por aqui ({clique['eventos']} eventos)"
+                      f" mas nenhum BOTAO ESQUERDO foi apertado.")
         if t == 32 and i < len(ordem):
             i += 1
         if t == ord("z") and marcados:
@@ -185,6 +248,8 @@ def main():
                    help="levantar so estas cameras (ex: --so alto lateral)")
     p.add_argument("--so-salvar", action="store_true",
                    help="so grava os quadros em disco, sem abrir janela")
+    p.add_argument("--de-arquivo", action="store_true",
+                   help="marca sobre os PNG ja salvos, sem abrir camera")
     p.add_argument("--log", default="WARNING")
     args = p.parse_args()
 
@@ -197,19 +262,47 @@ def main():
           f"{gab.altura:.2f} m   {len(modelo)} pontos de referencia")
     print("  A estante mede as cameras. Marque os cantos que voce enxergar.\n")
 
-    app = Orquestrador(planta=args.planta, captura=(w, h), com_pose=False)
-    app.montar_cameras_reais()
-    app.montar_visao()
-    app.iniciar()
+    pasta = RAIZ / "dados" / "levantamento"
+    pasta.mkdir(parents=True, exist_ok=True)
+    papeis = args.so or ("alto", "frontal", "lateral")
+
+    # SEM CAMERA, LENDO O PNG QUE JA FOI SALVO.
+    #
+    # A camera do teto leva nove segundos para acordar, e marcar pontos e uma
+    # tarefa de tentativa e erro: erra o canto, desfaz, tenta de novo. Trinta
+    # segundos de espera por tentativa transformam um ajuste de dois minutos
+    # numa tarde.
+    #
+    #     O quadro ja esta em disco. Reabrir a camera para olhar de novo a
+    #     mesma imagem e pagar o preco do hardware por uma pergunta de
+    #     software.
+    #
+    # E ha um ganho que nao e de tempo: a imagem e SEMPRE A MESMA. Dois
+    # ajustes seguidos comparam marcacao com marcacao, e nao com uma cena que
+    # mudou de luz no meio.
+    app = None
+    if not args.de_arquivo:
+        app = Orquestrador(planta=args.planta, captura=(w, h), com_pose=False)
+        app.montar_cameras_reais()
+        app.montar_visao()
+        app.iniciar()
 
     poses, marcacoes = {}, {}
     try:
-        pasta = RAIZ / "dados" / "levantamento"
-        pasta.mkdir(parents=True, exist_ok=True)
-
-        for papel in args.so or ("alto", "frontal", "lateral"):
+        for papel in papeis:
             print(f"\n  --- {papel} ---")
-            quadro = _quadro_estavel(app, papel, limite_s=args.espera)
+            if args.de_arquivo:
+                arq = pasta / f"{papel}.png"
+                if not arq.exists():
+                    print(f"  falta dados/levantamento/{papel}.png — "
+                          f"rode antes com --so-salvar")
+                    poses[papel] = None
+                    continue
+                quadro = cv2.imread(str(arq))
+                print(f"  lido de dados/levantamento/{papel}.png "
+                      f"({quadro.shape[1]}x{quadro.shape[0]})")
+            else:
+                quadro = _quadro_estavel(app, papel, limite_s=args.espera)
             if quadro is None:
                 poses[papel] = None
                 continue
@@ -244,7 +337,8 @@ def main():
                       f"residuo {pose.residuo_px:.1f} px   "
                       f"{'confiavel' if pose.confiavel else 'RUIM'}")
     finally:
-        app.parar()
+        if app is not None:
+            app.parar()
 
     lev = Levantamento(poses=poses,
                        medido_em=time.strftime("%Y-%m-%dT%H:%M:%S"))
