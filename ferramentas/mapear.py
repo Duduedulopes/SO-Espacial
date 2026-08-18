@@ -269,33 +269,48 @@ def _dust3r(imagens):
 
 
 def _ancoras(pontos, pixels, h, calib, quantas=60):
-    """Pontos que a camera do alto ve no chao E dentro da area calibrada.
+    """As ancoras: pontos da nuvem que estao no chao MEDIDO.
 
-    A ORDEM E O CONSERTO. Quinta corrida de 18/08, zero ancoras.
+    A HOMOGRAFIA E O DETECTOR DE CHAO. Repensado em 18/08, sexta corrida.
 
-    Antes: escolhia 60 pontos espalhados entre os inliers do plano e SO ENTAO
-    conferia quais caiam dentro do retangulo de 1,65 x 1,32 m. Mas a camera do
-    alto ve muito mais chao do que o retangulo — ele e uma ilha no meio da
-    imagem. Espalhar uniformemente por toda a vista e quase garantir que os
-    60 caiam fora dela, e foi o que aconteceu: zero.
+    As cinco versoes anteriores comecavam por um RANSAC procurando o plano do
+    chao na nuvem da camera do alto, e so depois perguntavam quais daqueles
+    pontos caiam na area calibrada. Zero caiam, sempre.
 
-        Filtrar depois de amostrar e escolher as cegas e conferir no fim.
-        Quando a fatia util e pequena, a amostragem passa por cima dela.
+    O erro estava na ordem, e ele e conceitual: a camera do alto olha uma cena
+    onde a estante ocupa metade do quadro. O maior plano dali pode ser a
+    lateral da estante ou a parede — e foi. Depois eu pedia a homografia as
+    coordenadas de um plano que nao e o piso, e ela respondia com numeros de
+    outra regua.
 
-    Agora: converte TODOS os inliers para metros, fica com os que caem dentro,
-    e so entao sorteia entre eles.
+    Mas a homografia NAO PRECISA que ninguem ache o chao para ela. Ela foi
+    ajustada sobre um retangulo de piso real, medido com trena. Um pixel que
+    mapeia para dentro desse retangulo esta olhando para o chao — isso e
+    definicao, nao estimativa.
+
+        O instrumento que foi aferido sobre uma superficie ja sabe reconhecer
+        aquela superficie. Procura-la de novo por outro metodo e desconfiar
+        da unica medida certa que existe no problema.
+
+    A ordem certa, entao:
+
+        1. os PIXELS decidem quem e chao       — pela homografia
+        2. a NUVEM diz a que altura cada um esta
+        3. o plano ajustado sobre esses ja e o piso, e o RANSAC so limpa
+           o que sobrou de movel dentro do retangulo
+
+    O passo 3 continua existindo porque dentro do retangulo pode haver o pe da
+    estante ou uma caixa — mas agora ele trabalha sobre um conjunto que ja e
+    quase todo chao, que e onde RANSAC funciona bem.
     """
     lx = float(calib.get("largura_m") or 0.0)
     ly = float(calib.get("altura_m") or 0.0)
-
-    achado = plano_dominante(pontos)
-    if achado is None:
+    if lx <= 0:
         return np.zeros((0, 3)), np.zeros((0, 2))
-    _, _, no_chao = achado
 
-    # 1. TODOS os pontos de chao viram metros
-    dentro_nuvem, dentro_mundo = [], []
-    for i in np.where(no_chao)[0]:
+    # 1. QUEM E CHAO: quem a homografia coloca dentro do retangulo aferido
+    candidatos, no_mundo = [], []
+    for i in range(len(pontos)):
         try:
             m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
         except Exception:
@@ -303,62 +318,36 @@ def _ancoras(pontos, pixels, h, calib, quantas=60):
         if m is None:
             continue
         x, y = np.asarray(m).ravel()[:2]
-
-        # 2. so os que caem dentro do retangulo aferido sobrevivem
-        #
-        # Fora dele a homografia extrapola, e extrapolacao projetiva nao
-        # degrada devagar: um ponto perto da linha do horizonte vai para
-        # dezenas de metros.
-        #
-        #     Um ponto medido fora da faixa em que o instrumento foi aferido
-        #     nao e uma medida ruim: e um numero de outra regua.
-        if lx > 0 and not (-0.05 <= x <= lx + 0.05 and -0.05 <= y <= ly + 0.05):
+        if not (0.0 <= x <= lx and 0.0 <= y <= ly):
             continue
-        dentro_nuvem.append(pontos[i])
-        dentro_mundo.append((x, y))
+        candidatos.append(pontos[i])
+        no_mundo.append((x, y))
 
-    if not dentro_nuvem:
-        # QUANDO NAO SOBRA NADA, DIGA ONDE ELES FORAM PARAR.
-        #
-        # Duas corridas terminaram com "zero ancoras" e nada mais. Zero e uma
-        # contagem, nao um diagnostico: nao distingue "o plano nao e o chao"
-        # de "o chao esta fora do retangulo" de "os pixels nao correspondem
-        # aos pontos".
-        #
-        #     Um relatorio de falha que so informa a falha obriga a proxima
-        #     corrida a ser outra tentativa, em vez de uma resposta.
-        todos = []
-        for i in np.where(no_chao)[0][::37]:
-            try:
-                m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
-            except Exception:
-                continue
-            if m is not None:
-                todos.append(np.asarray(m).ravel()[:2])
-        if todos:
-            t = np.array(todos)
-            print(f"    o plano tem {int(no_chao.sum())} pontos, e em metros "
-                  f"eles caem em")
-            print(f"      x {t[:, 0].min():+7.2f} a {t[:, 0].max():+7.2f}   "
-                  f"(area vai de 0 a {lx})")
-            print(f"      y {t[:, 1].min():+7.2f} a {t[:, 1].max():+7.2f}   "
-                  f"(area vai de 0 a {ly})")
-            print(f"      mediana ({np.median(t[:, 0]):+.2f}, "
-                  f"{np.median(t[:, 1]):+.2f})")
-            px = pixels[np.where(no_chao)[0]]
-            print(f"    e na imagem, esses pontos ocupam")
-            print(f"      x {px[:, 0].min():.0f} a {px[:, 0].max():.0f} px   "
-                  f"y {px[:, 1].min():.0f} a {px[:, 1].max():.0f} px")
+    if len(candidatos) < 8:
+        print(f"    so {len(candidatos)} pixels da camera do alto caem dentro")
+        print(f"    do retangulo de {lx} x {ly} m. Ela precisa enxergar mais")
+        print(f"    da area marcada no piso.")
         return np.zeros((0, 3)), np.zeros((0, 2))
 
-    # 3. e SO ENTAO amostra, espalhado, entre os que sobraram
-    #
-    # Espalhado e nao os primeiros: ancora concentrada num canto fixa a
-    # rotacao mal, mesmo com residuo pequeno.
-    idx = np.arange(len(dentro_nuvem))
+    candidatos = np.array(candidatos)
+    no_mundo = np.array(no_mundo)
+    print(f"    {len(candidatos)} pixels caem dentro do retangulo")
+
+    # 2. e 3. entre eles, o plano dominante E o piso — o RANSAC so tira o pe
+    # da estante e a caixa que porventura estejam dentro do retangulo
+    achado = plano_dominante(candidatos)
+    if achado is not None:
+        _, _, no_piso = achado
+        if no_piso.sum() >= 8:
+            candidatos, no_mundo = candidatos[no_piso], no_mundo[no_piso]
+            print(f"    {int(no_piso.sum())} deles no plano do piso")
+
+    # espalhado, e nao os primeiros: ancora concentrada num canto fixa a
+    # rotacao mal mesmo com residuo pequeno
+    idx = np.arange(len(candidatos))
     if len(idx) > quantas:
         idx = np.linspace(0, len(idx) - 1, quantas, dtype=int)
-    return (np.array(dentro_nuvem)[idx], np.array(dentro_mundo)[idx])
+    return candidatos[idx], no_mundo[idx]
 
 
 def main():
