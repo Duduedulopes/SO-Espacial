@@ -5,44 +5,45 @@
 
 ANTES DA PRIMEIRA VEZ
 
-    pip install torch torchvision
-    pip install --no-deps git+https://github.com/facebookresearch/vggt.git
-    pip install huggingface_hub safetensors einops
+    git clone --recursive https://github.com/naver/dust3r.git
+    pip install --no-deps -e dust3r
+    pip install roma einops
 
-O VGGT NAO ESTA NO PyPI — e repositorio do GitHub.
-
-E O `--no-deps` NAO E GAMBIARRA, e a parte que mais importa aqui.
-
-O VGGT pina `numpy<2`. Em Python novo nao existe wheel pronta do numpy 1.26,
-entao o pip tenta COMPILAR do zero, e para com
+O `--no-deps` NAO E GAMBIARRA. Sem ele o pip tenta recompilar numpy por causa
+de um pino conservador, nao acha compilador C no Windows e para com
 
     ERROR: Unknown compiler(s): [['icl'], ['cl'], ['cc'], ['gcc'], ...]
 
-que parece falta de compilador e e, na verdade, um pino conservador de outra
-biblioteca. O codigo do VGGT roda com numpy 2.
+que parece falta de compilador e nao e.
 
     Instalar um compilador para satisfazer um pino que ninguem precisa e
     consertar o sintoma no lugar mais caro possivel.
 
-LICENCA: o peso padrao (`facebook/VGGT-1B`) e nao-comercial e baixa sem
-cadastro nenhum — cobre trabalho academico, que e o uso de hoje. Para uso
-comercial existe `--comercial`, que usa o `VGGT-1B-Commercial` e exige um
-formulario no HuggingFace. Mesma qualidade; muda so a licenca.
+POR QUE DUSt3R E NAO VGGT
 
-Os pesos baixam sozinhos na primeira execucao (~2 GB) e ficam guardados.
+O VGGT e melhor e foi a primeira escolha. O peso dele tem 5 GB, e depois de
+quatro tentativas nao coube nos 8 GB livres da maquina — o downloader precisa
+do dobro, e cada falha deixava lixo para a seguinte. O DUSt3R e da mesma
+familia, resolve o mesmo problema, e o peso tem 2,3 GB.
+
+    O metodo certo que nao roda na maquina que existe nao e o metodo certo.
+    E uma preferencia.
+
+LICENCA: CC BY-NC-SA, nao-comercial — cobre o uso academico de hoje.
 
 O QUE ACONTECE, EM ORDEM
 
-    1. colhe um quadro estavel de cada camera
-    2. VGGT devolve a pose das tres e uma nuvem densa — sem calibracao
+    1. le os quadros salvos em dados/levantamento
+    2. DUSt3R devolve a pose das tres e uma nuvem densa, sem calibracao
     3. o chao da nuvem e casado com a homografia, que ja esta em metros
     4. sai o mapa: cameras situadas e ambiente reconstruido, tudo em metros
 
 O PASSO 3 E O QUE PRENDE O MAPA A REALIDADE.
 
-O VGGT resolve a geometria a menos de uma similaridade: forma certa, tamanho e
-orientacao arbitrarios. A homografia da camera do alto ja define metro neste
-quarto, medido com trena. Casar um no outro custa dez pontos do chao.
+Estas redes resolvem a geometria a menos de uma similaridade: forma certa,
+tamanho e orientacao arbitrarios. A homografia da camera do alto ja define
+metro neste quarto, medida com trena. Casar uma na outra custa sessenta
+pontos do chao.
 
     Um numero que ja existe em algum lugar nao deve ser reescrito noutro.
     Deve ser LIDO de onde ele mora.
@@ -83,70 +84,82 @@ from src.mundo.mapeamento import amarrar                       # noqa: E402
 PAPEIS = ("alto", "frontal", "lateral")
 
 
-def _vggt(imagens, peso):
-    """Poses e nuvem, sem calibracao. Devolve (nuvem, poses, pontos_do_alto).
+def _dust3r(imagens):
+    """Poses e nuvem, sem calibracao. Devolve (nuvem, poses, do_alto, pixels).
 
-    `pontos_do_alto` sao os pontos da nuvem que a camera do alto enxerga, com
-    o pixel de cada um — e sao eles que viram ancora, porque so a camera do
-    alto tem homografia.
+    DUSt3R, da mesma familia do VGGT e pelo mesmo motivo: recebe imagens de
+    cameras sem calibracao e devolve pose e geometria juntas. Trocado em
+    18/08 por um motivo que nao e tecnico — o peso do VGGT tem 5 GB e nao
+    coube no disco, depois de quatro tentativas; o do DUSt3R tem 2,3 GB.
+
+        O metodo certo que nao roda na maquina que existe nao e o metodo
+        certo. E uma preferencia.
+
+    O que muda daqui para baixo: nada. `amarrar` acha o chao, casa com a
+    homografia e devolve metros — e nao pergunta de qual rede veio a nuvem.
+
+    LICENCA: CC BY-NC-SA, nao-comercial. Cobre o uso academico de hoje. No
+    dia em que a Smart Store for vendida, este e um dos itens a revisitar.
     """
     try:
         import torch
-        from vggt.models.vggt import VGGT
-        from vggt.utils.load_fn import load_and_preprocess_images
-        from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+        from dust3r.cloud_opt import GlobalAlignerMode, global_aligner
+        from dust3r.image_pairs import make_pairs
+        from dust3r.inference import inference
+        from dust3r.model import AsymmetricCroCo3DStereo
+        from dust3r.utils.image import load_images
     except ImportError as e:
         raise SystemExit(
-            f"\n  falta {e.name}. O VGGT nao esta no PyPI — e do GitHub:\n\n"
-            f"      pip install torch torchvision\n"
-            f"      pip install --no-deps "
-            f"git+https://github.com/facebookresearch/vggt.git\n"
-            f"      pip install huggingface_hub safetensors einops\n\n"
-            f"  O --no-deps evita que o pip tente compilar numpy 1.26 do zero\n"
-            f"  por causa de um pino conservador. Sem ele o erro e\n"
-            f"  'Unknown compiler(s)', que parece outra coisa.\n")
+            f"\n  falta {e.name}. O DUSt3R e do GitHub, nao do PyPI:\n\n"
+            f"      git clone --recursive "
+            f"https://github.com/naver/dust3r.git\n"
+            f"      pip install --no-deps -e dust3r\n"
+            f"      pip install roma einops\n\n"
+            f"  O --no-deps evita que o pip tente recompilar numpy, que foi o\n"
+            f"  que travou a instalacao do VGGT.\n")
 
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"  VGGT em {dispositivo}"
-          f"{' (sem GPU: vai levar alguns minutos)' if dispositivo == 'cpu' else ''}")
+    print(f"  DUSt3R em {dispositivo}"
+          f"{' (sem GPU: alguns minutos)' if dispositivo == 'cpu' else ''}")
 
-    # DOIS PESOS, E A ESCOLHA E DE LICENCA, NAO DE QUALIDADE.
-    #
-    #   facebook/VGGT-1B              nao-comercial, baixa sem cadastro
-    #   facebook/VGGT-1B-Commercial   permite uso comercial, exige formulario
-    #                                 no HuggingFace (aprovacao automatica)
-    #
-    # O desempenho e equivalente. O padrao aqui e o gratuito porque hoje isto
-    # e trabalho academico — e trabalho academico esta coberto por ele.
-    #
-    #     Exigir a licenca comercial antes de existir uso comercial e cobrar
-    #     hoje o preco de um problema de amanha.
-    #
-    # No dia em que a Smart Store for vendida ou licenciada, `--comercial`
-    # troca o peso. E uma linha, e o resto do codigo nao muda.
-    modelo = VGGT.from_pretrained(peso).to(dispositivo).eval()
-    lote = load_and_preprocess_images(imagens).to(dispositivo)
+    modelo = AsymmetricCroCo3DStereo.from_pretrained(
+        "naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt").to(dispositivo)
+    vistas = load_images(imagens, size=512)
 
-    with torch.no_grad():
-        saida = modelo(lote)
-    extri, _ = pose_encoding_to_extri_intri(saida["pose_enc"],
-                                            lote.shape[-2:])
-    mapa_de_pontos = saida["world_points"][0].cpu().numpy()
-    confianca = saida["world_points_conf"][0].cpu().numpy()
-    extri = extri[0].cpu().numpy()
+    # `complete` compara TODAS as vistas duas a duas. Com tres imagens sao
+    # tres pares — barato, e evita que a lateral fique so amarrada a frontal
+    # quando o que ela compartilha de verdade e com a do alto.
+    pares = make_pairs(vistas, scene_graph="complete", symmetrize=True)
+    saida = inference(pares, modelo, dispositivo, batch_size=1)
 
-    # So os pontos em que a rede confia. O resto e preenchimento de textura
-    # lisa, e parede lisa e o que mais existe num quarto.
-    firme = confianca > np.quantile(confianca, 0.5)
-    nuvem = mapa_de_pontos[firme].reshape(-1, 3)
+    cena = global_aligner(saida, device=dispositivo,
+                          mode=GlobalAlignerMode.PointCloudOptimizer)
+    cena.compute_global_alignment(init="mst", niter=300, schedule="cosine",
+                                  lr=0.01)
+
+    matrizes = cena.get_im_poses().detach().cpu().numpy()   # camera -> mundo
+    pontos = [p.detach().cpu().numpy() for p in cena.get_pts3d()]
+    mascaras = [m.detach().cpu().numpy() for m in cena.get_masks()]
 
     poses = {}
-    for i, papel in enumerate(PAPEIS[:len(extri)]):
-        r, t = extri[i][:3, :3], extri[i][:3, 3]
-        poses[papel] = (-r.T @ t, r.T @ np.array([0.0, 0.0, 1.0]))
+    for i, papel in enumerate(PAPEIS[:len(matrizes)]):
+        m = matrizes[i]
+        poses[papel] = (m[:3, 3], m[:3, :3] @ np.array([0.0, 0.0, 1.0]))
 
-    do_alto = mapa_de_pontos[0][firme[0]].reshape(-1, 3)
-    pixels = np.argwhere(firme[0])[:, ::-1].astype(float)
+    nuvem = np.vstack([p[m] for p, m in zip(pontos, mascaras)])
+
+    # a vista 0 e a do alto — a unica com homografia, e por isso a unica que
+    # pode virar ancora
+    do_alto = pontos[0][mascaras[0]]
+    pixels = np.argwhere(mascaras[0])[:, ::-1].astype(float)
+
+    # os pixels sao do quadro redimensionado para 512; a homografia foi feita
+    # no tamanho original. Sem esta conversao a ancora aponta para o lugar
+    # errado, e o mapa inteiro sai deslocado sem erro nenhum na tela.
+    alt, larg = mascaras[0].shape
+    original = cv2.imread(imagens[0])
+    pixels[:, 0] *= original.shape[1] / larg
+    pixels[:, 1] *= original.shape[0] / alt
     return nuvem, poses, do_alto, pixels
 
 
@@ -178,9 +191,6 @@ def main():
     p.add_argument("--pasta", default="dados/levantamento")
     p.add_argument("--saida", default="loja/mapa.npz")
     p.add_argument("--gravar", action="store_true")
-    p.add_argument("--comercial", action="store_true",
-                   help="peso de licenca comercial; exige "
-                        "formulario no HuggingFace")
     args = p.parse_args()
 
     pasta = RAIZ / args.pasta
@@ -196,9 +206,7 @@ def main():
     h, calib = carregar_homografia()
     print(f"  homografia: {calib.get('largura_m')} x {calib.get('altura_m')} m")
 
-    peso = ('facebook/VGGT-1B-Commercial' if args.comercial
-            else 'facebook/VGGT-1B')
-    nuvem, poses, do_alto, pixels = _vggt(imagens, peso)
+    nuvem, poses, do_alto, pixels = _dust3r(imagens)
     print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
 
     na_nuvem, no_mundo = _ancoras(do_alto, pixels, h)
