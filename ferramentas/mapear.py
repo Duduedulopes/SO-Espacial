@@ -79,7 +79,8 @@ import cv2                                                    # noqa: E402
 import numpy as np                                            # noqa: E402
 
 from percepcao.chao import carregar_homografia, para_metros    # noqa: E402
-from src.mundo.mapeamento import amarrar                       # noqa: E402
+from src.mundo.mapeamento import (amarrar,                     # noqa: E402
+                                  plano_dominante)
 
 PAPEIS = ("alto", "frontal", "lateral")
 
@@ -211,13 +212,36 @@ def _dust3r(imagens):
 def _ancoras(pontos, pixels, h, quantas=60):
     """Pontos que a camera do alto ve NO CHAO, na nuvem e em metros.
 
-    A homografia so vale para o chao — foi ignorar isso que produziu, em
-    18/08, uma estante a 1,79 m na diagonal. Aqui a regra e obedecida: entram
-    apenas os pontos que a nuvem coloca no piso.
+    O CHAO E ACHADO, NAO SUPOSTO. Consertado em 18/08, depois de rodar.
+
+    A primeira versao pegava os 60 pontos de MENOR z e os chamava de chao:
+
+        baixos = np.argsort(pontos[:, 2])[:quantas * 3]
+
+    Mas o z do DUSt3R nao e altura — e profundidade a partir da camera, num
+    eixo que a rede escolhe sozinha. Os "mais baixos" eram os mais PROXIMOS
+    da lente, espalhados por parede, movel e piso. A ancora inteira era ruido,
+    e o mapa saiu com o teto a 0,65 m e a camera do teto abaixo do chao.
+
+        Um eixo so e altura depois que alguem decide qual e o chao. Antes
+        disso, ordenar por ele e ordenar por nada.
+
+    Agora o plano dominante e ajustado por RANSAC nos pontos desta camera —
+    num quarto ele e o piso — e as ancoras saem dos pontos que caem NELE.
     """
-    baixos = np.argsort(pontos[:, 2])[:quantas * 3]
+    achado = plano_dominante(pontos, tolerancia=0.02)
+    if achado is None:
+        return np.zeros((0, 3)), np.zeros((0, 2))
+    _, _, no_chao = achado
+
+    indices = np.where(no_chao)[0]
+    if len(indices) > quantas:
+        # espalhados, e nao os primeiros: ancora concentrada num canto fixa a
+        # rotacao mal, mesmo com residuo pequeno
+        indices = indices[np.linspace(0, len(indices) - 1, quantas, dtype=int)]
+
     na_nuvem, no_mundo = [], []
-    for i in baixos:
+    for i in indices:
         try:
             m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
         except Exception:
@@ -226,8 +250,6 @@ def _ancoras(pontos, pixels, h, quantas=60):
             continue
         na_nuvem.append(pontos[i])
         no_mundo.append(np.asarray(m).ravel()[:2])
-        if len(na_nuvem) >= quantas:
-            break
     return np.array(na_nuvem), np.array(no_mundo)
 
 
