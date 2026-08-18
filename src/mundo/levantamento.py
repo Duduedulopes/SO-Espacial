@@ -340,6 +340,87 @@ def nuvem_de(poses, correspondencias, erro_maximo_m=0.05):
     return nuvem
 
 
+# --------------------------------------------------- a estante posta no mundo
+def estante_no_mundo(pose, modelo, homografia, gabarito):
+    """Onde a estante esta no chao, em metros, a partir de UMA camera posada.
+
+    ESTA FUNCAO E O CONSERTO INTEIRO DO PROBLEMA DE 18/08, e ela cabe em vinte
+    linhas porque a dificuldade estava no enunciado, nao na conta.
+
+    O que falhava: `candidatos_do_alto` pegava o contorno visivel da estante —
+    que e a BANDEJA DE CIMA, a 1,90 m — e o passava pela homografia do chao.
+    Plano errado, resposta a 1,79 m na diagonal.
+
+    O que os pes tem de especial: eles estao NO CHAO. A homografia vale
+    exatamente para eles, e para mais nada da estante. So que eles estao
+    escondidos debaixo das cinco bandejas, e nenhuma camera os enxerga.
+
+    O PnP RESOLVE ISSO SEM VER O PE.
+
+    A pose nao exige que o pe apareca — exige seis pontos quaisquer do
+    gabarito. Com as quinas das bandejas, o PnP descobre onde a estante
+    inteira esta em relacao a camera. E dai `projetar` calcula EM QUE PIXEL
+    cada pe cai, mesmo invisivel, porque o modelo sabe que o pe fica 1,90 m
+    abaixo da bandeja de cima.
+
+        visivel     as quinas das bandejas
+        deduzido    o pixel onde o pe cai
+        medido      a homografia naquele pixel
+
+    A homografia deixa de ser perguntada sobre o plano errado e passa a ser
+    perguntada sobre o unico plano em que ela vale.
+
+        Nao era preciso ver o ponto que interessa. Era preciso ver o
+        bastante para saber onde ele estaria.
+
+    Devolve (x, y, rumo_da_face) em metros e radianos, ou None.
+    """
+    from percepcao.chao import para_metros
+
+    pes = [n for n in modelo if n.startswith("pe_")]
+    if pose is None or len(pes) < 3:
+        return None
+
+    # onde cada pe cai NA IMAGEM, deduzido pela pose
+    pixels = pose.projetar([modelo[n] for n in pes])
+
+    # e cada um deles e um ponto do chao: a homografia pode responder
+    no_chao = {}
+    for nome, (u, v) in zip(pes, pixels):
+        try:
+            p = para_metros(homografia, float(u), float(v))
+        except Exception:
+            return None
+        if p is None:
+            return None
+        no_chao[nome] = np.asarray(p, dtype=float).ravel()[:2]
+
+    centro = np.mean(list(no_chao.values()), axis=0)
+
+    # A largura corre do pe esquerdo ao direito da FRENTE — e o vetor que
+    # define o rumo, na mesma convencao de `ambiente.relacao`.
+    if "pe_esq_frente" in no_chao and "pe_dir_frente" in no_chao:
+        eixo = no_chao["pe_dir_frente"] - no_chao["pe_esq_frente"]
+    else:
+        eixo = np.array([1.0, 0.0])
+    rumo = math.atan2(eixo[1], eixo[0])
+
+    # A face olha para o lado de FORA da profundidade: da frente para longe
+    # do fundo. Se os dois pes de fundo existem, eles desempatam sozinhos.
+    if "pe_esq_fundo" in no_chao and "pe_esq_frente" in no_chao:
+        fundo = ((no_chao["pe_esq_fundo"] + no_chao["pe_dir_fundo"]) / 2.0
+                 if "pe_dir_fundo" in no_chao else no_chao["pe_esq_fundo"])
+        frente = ((no_chao["pe_esq_frente"] + no_chao["pe_dir_frente"]) / 2.0
+                  if "pe_dir_frente" in no_chao else no_chao["pe_esq_frente"])
+        para_fora = frente - fundo
+        normal = np.array([-math.sin(rumo), math.cos(rumo)])
+        if float(normal @ para_fora) < 0:
+            rumo += math.pi
+
+    return (float(centro[0]), float(centro[1]),
+            float(math.atan2(math.sin(rumo), math.cos(rumo))))
+
+
 # ------------------------------------------------------------------ o resultado
 @dataclass
 class Levantamento:

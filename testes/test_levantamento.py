@@ -285,3 +285,115 @@ def test_a_intrinseca_estimada_tem_a_forma_certa():
 def test_campo_de_visao_maior_encurta_a_focal():
     assert (intrinseca_estimada(640, 480, 90.0)[0, 0]
             < intrinseca_estimada(640, 480, 45.0)[0, 0])
+
+
+# ------------------------------------------- a estante posta no mundo pelos pes
+#
+# O TESTE QUE FECHA O PROBLEMA DE 18/08.
+#
+# candidatos_do_alto media a BANDEJA DE CIMA e a passava pela homografia do
+# chao: plano errado, estante a 1,79 m na diagonal, fora da area calibrada.
+#
+# Aqui a verdade e conhecida de novo: monta-se uma estante numa posicao
+# escolhida, uma camera de pose conhecida olhando para ela, e uma homografia
+# que leva pixel do chao a metro. So as quinas das BANDEJAS sao marcadas — os
+# pes ficam escondidos, como na sala de verdade. A funcao tem que devolver a
+# posicao que foi usada para montar tudo.
+#
+#     Nao era preciso ver o ponto que interessa. Era preciso ver o bastante
+#     para saber onde ele estaria.
+
+def _mundo_com_estante(x, y, giro):
+    """Modelo da estante posto em (x, y) girado, no referencial do mundo."""
+    co, si = math.cos(giro), math.sin(giro)
+    r = np.array([[co, -si], [si, co]])
+    fora = {}
+    for nome, (mx, my, mz) in MODELO.items():
+        px, py = r @ np.array([mx, my])
+        fora[nome] = (px + x, py + y, mz)
+    return fora
+
+
+def _homografia_de(pose, chao_z=0.0):
+    """A homografia que leva pixel -> metro no chao, para ESTA camera.
+
+    Sai da propria pose: quatro pontos conhecidos do chao, projetados, e
+    cv2.findHomography no sentido inverso. E o mesmo objeto que
+    `calibracao/homografia.py` produz clicando quatro cantos com trena.
+    """
+    import cv2
+    mundo = np.array([[0.0, 0.0], [1.65, 0.0], [1.65, 1.32], [0.0, 1.32]])
+    espaco = np.hstack([mundo, np.full((4, 1), chao_z)])
+    pixels = pose.projetar(espaco)
+    h, _ = cv2.findHomography(pixels.astype(np.float64), mundo)
+    return h
+
+
+def test_a_estante_volta_ao_lugar_pelos_pes_escondidos():
+    verdade_x, verdade_y, verdade_giro = 1.10, 0.95, 0.6
+    mundo = _mundo_com_estante(verdade_x, verdade_y, verdade_giro)
+
+    camera = _camera_em((0.8, -1.5, 2.40), alvo=(verdade_x, verdade_y, 1.0))
+    h = _homografia_de(camera)
+
+    # SO as bandejas sao marcadas. Os pes ficam de fora, como na sala.
+    visiveis = {n: tuple(camera.projetar([mundo[n]])[0])
+                for n in mundo if not n.startswith("pe_")}
+    pose = resolver_pose("alto", visiveis, MODELO, TAM)
+    assert pose is not None and pose.confiavel
+
+    from src.mundo.levantamento import estante_no_mundo
+    achado = estante_no_mundo(pose, MODELO, h, GAB)
+    assert achado is not None
+    x, y, rumo = achado
+    assert (x, y) == pytest.approx((verdade_x, verdade_y), abs=0.06)
+
+
+def test_o_rumo_tambem_volta():
+    from src.mundo.levantamento import estante_no_mundo
+    for giro in (0.0, 0.5, -0.8):
+        mundo = _mundo_com_estante(1.0, 0.9, giro)
+        camera = _camera_em((0.7, -1.4, 2.35), alvo=(1.0, 0.9, 1.0))
+        visiveis = {n: tuple(camera.projetar([mundo[n]])[0])
+                    for n in mundo if not n.startswith("pe_")}
+        pose = resolver_pose("alto", visiveis, MODELO, TAM)
+        _, _, rumo = estante_no_mundo(pose, MODELO, _homografia_de(camera), GAB)
+        # o rumo do mundo e o giro aplicado, a menos de meia volta de face
+        erro = abs(math.atan2(math.sin(rumo - giro), math.cos(rumo - giro)))
+        assert min(erro, abs(erro - math.pi)) < 0.15, f"giro {giro}: rumo {rumo}"
+
+
+def test_medir_o_topo_pela_homografia_erra_MUITO_mais():
+    """A prova de que o conserto era necessario.
+
+    Compara os dois caminhos: passar a bandeja de cima pela homografia do
+    chao (o que se fazia) contra deduzir os pes pela pose (o que se faz).
+    """
+    from src.mundo.levantamento import estante_no_mundo
+    vx, vy = 1.10, 0.95
+    mundo = _mundo_com_estante(vx, vy, 0.3)
+    camera = _camera_em((0.8, -1.5, 2.40), alvo=(vx, vy, 1.0))
+    h = _homografia_de(camera)
+
+    visiveis = {n: tuple(camera.projetar([mundo[n]])[0])
+                for n in mundo if not n.startswith("pe_")}
+    pose = resolver_pose("alto", visiveis, MODELO, TAM)
+    x, y, _ = estante_no_mundo(pose, MODELO, h, GAB)
+    erro_novo = math.hypot(x - vx, y - vy)
+
+    # o caminho antigo: a bandeja do topo lida como se fosse chao
+    from percepcao.chao import para_metros
+    topo = [n for n in mundo if n.startswith("p5_")]
+    pontos = [para_metros(h, *camera.projetar([mundo[n]])[0]) for n in topo]
+    cx, cy = np.mean([np.asarray(p).ravel()[:2] for p in pontos], axis=0)
+    erro_antigo = math.hypot(cx - vx, cy - vy)
+
+    assert erro_novo < 0.10, f"o caminho novo errou {erro_novo:.2f} m"
+    assert erro_antigo > erro_novo * 3, (
+        f"antigo {erro_antigo:.2f} m, novo {erro_novo:.2f} m — o teste nao "
+        f"distingue os dois caminhos")
+
+
+def test_sem_pose_nao_ha_estante():
+    from src.mundo.levantamento import estante_no_mundo
+    assert estante_no_mundo(None, MODELO, np.eye(3), GAB) is None
