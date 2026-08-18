@@ -172,3 +172,182 @@ def test_ponto_distante_entra_porque_a_camera_o_viu():
         [[6.0, 6.0, 0.0]]]), escala=1.0)
     x0, x1, y0, y1 = amb.chao
     assert x1 == pytest.approx(6.0), "recortou o que a camera viu"
+
+
+# ============================================================ A PONTE
+#
+# O DEFEITO QUE FEZ O BONECO ATRAVESSAR A ESTANTE.
+#
+# O gemeo e rastreado pela homografia: origem (0,0), area 1,65 x 1,32 medida
+# com trena. A estante vinha da reconstrucao: origem onde a rede quis, giro
+# qualquer. Medido na corrida de 18/08:
+#
+#     boneco    x  0,00 a 1,65    y  0,00 a 1,32
+#     estante   x -0,62 a 1,01    y -0,95 a 0,75
+#
+# Dois sistemas sem relacao nenhuma. Os numeros caiam perto por acaso.
+#
+#     Duas coisas desenhadas na mesma tela a partir de sistemas de coordenadas
+#     diferentes nao estao no mesmo lugar por engano: elas nunca estiveram no
+#     mesmo mundo.
+
+from src.mundo.mapeamento import (alinhar_com_a_homografia,   # noqa: E402
+                                  similaridade_2d)
+
+AREA = (1.65, 1.32)
+
+
+def _camera_do_teto(altura=2.4, alvo=(0.8, 0.6)):
+    """Uma camera olhando o chao em angulo, e a homografia dela.
+
+    Devolve (projetar, H) — a funcao que leva metro em pixel, e a homografia
+    que leva pixel em metro. Sao inversas uma da outra por construcao, que e
+    exatamente a relacao que a calibracao real produz.
+    """
+    import cv2
+    c = np.array([alvo[0] - 0.9, alvo[1] - 1.6, altura])
+    frente = np.array([*alvo, 0.0]) - c
+    frente /= np.linalg.norm(frente)
+    direita = np.cross(frente, [0, 0, 1.0]); direita /= np.linalg.norm(direita)
+    baixo = np.cross(frente, direita)
+    r = np.vstack([direita, baixo, frente])
+    k = np.array([[520.0, 0, 320.0], [0, 520.0, 240.0], [0, 0, 1.0]])
+
+    def projetar(x, y):
+        p = k @ (r @ (np.array([x, y, 0.0]) - c))
+        return p[0] / p[2], p[1] / p[2]
+
+    cantos_m = np.array([[0, 0], [AREA[0], 0], AREA, [0, AREA[1]]], float)
+    cantos_px = np.array([projetar(*m) for m in cantos_m], float)
+    h, _ = cv2.findHomography(cantos_px, cantos_m)
+    return projetar, h
+
+
+def _mapa_do_alto(projetar, mundo_deitado, forma=(384, 512),
+                  tamanho=(640, 480)):
+    """O que a rede devolveria para a camera do alto: um ponto 3D por pixel.
+
+    Preenche a grade projetando o chao de volta. Onde nao ha chao visivel,
+    fica NaN — como acontece de verdade.
+    """
+    alt_g, larg_g = forma
+    mapa = np.full((alt_g, larg_g, 3), np.nan)
+    for x in np.linspace(-1.0, 3.0, 220):
+        for y in np.linspace(-1.0, 3.0, 220):
+            u, v = projetar(x, y)
+            col = int(round(u * larg_g / tamanho[0]))
+            lin = int(round(v * alt_g / tamanho[1]))
+            if 0 <= col < larg_g and 0 <= lin < alt_g:
+                mapa[lin, col] = mundo_deitado(x, y)
+    return mapa
+
+
+def test_a_similaridade_2d_volta_exata():
+    rng = np.random.default_rng(4)
+    a = rng.uniform(-1, 1, (20, 2))
+    e, ang, t = 3.1, 0.8, np.array([2.0, -5.0])
+    c, s = math.cos(ang), math.sin(ang)
+    r = np.array([[c, -s], [s, c]])
+    escala, rot, desloc, residuo = similaridade_2d(a, e * (r @ a.T).T + t)
+    assert escala == pytest.approx(e)
+    assert rot == pytest.approx(r)
+    assert desloc == pytest.approx(t)
+    assert residuo < 1e-9
+
+
+def test_a_similaridade_nao_espelha():
+    a = np.array([[0., 0], [1, 0], [0, 1], [1, 1]])
+    b = np.array([[0., 0], [1, 0], [0, -1], [1, -1]])
+    assert np.linalg.det(similaridade_2d(a, b)[1]) > 0
+
+
+def test_a_ponte_desfaz_uma_transformacao_CONHECIDA():
+    """O teste central: a rede entrega girado e em outra escala; a ponte
+    devolve exatamente os metros da homografia."""
+    projetar, h = _camera_do_teto()
+    e_verdade, ang, t = 1 / 14.0, 0.9, np.array([5.0, -2.0])
+    c, s = math.cos(ang), math.sin(ang)
+    rv = np.array([[c, -s], [s, c]])
+
+    def na_nuvem(x, y):
+        xy = e_verdade * (rv @ np.array([x, y])) + t
+        return np.array([xy[0], xy[1], 0.0])
+
+    ponte = alinhar_com_a_homografia(_mapa_do_alto(projetar, na_nuvem), h,
+                                     *AREA, (640, 480))
+    assert ponte is not None, "nao achou pares"
+    escala, r2, desloc, residuo, quantos = ponte
+
+    assert quantos >= 6
+    assert escala == pytest.approx(1 / e_verdade, rel=0.02)
+    assert residuo < 0.02, f"residuo de {residuo * 100:.1f} cm"
+
+    # e a prova direta: um ponto conhecido volta ao lugar
+    volta = escala * (r2 @ na_nuvem(1.0, 0.5)[:2]) + desloc
+    assert volta == pytest.approx([1.0, 0.5], abs=0.03)
+
+
+def test_a_ponte_ignora_o_que_esta_alto():
+    """O retangulo aferido e chao. Ponto alto ali e movel ou pessoa."""
+    projetar, h = _camera_do_teto()
+
+    def tudo_no_alto(x, y):
+        return np.array([x, y, 1.5])
+
+    assert alinhar_com_a_homografia(_mapa_do_alto(projetar, tudo_no_alto), h,
+                                    *AREA, (640, 480)) is None
+
+
+def test_sem_homografia_nao_ha_ponte():
+    assert alinhar_com_a_homografia(np.zeros((10, 10, 3)), np.eye(2),
+                                    *AREA, (640, 480)) is None
+
+
+def test_o_ambiente_fica_NO_MUNDO_DO_GEMEO():
+    """Ponta a ponta: a estante cai dentro da area onde o gemeo anda."""
+    projetar, h = _camera_do_teto()
+    verdade = _quarto()
+    e_verdade, ang, t = 1 / 14.0, 0.9, np.array([5.0, -2.0])
+    c, s = math.cos(ang), math.sin(ang)
+    rv = np.array([[c, -s], [s, c]])
+
+    def na_nuvem(x, y, z=0.0):
+        xy = e_verdade * (rv @ np.array([x, y])) + t
+        return np.array([xy[0], xy[1], z * e_verdade])
+
+    nuvem = np.array([na_nuvem(*pt) for pt in verdade])
+    mapa = _mapa_do_alto(projetar, lambda x, y: na_nuvem(x, y))
+    calib = {"largura_m": AREA[0], "altura_m": AREA[1]}
+
+    amb = montar(nuvem, GAB, mapa_do_alto=mapa, homografia=h, calib=calib)
+    assert amb is not None and amb.no_mundo_do_gemeo, "a ponte nao foi feita"
+    assert amb.residuo_m < 0.05, f"{amb.residuo_m * 100:.0f} cm de residuo"
+
+    # a estante do quarto sintetico esta em (1.0, 2.2) no mundo dos metros
+    ex, ey, _ = amb.estante
+    assert (ex, ey) == pytest.approx((1.0, 2.2), abs=0.25)
+
+
+def test_as_duas_reguas_sao_comparadas():
+    """A escala da homografia e a da altura da estante tem que concordar."""
+    projetar, h = _camera_do_teto()
+    verdade = _quarto()
+    e_verdade = 1 / 14.0
+
+    def na_nuvem(x, y, z=0.0):
+        return np.array([x, y, z]) * e_verdade
+
+    nuvem = np.array([na_nuvem(*pt) for pt in verdade])
+    mapa = _mapa_do_alto(projetar, lambda x, y: na_nuvem(x, y))
+    amb = montar(nuvem, GAB, mapa_do_alto=mapa, homografia=h,
+                 calib={"largura_m": AREA[0], "altura_m": AREA[1]})
+    assert amb.as_duas_reguas_concordam is True, (
+        f"homografia diz {amb.escala:.2f}, estante diz "
+        f"{amb.escala_da_estante:.2f}")
+
+
+def test_sem_a_ponte_o_ambiente_avisa():
+    """Sem homografia o ambiente sai flutuando, e ele DIZ isso."""
+    amb = montar(_como_a_rede_entrega(_quarto()), GAB)
+    assert amb is not None
+    assert not amb.no_mundo_do_gemeo

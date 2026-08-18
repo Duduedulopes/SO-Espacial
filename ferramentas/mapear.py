@@ -128,7 +128,7 @@ def _vggt(imagens):
 
     # grade inteira, sem a mascara de confianca — ver a nota em `_dust3r`
     alt, larg = firme[0].shape
-    do_alto = mapa_de_pontos[0].reshape(-1, 3)
+    do_alto = mapa_de_pontos[0]
     grade = np.stack(np.meshgrid(np.arange(larg), np.arange(alt)), axis=-1)
     pixels = grade.reshape(-1, 2).astype(float)
     original = cv2.imread(imagens[0])
@@ -288,7 +288,7 @@ def _dust3r(imagens):
     # A nuvem que vai para o desenho continua filtrada — ali a confianca
     # importa, porque ali o que se ve e a profundidade.
     alt, larg = mascaras[0].shape
-    do_alto = pontos[0].reshape(-1, 3)
+    do_alto = pontos[0]
     grade = np.stack(np.meshgrid(np.arange(larg), np.arange(alt)), axis=-1)
     pixels = grade.reshape(-1, 2).astype(float)
 
@@ -324,10 +324,27 @@ def main():
     print(f"  a regua: a estante tem {gab.altura:.2f} m de altura, de trena")
 
     rede = _vggt if args.vggt else _dust3r
-    nuvem, poses, _, _ = rede(imagens)
+    nuvem, poses, mapa_do_alto, _ = rede(imagens)
     print(f"  nuvem: {len(nuvem)} pontos, {len(poses)} poses")
 
-    amb = montar(nuvem, gab)
+    # A PONTE COM O MUNDO DO GEMEO.
+    #
+    # Sem ela o ambiente sai certo em forma e tamanho e FLUTUANDO num sistema
+    # proprio — e foi assim que o boneco passou a atravessar a estante. O
+    # gemeo e rastreado pela homografia; a estante vinha da reconstrucao; os
+    # dois nunca estiveram no mesmo mundo.
+    h, calib = None, None
+    try:
+        from percepcao.chao import carregar_homografia
+        h, calib = carregar_homografia()
+        print(f"  ponte: homografia de {calib.get('largura_m')} x "
+              f"{calib.get('altura_m')} m")
+    except SystemExit:
+        print("  SEM HOMOGRAFIA: o ambiente vai sair num mundo proprio, e o")
+        print("  gemeo nao vai coincidir com ele.")
+
+    amb = montar(nuvem, gab, mapa_do_alto=mapa_do_alto, homografia=h,
+                 calib=calib)
     if amb is None:
         raise SystemExit(
             "\n  nao consegui montar o ambiente. Ou a nuvem nao tem um chao\n"
@@ -337,6 +354,19 @@ def main():
     x0, x1, y0, y1 = amb.chao
     ex, ey, rumo = amb.estante
     print(f"\n  AMBIENTE   escala {amb.escala:.2f}")
+    if amb.no_mundo_do_gemeo:
+        print(f"  ponte      {amb.ancoras} pares, residuo "
+              f"{amb.residuo_m * 100:.1f} cm")
+        concordam = amb.as_duas_reguas_concordam
+        print(f"  as duas reguas: homografia {amb.escala:.2f}  x  "
+              f"altura da estante {amb.escala_da_estante:.2f}   "
+              f"{'concordam' if concordam else 'DISCORDAM'}")
+        if concordam is False:
+            print("    Duas reguas independentes discordando e a informacao")
+            print("    mais util desta cena. Confira antes de gravar.")
+    else:
+        print("  SEM PONTE — o ambiente esta num mundo proprio, e o gemeo")
+        print("  nao vai coincidir com ele na tela.")
     print(f"  chao       {x1 - x0:.2f} x {y1 - y0:.2f} m de area para andar")
     print(f"  altura     {amb.altura_da_cena:.2f} m ate o ponto mais alto")
     print(f"  estante    em ({ex:+.2f}, {ey:+.2f}) m, "

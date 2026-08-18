@@ -29,10 +29,10 @@
   "nome": "Quarto de teste — area calibrada 1,65 x 1,32 m",
   "unidade": "m",
   "chao": {
-    "xmin": -0.448,
-    "xmax": 0.739,
-    "ymin": -1.908,
-    "ymax": 0.025,
+    "xmin": -0.616,
+    "xmax": 1.012,
+    "ymin": -0.954,
+    "ymax": 0.752,
     "_nota": [
       "Contorno do piso que as cameras reconstruiram.",
       "Nao e um numero digitado: e o que elas viram."
@@ -43,12 +43,12 @@
       "id": "estante-aco",
       "nome": "Estante",
       "tipo": "estante",
-      "x": 0.864,
-      "y": -0.247,
+      "x": 0.043,
+      "y": 0.086,
       "largura": 0.92,
       "profundidade": 0.3,
       "altura": 1.9,
-      "rumo_da_face": -0.1412,
+      "rumo_da_face": -1.3792,
       "prateleiras": [
         {
           "id": "p1",
@@ -72,7 +72,7 @@
         }
       ],
       "estante": "estante-aco-teste",
-      "_medido_em": "2026-08-18T16:33:24",
+      "_medido_em": "2026-08-18T16:51:57",
       "_por": "as 3 cameras; a altura de trena deu a escala",
       "_nota": [
         "POSICAO achada pelas cameras. DIMENSOES da trena.",
@@ -88,12 +88,12 @@
   ],
   "zonas": [
     {
-      "id": "entrada",
-      "nome": "Entrada",
-      "x0": -0.119,
-      "x1": 0.331,
-      "y0": -0.137,
-      "y1": 0.025,
+      "id": "saida",
+      "nome": "Saida",
+      "x0": 0.241,
+      "x1": 0.691,
+      "y0": -0.927,
+      "y1": -0.377,
       "movel": "estante-aco"
     }
   ],

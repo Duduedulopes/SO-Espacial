@@ -70,6 +70,31 @@ class Ambiente3D:
     escala: float = 0.0
     estante: tuple | None = None       # (x, y, rumo) em metros
     altura_da_cena: float = 0.0
+    escala_da_estante: float = 0.0     # a outra regua, para conferencia
+    residuo_m: float = 0.0             # quanto a ponte discorda, em metros
+    ancoras: int = 0                   # quantos pares casaram
+
+    @property
+    def no_mundo_do_gemeo(self):
+        """A cena esta no sistema em que o gemeo e rastreado?
+
+        Sem isso, o ambiente esta certo em forma e tamanho e flutuando num
+        sistema proprio — e o boneco atravessa a estante.
+        """
+        return self.ancoras > 0
+
+    @property
+    def as_duas_reguas_concordam(self, tolerancia=0.20):
+        """A escala da homografia bate com a da altura da estante?
+
+        Duas reguas independentes medindo a mesma cena. Vinte por cento de
+        folga porque a altura da estante na nuvem e estimada pelo percentil, e
+        a homografia tem o erro dela.
+        """
+        if not (self.escala > 0 and self.escala_da_estante > 0):
+            return None
+        razao = self.escala / self.escala_da_estante
+        return abs(razao - 1.0) <= tolerancia
 
     @property
     def pronto(self):
@@ -250,44 +275,202 @@ def achar_estante(pontos, largura_alvo, profundidade_alvo):
     return (float(cx), float(cy), float(rumo), teto)
 
 
-def montar(nuvem, gabarito):
-    """A nuvem crua vira ambiente em metros. E o passo unico deste modulo.
+def similaridade_2d(origem, destino):
+    """A transformacao que leva `origem` em `destino`: escala, giro, deslocamento.
 
-    `gabarito` precisa ter `.altura` — a altura da estante medida com trena.
-    E ela que da o metro:
+    Umeyama. Devolve (escala, rotacao_2x2, deslocamento, residuo_medio) ou None.
 
-        escala = altura_de_trena / altura_da_estante_na_nuvem
+    A escala sai como valor separado, e nao escondida dentro de uma matriz,
+    porque ela e o numero que vamos conferir contra a altura da estante: duas
+    reguas independentes medindo a mesma cena.
+    """
+    a = np.asarray(origem, dtype=float).reshape(-1, 2)
+    b = np.asarray(destino, dtype=float).reshape(-1, 2)
+    if len(a) < 3 or len(a) != len(b):
+        return None
 
-    Devolve `Ambiente3D`, ou None quando nao ha chao reconhecivel.
+    ca, cb = a.mean(axis=0), b.mean(axis=0)
+    a0, b0 = a - ca, b - cb
+    variancia = float((a0 ** 2).sum() / len(a))
+    if variancia < 1e-12:
+        return None
+
+    u, sv, vt = np.linalg.svd((b0.T @ a0) / len(a))
+    d = np.eye(2)
+    # determinante negativo seria espelhamento — trocaria esquerda por direita
+    # no mundo inteiro
+    if np.linalg.det(u @ vt) < 0:
+        d[1, 1] = -1.0
+    r = u @ d @ vt
+    escala = float(np.trace(np.diag(sv) @ d) / variancia)
+    desloc = cb - escala * (r @ ca)
+    residuo = float(np.linalg.norm(
+        (escala * (r @ a.T).T + desloc) - b, axis=1).mean())
+    return escala, r, desloc, residuo
+
+
+def alinhar_com_a_homografia(mapa_do_alto, homografia, largura_m, altura_m,
+                             tamanho_original, passos=9, z_maximo=0.06):
+    """A ponte entre o mundo da rede e o mundo onde o gemeo anda.
+
+    ESTA FUNCAO E O QUE FALTAVA, e a falta dela e o defeito que fez o boneco
+    atravessar a estante.
+
+    O gemeo e rastreado pela homografia: origem (0,0), area medida com trena.
+    A estante vinha da reconstrucao: origem onde a rede quis, giro qualquer.
+    Dois sistemas sem relacao nenhuma — os numeros caiam perto por acaso.
+
+        Duas coisas desenhadas na mesma tela a partir de sistemas de
+        coordenadas diferentes nao estao no mesmo lugar por engano: elas
+        nunca estiveram no mesmo mundo.
+
+    E COMECA PELOS METROS, NAO PELA NUVEM. Essa e a diferenca.
+
+    As seis tentativas anteriores partiam da nuvem: escolhiam pontos de chao e
+    perguntavam a homografia onde eles ficavam. Falhavam porque a maioria da
+    nuvem esta FORA do retangulo aferido, e a homografia extrapola la.
+
+    Aqui a direcao inverte. Percorre-se uma grade DENTRO do retangulo medido,
+    e para cada ponto em metros pergunta-se qual pixel ele ocupa — pela
+    homografia inversa, que e exata — e qual ponto 3D a rede pos ali.
+
+        Amostrar do lado que se conhece garante que toda amostra esta na
+        faixa em que o instrumento vale. Nao ha como cair fora.
+
+    Cada par vira (metro, reconstrucao), e a similaridade entre eles e a
+    ponte. Pontos que caem alto (movel, pessoa) sao descartados pela altura,
+    porque o retangulo aferido e chao.
+
+    Devolve (escala, rotacao_2x2, deslocamento, residuo_m, quantos), ou None.
+    """
+    h = np.asarray(homografia, dtype=float)
+    if h.shape != (3, 3):
+        return None
+    try:
+        inversa = np.linalg.inv(h)
+    except np.linalg.LinAlgError:
+        return None
+
+    alt_g, larg_g = mapa_do_alto.shape[:2]
+    larg_o, alt_o = tamanho_original
+
+    em_metros, na_nuvem = [], []
+    for x in np.linspace(0.0, largura_m, passos):
+        for y in np.linspace(0.0, altura_m, passos):
+            # metro -> pixel, pela inversa. Exata dentro do retangulo.
+            v = inversa @ np.array([x, y, 1.0])
+            if abs(v[2]) < 1e-9:
+                continue
+            u_px, v_px = v[0] / v[2], v[1] / v[2]
+            if not (0 <= u_px < larg_o and 0 <= v_px < alt_o):
+                continue
+
+            # pixel do quadro original -> indice na grade da rede
+            col = int(round(u_px * larg_g / larg_o))
+            lin = int(round(v_px * alt_g / alt_o))
+            if not (0 <= col < larg_g and 0 <= lin < alt_g):
+                continue
+
+            ponto = mapa_do_alto[lin, col]
+            if not np.all(np.isfinite(ponto)):
+                continue
+            # o retangulo aferido e CHAO: ponto alto ali e movel ou pessoa
+            if abs(float(ponto[2])) > z_maximo:
+                continue
+
+            em_metros.append((x, y))
+            na_nuvem.append(ponto[:2])
+
+    if len(na_nuvem) < 6:
+        return None
+    casado = similaridade_2d(na_nuvem, em_metros)
+    if casado is None:
+        return None
+    escala, r, desloc, residuo = casado
+    return escala, r, desloc, residuo, len(na_nuvem)
+
+
+def montar(nuvem, gabarito, mapa_do_alto=None, homografia=None,
+           calib=None, tamanho_original=(640, 480)):
+    """A nuvem crua vira o ambiente, NO MUNDO ONDE O GEMEO ANDA.
+
+    Duas reguas, e as duas importam por motivos diferentes:
+
+        a ALTURA DA ESTANTE   da a escala, e nada mais. Sempre disponivel.
+        a HOMOGRAFIA          da a escala, o giro e a origem — ou seja, poe
+                              a cena no mesmo sistema em que o gemeo e
+                              rastreado. So existe se `homografia` vier.
+
+    Sem a segunda, o ambiente sai correto em forma e tamanho e FLUTUANDO num
+    sistema proprio: foi assim que o boneco passou a atravessar a estante.
+    Com ela, os dois mundos viram um.
+
+    E as duas escalas sao comparadas. Se discordarem muito, o programa avisa —
+    porque duas reguas independentes discordando e a informacao mais util que
+    esta cena produz.
+
+        Uma medida sozinha nunca esta errada. Ela so passa a estar quando ha
+        uma segunda.
     """
     p = np.asarray(nuvem, dtype=float).reshape(-1, 3)
     if len(p) < 100:
         return None
 
-    # 1. o chao
     achado = plano_dominante(p)
     if achado is None:
         return None
     normal, no_plano, _ = achado
 
-    # 2. deitar: o chao vira z = 0 e o resto fica acima
     giro = _de_pe(normal)
     deitada = (giro @ (p - no_plano).T).T
-    # se o grosso da cena ficou abaixo de zero, a normal apontava para baixo
+    para_cima = 1.0
     if np.median(deitada[:, 2]) < 0:
         deitada[:, 2] *= -1.0
+        para_cima = -1.0
 
-    # 3. e 4. a estante da a escala
     achada = achar_estante(deitada, gabarito.largura, gabarito.profundidade)
     if achada is None:
         return None
     cx, cy, rumo, alto_na_nuvem = achada
     if alto_na_nuvem <= 1e-9:
         return None
-    escala = float(gabarito.altura) / alto_na_nuvem
+    escala_estante = float(gabarito.altura) / alto_na_nuvem
 
-    em_metros = deitada * escala
-    estante = (cx * escala, cy * escala, rumo)
+    # --- a ponte com o mundo do gemeo, quando ela existe ---
+    ponte = None
+    if mapa_do_alto is not None and homografia is not None and calib:
+        alto_deitado = np.empty_like(np.asarray(mapa_do_alto, dtype=float))
+        forma = alto_deitado.shape
+        planos = (giro @ (np.asarray(mapa_do_alto, dtype=float).reshape(-1, 3)
+                          - no_plano).T).T
+        planos[:, 2] *= para_cima
+        alto_deitado = planos.reshape(forma)
+        ponte = alinhar_com_a_homografia(
+            alto_deitado, homografia,
+            float(calib.get("largura_m") or 0.0),
+            float(calib.get("altura_m") or 0.0), tamanho_original)
 
-    return Ambiente3D(nuvem=em_metros, escala=escala, estante=estante,
-                      altura_da_cena=float(em_metros[:, 2].max()))
+    if ponte is not None:
+        escala, r2, desloc, residuo, quantos = ponte
+        r3 = np.eye(3)
+        r3[:2, :2] = r2
+        em_metros = escala * (r3 @ deitada.T).T
+        em_metros[:, 0] += desloc[0]
+        em_metros[:, 1] += desloc[1]
+
+        centro = escala * (r2 @ np.array([cx, cy])) + desloc
+        # o rumo gira junto com a cena
+        rumo = rumo + math.atan2(r2[1, 0], r2[0, 0])
+        estante = (float(centro[0]), float(centro[1]),
+                   float(math.atan2(math.sin(rumo), math.cos(rumo))))
+        return Ambiente3D(nuvem=em_metros, escala=escala, estante=estante,
+                          altura_da_cena=float(em_metros[:, 2].max()),
+                          escala_da_estante=escala_estante,
+                          residuo_m=residuo, ancoras=quantos)
+
+    # sem a ponte: forma e tamanho certos, mundo proprio
+    em_metros = deitada * escala_estante
+    return Ambiente3D(nuvem=em_metros, escala=escala_estante,
+                      estante=(cx * escala_estante, cy * escala_estante, rumo),
+                      altura_da_cena=float(em_metros[:, 2].max()),
+                      escala_da_estante=escala_estante)
