@@ -5,7 +5,11 @@
 
 ANTES DA PRIMEIRA VEZ
 
-    pip install vggt torch
+    pip install torch torchvision
+    pip install git+https://github.com/facebookresearch/vggt.git
+
+O VGGT NAO ESTA NO PyPI — e repositorio do GitHub. `pip install vggt` falha
+com "No matching distribution found", que foi o que aconteceu em 18/08.
 
 Os pesos baixam sozinhos na primeira execucao (~2 GB) e ficam guardados.
 
@@ -48,10 +52,16 @@ def _vggt(imagens):
     o pixel de cada um — e sao eles que viram ancora, porque so a camera do
     alto tem homografia.
     """
-    import torch
-    from vggt.models.vggt import VGGT
-    from vggt.utils.load_fn import load_and_preprocess_images
-    from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+    try:
+        import torch
+        from vggt.models.vggt import VGGT
+        from vggt.utils.load_fn import load_and_preprocess_images
+        from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+    except ImportError as e:
+        raise SystemExit(
+            f"\n  falta {e.name}. O VGGT nao esta no PyPI — e do GitHub:\n\n"
+            f"      pip install torch torchvision\n"
+            f"      pip install git+https://github.com/facebookresearch/vggt.git\n")
 
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  VGGT em {dispositivo}"
