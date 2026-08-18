@@ -51,8 +51,27 @@ import numpy as np
 # aceitar uma parede como chao.
 FRACAO_DO_CHAO = 0.30
 
-# Tolerancia do plano, em unidades da nuvem (adimensionais antes da escala).
-TOLERANCIA_PLANO = 0.02
+# Espessura do plano, como FRACAO do tamanho da nuvem.
+#
+# ERRO DE 18/08, E ELE CUSTOU O DIA: aqui havia `TOLERANCIA_PLANO = 0.02`, um
+# numero absoluto. Mas a nuvem destas redes NAO TEM UNIDADE — a escala e
+# arbitraria e so vira metro depois de `amarrar`. Na corrida real a escala
+# medida foi 18,3, entao a tolerancia valia
+#
+#     0,02 x 18,3 = 0,37 METROS de espessura
+#
+# Com isso o "plano" aceitava o chao, a base da estante, a caixa ao lado e
+# meio metro de parede, tudo na mesma fatia. O RANSAC nao achava o chao:
+# achava a maior fatia grossa da cena. Depois `_de_pe` girava aquilo para
+# ficar horizontal e achatava o resto — o quarto saiu com 4,5 m de largura e
+# 0,66 de altura.
+#
+#     Uma tolerancia absoluta sobre um dado sem unidade nao e frouxa nem
+#     apertada: e indefinida ate alguem medir a escala, que e justamente o
+#     que ainda nao aconteceu.
+#
+# Meio por cento da diagonal da nuvem e a mesma espessura em qualquer escala.
+FRACAO_DA_ESPESSURA = 0.005
 
 # Escala minima aceitavel entre a nuvem e o mundo. Abaixo disso a similaridade
 # degenerou e o mapa nao esta amarrado a coisa nenhuma.
@@ -81,8 +100,7 @@ class Mapa:
         return (float(baixo[0]), float(alto[0]), float(baixo[1]), float(alto[1]))
 
 
-def plano_dominante(pontos, tolerancia=TOLERANCIA_PLANO, tentativas=200,
-                    semente=0):
+def plano_dominante(pontos, tolerancia=None, tentativas=200, semente=0):
     """O maior plano da nuvem — num quarto, o chao. RANSAC.
 
     Devolve (normal_unitaria, ponto_do_plano, mascara_dos_inliers).
@@ -94,6 +112,12 @@ def plano_dominante(pontos, tolerancia=TOLERANCIA_PLANO, tentativas=200,
     p = np.asarray(pontos, dtype=float).reshape(-1, 3)
     if len(p) < 3:
         return None
+
+    # A espessura sai do proprio dado quando ninguem a impoe: uma fracao da
+    # diagonal da nuvem vale o mesmo em qualquer escala.
+    if tolerancia is None:
+        diagonal = float(np.linalg.norm(p.max(axis=0) - p.min(axis=0)))
+        tolerancia = max(diagonal * FRACAO_DA_ESPESSURA, 1e-9)
 
     rng = np.random.default_rng(semente)
     melhor, quantos = None, 0

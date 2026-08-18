@@ -166,3 +166,78 @@ def test_sem_ancora_nao_ha_mapa():
 def test_nuvem_vazia_nao_ha_mapa():
     assert amarrar(np.zeros((0, 3)), {}, np.zeros((4, 3)),
                    np.zeros((4, 2))) is None
+
+
+# ------------------------------------------- a espessura sai do proprio dado
+#
+# O DEFEITO QUE CUSTOU O DIA 18/08.
+#
+# `plano_dominante` tinha tolerancia ABSOLUTA de 0,02. Mas a nuvem destas
+# redes nao tem unidade: a escala e arbitraria e so vira metro depois de
+# `amarrar`. Na corrida real a escala era 18,3 — entao 0,02 valia 37 cm de
+# espessura, e o "plano" engolia chao, base da estante, caixa e parede na
+# mesma fatia. `_de_pe` girava aquilo e achatava a cena: o quarto saiu com
+# 4,5 m de largura e 0,66 de altura.
+#
+#     Uma tolerancia absoluta sobre um dado sem unidade nao e frouxa nem
+#     apertada: e indefinida ate alguem medir a escala, que e justamente o
+#     que ainda nao aconteceu.
+
+def _quarto_em(escala, semente=3):
+    return _quarto(semente=semente) * escala
+
+
+def test_o_chao_e_achado_em_qualquer_escala():
+    """A prova: a mesma cena, tres escalas, a mesma normal."""
+    for escala in (0.02, 1.0, 50.0):
+        achado = plano_dominante(_quarto_em(escala))
+        assert achado is not None, f"nao achou plano na escala {escala}"
+        normal, _, dentro = achado
+        assert abs(abs(float(normal @ np.array([0.0, 0.0, 1.0]))) - 1.0) < 0.05, \
+            f"na escala {escala} o plano achado nao e horizontal"
+
+
+def test_a_tolerancia_absoluta_achata_a_cena():
+    """O sintoma real do defeito: a cena reconstruida perde a altura.
+
+    Contar pontos no plano nao serve de prova — o que estraga o mapa e o
+    plano achado nao ser o chao, e o `_de_pe` girar a cena inteira em cima
+    dele. A medida certa e a altura que sobra depois de amarrar.
+    """
+    verdade = _quarto(semente=7)
+    nuvem = _embaralhar(verdade, escala=1 / 18.3, giro=0.4, tomba=0.2)
+    chao = np.where(verdade[:, 2] < 1e-6)[0][:40]
+
+    bom = amarrar(nuvem, {}, nuvem[chao], verdade[chao, :2])
+    assert bom is not None
+    assert bom.nuvem[:, 2].max() == pytest.approx(2.4, abs=0.15)
+
+    # e agora com a tolerancia absoluta que existia ate 18/08
+    import src.mundo.mapeamento as m
+    guardado = m.FRACAO_DA_ESPESSURA
+    try:
+        # 0,02 sobre uma nuvem de escala 1/18,3 e o mesmo que uma fracao
+        # enorme da diagonal — reproduz exatamente o defeito
+        m.FRACAO_DA_ESPESSURA = 0.2
+        ruim = amarrar(nuvem, {}, nuvem[chao], verdade[chao, :2])
+    finally:
+        m.FRACAO_DA_ESPESSURA = guardado
+
+    achatou = ruim is None or ruim.nuvem[:, 2].max() < 2.0
+    assert achatou, (
+        "com espessura grande a cena devia achatar — se nao achata, este "
+        "teste parou de descrever o defeito de 18/08")
+
+
+def test_o_mapa_volta_para_metros_em_escala_pequena():
+    """A escala real do DUSt3R foi 18,3. O caminho tem que aguentar isso."""
+    verdade = _quarto(semente=5)
+    nuvem = _embaralhar(verdade, escala=1 / 18.3, giro=0.4, tomba=0.2)
+    chao = np.where(verdade[:, 2] < 1e-6)[0][:40]
+    mapa = amarrar(nuvem, {}, nuvem[chao], verdade[chao, :2])
+
+    assert mapa is not None
+    assert mapa.escala == pytest.approx(18.3, rel=0.05)
+    assert mapa.residuo_m < 0.05, f"residuo de {mapa.residuo_m * 100:.0f} cm"
+    assert mapa.nuvem[:, 2].max() == pytest.approx(2.4, abs=0.1), \
+        "a cena continua achatada"
