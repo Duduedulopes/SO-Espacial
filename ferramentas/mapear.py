@@ -6,7 +6,7 @@
 ANTES DA PRIMEIRA VEZ
 
     git clone --recursive https://github.com/naver/dust3r.git
-    pip install roma einops
+    pip install roma einops scipy trimesh matplotlib tqdm
 
 E SO ISSO — nao ha `pip install` do proprio DUSt3R.
 
@@ -118,14 +118,27 @@ def _dust3r(imagens):
         from dust3r.model import AsymmetricCroCo3DStereo
         from dust3r.utils.image import load_images
     except ImportError as e:
+        # DUAS FALHAS DIFERENTES, DUAS MENSAGENS DIFERENTES.
+        #
+        # A primeira versao respondia "clone o repositorio" para qualquer
+        # import que faltasse — inclusive `scipy`, que ja estava clonado e so
+        # precisava de um pip. Quem leu a mensagem foi mandado repetir um
+        # passo que ja tinha dado.
+        #
+        #     Uma mensagem de erro que nao distingue as causas nao esta
+        #     ajudando: esta apostando na mais provavel e errando o resto.
+        if e.name and e.name.split(".")[0] in ("dust3r", "croco", "models"):
+            raise SystemExit(
+                f"\n  nao achei o DUSt3R. Ele nao se instala por pip — e uma\n"
+                f"  pasta de codigo, e tem que ser clonada dentro de\n"
+                f"  {RAIZ.name}:\n\n"
+                f"      git clone --recursive "
+                f"https://github.com/naver/dust3r.git\n")
         raise SystemExit(
-            f"\n  falta {e.name}. O DUSt3R e do GitHub, nao do PyPI:\n\n"
-            f"      git clone --recursive "
-            f"https://github.com/naver/dust3r.git\n"
-            f"      pip install roma einops\n\n"
-            f"  Clone DENTRO de {RAIZ.name}. Nao ha pip install do DUSt3R:\n"
-            f"  ele nao tem setup.py, e uma pasta de codigo, e este arquivo\n"
-            f"  a poe no caminho de import sozinho.\n")
+            f"\n  o DUSt3R esta aqui, mas falta uma dependencia dele: "
+            f"{e.name}\n\n      pip install {e.name}\n\n"
+            f"  As que ele costuma pedir, de uma vez:\n"
+            f"      pip install roma einops scipy trimesh matplotlib tqdm\n")
 
     dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  DUSt3R em {dispositivo}"
