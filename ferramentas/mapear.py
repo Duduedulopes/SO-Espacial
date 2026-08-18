@@ -268,7 +268,7 @@ def _dust3r(imagens):
     return nuvem, poses, do_alto, pixels
 
 
-def _ancoras(pontos, pixels, h, quantas=60):
+def _ancoras(pontos, pixels, h, calib, quantas=60):
     """Pontos que a camera do alto ve NO CHAO, na nuvem e em metros.
 
     O CHAO E ACHADO, NAO SUPOSTO. Consertado em 18/08, depois de rodar.
@@ -288,7 +288,10 @@ def _ancoras(pontos, pixels, h, quantas=60):
     Agora o plano dominante e ajustado por RANSAC nos pontos desta camera —
     num quarto ele e o piso — e as ancoras saem dos pontos que caem NELE.
     """
-    achado = plano_dominante(pontos, tolerancia=0.02)
+    lx = float(calib.get("largura_m") or 0.0)
+    ly = float(calib.get("altura_m") or 0.0)
+
+    achado = plano_dominante(pontos)
     if achado is None:
         return np.zeros((0, 3)), np.zeros((0, 2))
     _, _, no_chao = achado
@@ -307,8 +310,30 @@ def _ancoras(pontos, pixels, h, quantas=60):
             continue
         if m is None:
             continue
+        x, y = np.asarray(m).ravel()[:2]
+
+        # SO DENTRO DO RETANGULO CALIBRADO.
+        #
+        # A homografia foi ajustada num retangulo de 1,65 x 1,32 m. Fora dele
+        # ela EXTRAPOLA, e extrapolacao projetiva nao degrada devagar: um
+        # ponto perto da linha do horizonte vai para dezenas de metros.
+        #
+        # O RANSAC devolve chao de toda a vista da camera do alto, inclusive
+        # o piso que fica alem da fita marcada. Bastam algumas ancoras assim
+        # para o ajuste de similaridade se render a elas — foi isso que
+        # produziu 220 cm de residuo com a geometria ja correta.
+        #
+        #     Um ponto medido fora da faixa em que o instrumento foi aferido
+        #     nao e uma medida ruim: e um numero de outra regua.
+        #
+        # E o mesmo erro de 18/08 de manha, quando a estante foi parar em
+        # x=1,79 — escrito em `achar_ambiente._extrapolado` e nao aplicado
+        # aqui. Anotar a licao nao a aplica.
+        if lx > 0 and not (-0.05 <= x <= lx + 0.05 and -0.05 <= y <= ly + 0.05):
+            continue
+
         na_nuvem.append(pontos[i])
-        no_mundo.append(np.asarray(m).ravel()[:2])
+        no_mundo.append((x, y))
     return np.array(na_nuvem), np.array(no_mundo)
 
 
@@ -338,8 +363,14 @@ def main():
     nuvem, poses, do_alto, pixels = rede(imagens)
     print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
 
-    na_nuvem, no_mundo = _ancoras(do_alto, pixels, h)
-    print(f"  ancoras no chao: {len(na_nuvem)}")
+    na_nuvem, no_mundo = _ancoras(do_alto, pixels, h, calib)
+    print(f"  ancoras no chao e DENTRO da area calibrada: "
+          f"{len(na_nuvem)}")
+    if len(na_nuvem) < 8:
+        raise SystemExit(
+            "\n  poucas ancoras. O chao reconstruido quase nao\n"
+            "  cruza o retangulo de calibracao — a camera do alto\n"
+            "  precisa enxergar a fita marcada no piso.\n")
 
     mapa = amarrar(nuvem, poses, na_nuvem, no_mundo)
     if mapa is None:
