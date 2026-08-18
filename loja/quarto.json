@@ -40,8 +40,65 @@
       "saindo do chao util, que e a informacao honesta."
     ]
   },
-  "moveis": [],
-  "zonas": [],
+  "moveis": [
+    {
+      "id": "estante-aco",
+      "nome": "Estante",
+      "tipo": "estante",
+      "x": 0.159,
+      "y": 0.932,
+      "largura": 0.92,
+      "profundidade": 0.3,
+      "altura": 1.9,
+      "rumo_da_face": 2.2151,
+      "prateleiras": [
+        {
+          "id": "p1",
+          "altura": 0.15
+        },
+        {
+          "id": "p2",
+          "altura": 0.55
+        },
+        {
+          "id": "p3",
+          "altura": 0.95
+        },
+        {
+          "id": "p4",
+          "altura": 1.35
+        },
+        {
+          "id": "p5",
+          "altura": 1.9
+        }
+      ],
+      "estante": "estante-aco-teste",
+      "_medido_em": "2026-08-18T10:19:16",
+      "_por": [
+        "alto"
+      ],
+      "_nota": [
+        "ACHADO PELAS CAMERAS, nao digitado. Ver ferramentas/achar_ambiente.py.",
+        "As dimensoes vem do gabarito de trena (loja/estante.json); o que as",
+        "cameras acrescentam e ONDE ele esta e para onde a face olha.",
+        "",
+        "Se a estante for movida, rode a ferramenta de novo. Editar este",
+        "bloco a mao funciona e desfaz o motivo de ele existir."
+      ]
+    }
+  ],
+  "zonas": [
+    {
+      "id": "entrada",
+      "nome": "Entrada",
+      "x0": 0.197,
+      "x1": 0.647,
+      "y0": -0.152,
+      "y1": 0.398,
+      "movel": "estante-aco"
+    }
+  ],
   "_o_que_ainda_falta": [
     "AS CAMERAS NAO ESTAO AQUI, E ISSO E DE PROPOSITO.",
     "",
@@ -91,27 +148,5 @@
     "Se confirmado, a saida NAO e melhorar a frontal: e a lateral assumir o",
     "braco quando a pessoa esta virada para a estante. Cada camera responde o",
     "que enxerga; nenhuma precisa enxergar tudo."
-  ],
-  "_a_medir": [
-    "A ESTANTE AINDA NAO FOI GRAVADA — falta rodar a ferramenta.",
-    "",
-    "    python ferramentas/achar_ambiente.py --ver",
-    "    python ferramentas/achar_ambiente.py --gravar",
-    "",
-    "As dimensoes NAO dependem disso: elas ja existem, medidas com trena, em",
-    "`loja/estante.json` — 0,92 x 0,30 x 1,90 m com prateleiras em 0,15 / 0,55",
-    "/ 0,95 / 1,35 / 1,90. A ferramenta escreve tres numeros e mais nada:",
-    "",
-    "    x, y            onde ela esta no chao",
-    "    rumo_da_face    para que lado a face olha",
-    "",
-    "ERRO DE 18/08, CORRIGIDO EM src/mundo/ambiente.py: `reconhecer` gravava as",
-    "dimensoes MEDIDAS pela camera, e escreveu aqui uma estante de 1,01 x 0,23.",
-    "A nota que a propria ferramenta redige dentro deste arquivo ja dizia que",
-    "as dimensoes vinham do gabarito. Dizia e nao fazia.",
-    "",
-    "    A camera nao foi chamada para medir o movel. Ela foi chamada para",
-    "    dizer ONDE ele esta. Medir o que ja foi medido com trena e trocar uma",
-    "    certeza por uma estimativa."
   ]
 }

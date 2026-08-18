@@ -88,6 +88,38 @@ def candidatos_do_alto(bgr, H, limite_area_m2=(0.10, 1.20)):
     A faixa de area em m2 elimina de saida o que nao tem tamanho de movel: um
     livro no chao (0,03 m2) e a area inteira (2 m2) somem antes de qualquer
     comparacao mais fina.
+
+    O DEFEITO QUE ESTA FUNCAO TEM, MEDIDO EM 18/08. LEIA ANTES DE CONFIAR.
+
+    A homografia so vale para pontos NO CHAO. Esta escrito em
+    `calibracao/homografia.py` desde o primeiro dia:
+
+        "so pontos SOBRE O CHAO sao mapeados corretamente. A cabeca de uma
+         pessoa nao esta no chao; os pes estao."
+
+    Da estante, a camera do teto enxerga a BANDEJA DE CIMA, a 1,90 m. Os pes
+    ficam escondidos debaixo das cinco prateleiras. Entao o contorno que
+    chega aqui nao e a pegada do movel: e o topo dele, e passar o topo pela
+    homografia do chao devolve um retangulo que nao existe em lugar nenhum.
+
+        Para uma camera a 2,5 m, um ponto a 1,90 aparece cerca de QUATRO
+        VEZES mais longe do que esta. Nao e imprecisao: e o plano errado.
+
+    A assinatura ficou no dado:
+
+        proporcao real da pegada    0,92 / 0,30 = 3,07
+        proporcao medida            1,01 / 0,23 = 4,41
+
+    Um eixo esticou, o outro encolheu, e o centro caiu em x=1,79 — fora da
+    area calibrada, empurrado para longe da camera. Ruido erraria os dois
+    lados juntos; projecao de um plano alto no plano do chao erra assim.
+
+        Erro que cresce numa direcao e encolhe na outra nao e imprecisao: e
+        outra regra sendo aplicada.
+
+    Por que as dimensoes tortas ja nao contaminam mais nada: `reconhecer`
+    grava as medidas de trena. O que AINDA sai daqui e vai para o mundo sao
+    a posicao e o rumo — e os dois herdam este erro.
     """
     if bgr is None or H is None:
         return []
