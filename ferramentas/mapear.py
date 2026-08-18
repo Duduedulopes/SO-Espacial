@@ -269,24 +269,21 @@ def _dust3r(imagens):
 
 
 def _ancoras(pontos, pixels, h, calib, quantas=60):
-    """Pontos que a camera do alto ve NO CHAO, na nuvem e em metros.
+    """Pontos que a camera do alto ve no chao E dentro da area calibrada.
 
-    O CHAO E ACHADO, NAO SUPOSTO. Consertado em 18/08, depois de rodar.
+    A ORDEM E O CONSERTO. Quinta corrida de 18/08, zero ancoras.
 
-    A primeira versao pegava os 60 pontos de MENOR z e os chamava de chao:
+    Antes: escolhia 60 pontos espalhados entre os inliers do plano e SO ENTAO
+    conferia quais caiam dentro do retangulo de 1,65 x 1,32 m. Mas a camera do
+    alto ve muito mais chao do que o retangulo — ele e uma ilha no meio da
+    imagem. Espalhar uniformemente por toda a vista e quase garantir que os
+    60 caiam fora dela, e foi o que aconteceu: zero.
 
-        baixos = np.argsort(pontos[:, 2])[:quantas * 3]
+        Filtrar depois de amostrar e escolher as cegas e conferir no fim.
+        Quando a fatia util e pequena, a amostragem passa por cima dela.
 
-    Mas o z do DUSt3R nao e altura — e profundidade a partir da camera, num
-    eixo que a rede escolhe sozinha. Os "mais baixos" eram os mais PROXIMOS
-    da lente, espalhados por parede, movel e piso. A ancora inteira era ruido,
-    e o mapa saiu com o teto a 0,65 m e a camera do teto abaixo do chao.
-
-        Um eixo so e altura depois que alguem decide qual e o chao. Antes
-        disso, ordenar por ele e ordenar por nada.
-
-    Agora o plano dominante e ajustado por RANSAC nos pontos desta camera —
-    num quarto ele e o piso — e as ancoras saem dos pontos que caem NELE.
+    Agora: converte TODOS os inliers para metros, fica com os que caem dentro,
+    e so entao sorteia entre eles.
     """
     lx = float(calib.get("largura_m") or 0.0)
     ly = float(calib.get("altura_m") or 0.0)
@@ -296,14 +293,9 @@ def _ancoras(pontos, pixels, h, calib, quantas=60):
         return np.zeros((0, 3)), np.zeros((0, 2))
     _, _, no_chao = achado
 
-    indices = np.where(no_chao)[0]
-    if len(indices) > quantas:
-        # espalhados, e nao os primeiros: ancora concentrada num canto fixa a
-        # rotacao mal, mesmo com residuo pequeno
-        indices = indices[np.linspace(0, len(indices) - 1, quantas, dtype=int)]
-
-    na_nuvem, no_mundo = [], []
-    for i in indices:
+    # 1. TODOS os pontos de chao viram metros
+    dentro_nuvem, dentro_mundo = [], []
+    for i in np.where(no_chao)[0]:
         try:
             m = para_metros(h, float(pixels[i][0]), float(pixels[i][1]))
         except Exception:
@@ -312,29 +304,30 @@ def _ancoras(pontos, pixels, h, calib, quantas=60):
             continue
         x, y = np.asarray(m).ravel()[:2]
 
-        # SO DENTRO DO RETANGULO CALIBRADO.
+        # 2. so os que caem dentro do retangulo aferido sobrevivem
         #
-        # A homografia foi ajustada num retangulo de 1,65 x 1,32 m. Fora dele
-        # ela EXTRAPOLA, e extrapolacao projetiva nao degrada devagar: um
-        # ponto perto da linha do horizonte vai para dezenas de metros.
-        #
-        # O RANSAC devolve chao de toda a vista da camera do alto, inclusive
-        # o piso que fica alem da fita marcada. Bastam algumas ancoras assim
-        # para o ajuste de similaridade se render a elas — foi isso que
-        # produziu 220 cm de residuo com a geometria ja correta.
+        # Fora dele a homografia extrapola, e extrapolacao projetiva nao
+        # degrada devagar: um ponto perto da linha do horizonte vai para
+        # dezenas de metros.
         #
         #     Um ponto medido fora da faixa em que o instrumento foi aferido
         #     nao e uma medida ruim: e um numero de outra regua.
-        #
-        # E o mesmo erro de 18/08 de manha, quando a estante foi parar em
-        # x=1,79 — escrito em `achar_ambiente._extrapolado` e nao aplicado
-        # aqui. Anotar a licao nao a aplica.
         if lx > 0 and not (-0.05 <= x <= lx + 0.05 and -0.05 <= y <= ly + 0.05):
             continue
+        dentro_nuvem.append(pontos[i])
+        dentro_mundo.append((x, y))
 
-        na_nuvem.append(pontos[i])
-        no_mundo.append((x, y))
-    return np.array(na_nuvem), np.array(no_mundo)
+    if not dentro_nuvem:
+        return np.zeros((0, 3)), np.zeros((0, 2))
+
+    # 3. e SO ENTAO amostra, espalhado, entre os que sobraram
+    #
+    # Espalhado e nao os primeiros: ancora concentrada num canto fixa a
+    # rotacao mal, mesmo com residuo pequeno.
+    idx = np.arange(len(dentro_nuvem))
+    if len(idx) > quantas:
+        idx = np.linspace(0, len(idx) - 1, quantas, dtype=int)
+    return (np.array(dentro_nuvem)[idx], np.array(dentro_mundo)[idx])
 
 
 def main():
@@ -364,8 +357,11 @@ def main():
     print(f"  nuvem bruta: {len(nuvem)} pontos, {len(poses)} poses")
 
     na_nuvem, no_mundo = _ancoras(do_alto, pixels, h, calib)
-    print(f"  ancoras no chao e DENTRO da area calibrada: "
-          f"{len(na_nuvem)}")
+    print(f"  ancoras no chao e dentro da area calibrada: {len(na_nuvem)}")
+    if len(na_nuvem):
+        print(f"    espalhadas por x {no_mundo[:, 0].min():.2f}..."
+              f"{no_mundo[:, 0].max():.2f}   "
+              f"y {no_mundo[:, 1].min():.2f}...{no_mundo[:, 1].max():.2f} m")
     if len(na_nuvem) < 8:
         raise SystemExit(
             "\n  poucas ancoras. O chao reconstruido quase nao\n"
