@@ -77,49 +77,37 @@ class Ambiente3D:
 
     @property
     def chao(self):
-        """A area de movimento: (xmin, xmax, ymin, ymax) em metros.
+        """TUDO que as cameras enxergaram, em metros. (xmin, xmax, ymin, ymax).
 
-        Sai do CONTORNO do piso reconstruido, e nao de um numero digitado. Se
-        a camera enxergou tres metros de chao, a area tem tres metros.
+        SEM RECORTE. Consertado em 18/08, e foi a terceira vez que eu recortei
+        a visao delas sem ser pedido.
 
-        E ELE INCLUI A ESTANTE, com folga. Consertado em 18/08, olhando a
-        cena.
+        As versoes anteriores cortavam duas vezes: so pontos com z < 0,10 m, e
+        so entre os percentis 2 e 98. Cada corte tinha uma justificativa
+        razoavel — "so o piso", "ponto solto estica o chao" — e as duas juntas
+        devolviam um comodo de 1,19 x 1,93 m com a estante pendurada na quina.
 
-        As cameras so reconstroem o piso que ENXERGAM, e a estante fica
-        justamente onde elas param de ver chao — atras dela ha parede, e sob
-        ela ha sombra. O contorno cru saiu com 1,19 x 1,93 m e a estante
-        pendurada 12 cm fora da quina.
+        Mas nenhuma das duas foi pedida:
 
-        Geometricamente nao era erro: era exatamente o que as cameras viram.
-        Mas um piso que termina no meio do movel nao descreve o comodo — e
-        quem olha a cena ve um defeito, com razao.
+            a camera precisa reproduzir TODO O CHAO QUE ELA ENXERGAR e as
+            outras cameras precisam reproduzir TUDO QUE ELAS ENXERGAREM
+                                                    — Eduardo, 18/08
 
-            O que a camera enxerga e o piso visivel. O que o comodo tem e o
-            piso mais o que esta apoiado nele.
+        E ele esta certo por um motivo que nao e so de gosto: um ambiente
+        recortado torna a estante mais dificil de situar, porque ela passa a
+        ficar na borda de um espaco que eu inventei em vez de dentro do
+        espaco que existe.
 
-        Uma folga de meio metro em volta tambem devolve o que a sombra da
-        estante e o angulo das lentes comeram.
+            Filtrar a visao de um sensor antes de perguntar onde as coisas
+            estao e responder sobre um mundo menor do que o que foi medido.
+
+        O que sobra e o extremo do que as tres cameras reconstruiram. Se uma
+        delas viu o corredor, o corredor entra.
         """
         if not len(self.nuvem):
             return None
-        rasos = self.nuvem[self.nuvem[:, 2] < 0.10]
-        if len(rasos) < 20:
-            rasos = self.nuvem
-        # percentis e nao extremos: um ponto solto no fundo do corredor
-        # esticaria o piso ate ele
-        x0, x1 = np.percentile(rasos[:, 0], [2, 98])
-        y0, y1 = np.percentile(rasos[:, 1], [2, 98])
-
-        if self.estante is not None:
-            ex, ey, _ = self.estante
-            # meia diagonal da estante, para ela caber inteira em qualquer giro
-            meio = 0.55
-            x0, x1 = min(x0, ex - meio), max(x1, ex + meio)
-            y0, y1 = min(y0, ey - meio), max(y1, ey + meio)
-
-        folga = 0.50
-        return (float(x0 - folga), float(x1 + folga),
-                float(y0 - folga), float(y1 + folga))
+        baixo, alto = self.nuvem.min(axis=0), self.nuvem.max(axis=0)
+        return (float(baixo[0]), float(alto[0]), float(baixo[1]), float(alto[1]))
 
 
 def plano_dominante(pontos, tolerancia=None, tentativas=300, semente=0):

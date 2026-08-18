@@ -112,12 +112,38 @@ def test_a_estante_sai_em_metros():
     assert 0.5 < math.hypot(x, y) < 6.0
 
 
-def test_a_area_de_movimento_tem_tamanho_de_quarto():
-    """Nao um numero digitado: o contorno do piso que a camera enxergou."""
+def test_a_area_cobre_TUDO_que_as_cameras_viram():
+    """Sem recorte. O quarto tem 3 m de lado; a caixa dele pode ser maior.
+
+    `montar` desentorta o TOMBO — deita o chao — mas nao gira a cena no
+    plano: nada na nuvem diz qual parede e o norte. Entao um quarto de 3x3
+    girado 40 graus tem caixa alinhada de 3 x (cos + sin) = 4,2 m.
+
+    Isso nao e erro. A area precisa CONTER o que foi visto, e conter um
+    quadrado girado custa mais que o lado dele.
+    """
     amb = montar(_como_a_rede_entrega(_quarto()), GAB)
     x0, x1, y0, y1 = amb.chao
-    assert 2.0 < (x1 - x0) < 5.0, f"largura de {x1 - x0:.1f} m"
-    assert 2.0 < (y1 - y0) < 5.0, f"profundidade de {y1 - y0:.1f} m"
+    for lado in (x1 - x0, y1 - y0):
+        assert 2.8 <= lado <= 4.6, f"lado de {lado:.2f} m"
+
+
+def test_a_estante_fica_DENTRO_da_area():
+    """Consequencia de nao recortar: nada do que foi visto fica de fora."""
+    amb = montar(_como_a_rede_entrega(_quarto()), GAB)
+    x0, x1, y0, y1 = amb.chao
+    ex, ey, _ = amb.estante
+    assert x0 <= ex <= x1 and y0 <= ey <= y1, (
+        f"estante em ({ex:.2f}, {ey:.2f}) fora de "
+        f"({x0:.2f}..{x1:.2f}, {y0:.2f}..{y1:.2f})")
+
+
+def test_nada_do_que_a_camera_viu_fica_de_fora():
+    """A prova direta: TODO ponto da nuvem cabe na area."""
+    amb = montar(_como_a_rede_entrega(_quarto()), GAB)
+    x0, x1, y0, y1 = amb.chao
+    assert amb.nuvem[:, 0].min() >= x0 and amb.nuvem[:, 0].max() <= x1
+    assert amb.nuvem[:, 1].min() >= y0 and amb.nuvem[:, 1].max() <= y1
 
 
 def test_funciona_com_a_cena_de_cabeca_para_baixo():
@@ -132,12 +158,17 @@ def test_nuvem_pequena_demais_e_recusada():
     assert montar(np.zeros((10, 3)), GAB) is None
 
 
-def test_area_de_movimento_ignora_ponto_solto_no_fundo():
-    """Percentis e nao extremos: um ponto perdido esticaria o piso ate ele."""
+def test_ponto_distante_entra_porque_a_camera_o_viu():
+    """O contrario do que eu tinha feito, e de proposito.
+
+    Um ponto longe pode ser ruido — ou pode ser o corredor que a lateral
+    enxerga. O programa nao sabe distinguir, e recortar por precaucao foi
+    justamente o que encolheu o comodo tres vezes seguidas.
+    """
     amb = Ambiente3D(nuvem=np.vstack([
         np.column_stack([np.random.default_rng(2).uniform(0, 2, 500),
                          np.random.default_rng(3).uniform(0, 2, 500),
                          np.zeros(500)]),
-        [[40.0, 40.0, 0.0]]]), escala=1.0)
+        [[6.0, 6.0, 0.0]]]), escala=1.0)
     x0, x1, y0, y1 = amb.chao
-    assert x1 < 5.0, "o ponto solto esticou o piso"
+    assert x1 == pytest.approx(6.0), "recortou o que a camera viu"
