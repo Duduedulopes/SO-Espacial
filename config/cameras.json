@@ -8,7 +8,7 @@
     "captura": "640x480"
   },
   "lateral": {
-    "fonte": "http://192.168.1.9:8080/video",
+    "fonte": "http://192.168.1.14:8080/video",
     "captura": "640x480",
     "_nota": [
       "13/08: a PIXY era emprestada e voltou para o dono. A lateral e o tablet.",
@@ -22,7 +22,13 @@
       "foi usar o NOME em vez do indice; aqui e `ferramentas/achar_ip.py`,",
       "que varre a rede e escreve o IP certo neste arquivo.",
       "",
-      "Confira o IP na tela do IP Webcam antes de rodar. Hoje: 192.168.1.9."
+      "Confira o IP na tela do IP Webcam antes de rodar.",
+      "",
+      "  11/08  192.168.1.9",
+      "  18/08  192.168.1.14",
+      "",
+      "Duas trocas em uma semana. A lista existe para nao restar duvida de que",
+      "isto muda mesmo, e de que conferir antes de rodar nao e paranoia."
     ]
   }
 }
