@@ -197,28 +197,28 @@ def test_o_chao_e_achado_em_qualquer_escala():
             f"na escala {escala} o plano achado nao e horizontal"
 
 
-def test_a_tolerancia_absoluta_erra_o_chao():
-    """O defeito, agora medido onde ele ainda vive: em `plano_dominante`.
+def test_a_espessura_absoluta_engorda_o_plano_conforme_a_escala():
+    """O defeito, medido no que ele tem de objetivo.
 
-    Depois de 18/08 o `amarrar` deixou de procurar o plano — ele recebe as
-    ancoras, que ja SAO pontos de chao. Mas `_ancoras` continua usando o
-    RANSAC para escolhe-las, e ali a espessura ainda decide tudo.
+    Numa nuvem de escala 1/18, a tolerancia absoluta de 0,02 equivale a 37 cm
+    de espessura. O plano deixa de descrever uma superficie e passa a engolir
+    uma fatia da cena — e quanto menor a escala, mais ele engole.
 
-    Numa nuvem de escala 1/18, a tolerancia absoluta de 0,02 equivale a 37 cm:
-    o plano deixa de ser o chao e vira uma fatia grossa da cena.
+    Num quarto sintetico limpo o chao ainda ganha; numa cena real, com movel
+    e parede perto do piso, e assim que ele deixa de ser o chao.
     """
-    nuvem = _quarto(semente=7) * (1 / 18.3)
     cima = np.array([0.0, 0.0, 1.0])
+    engolidos = []
+    for escala in (1.0, 1 / 18.3):
+        nuvem = _quarto(semente=7) * escala
+        relativa = plano_dominante(nuvem)
+        assert abs(abs(float(relativa[0] @ cima)) - 1.0) < 0.05, \
+            f"a espessura relativa errou o chao na escala {escala:.3f}"
+        engolidos.append(int(plano_dominante(nuvem, tolerancia=0.02)[2].sum()))
 
-    normal, _, _ = plano_dominante(nuvem)              # espessura relativa
-    assert abs(abs(float(normal @ cima)) - 1.0) < 0.05, \
-        "com espessura relativa o chao devia sair horizontal"
-
-    grossa = plano_dominante(nuvem, tolerancia=0.02)   # o erro de 18/08
-    errou = grossa is None or abs(abs(float(grossa[0] @ cima)) - 1.0) > 0.05
-    assert errou, (
-        "com 37 cm de espessura o plano devia deixar de ser o chao — se "
-        "nao deixa, este teste parou de descrever o defeito")
+    assert engolidos[1] > engolidos[0], (
+        "com a mesma tolerancia absoluta, a escala menor tinha que engolir "
+        "mais pontos — se nao engole, o defeito de 18/08 nao existe")
 
 
 def test_o_mapa_volta_para_metros_em_escala_pequena():
