@@ -376,6 +376,10 @@ def main():
                    help="profundidade monocular na camera do alto; nao precisa "
                         "de sobreposicao entre as vistas")
     p.add_argument("--modelo-mono", default=MONO_PADRAO)
+    p.add_argument("--altura-camera", type=float, default=None,
+                   metavar="M",
+                   help="a altura da camera do alto, medida com trena. "
+                        "Determina a focal melhor do que deduzi-la.")
     args = p.parse_args()
 
     if args.mono:
@@ -494,6 +498,7 @@ def _mapear_mono(args):
     """
     from percepcao.chao import carregar_homografia
     from src.mundo.profundidade import (ambiente_do_mono, camera_da_homografia,
+                                        focal_pela_altura, intrinseca_medida,
                                         nuvem_do_alto)
 
     caminho = RAIZ / args.pasta / "alto.png"
@@ -509,7 +514,29 @@ def _mapear_mono(args):
     h, calib = carregar_homografia()
     larg_px, alt_px = calib.get("resolucao", (640, 480))
 
-    cam = camera_da_homografia(h, int(larg_px), int(alt_px))
+    # DE ONDE VEM A FOCAL, EM ORDEM DE QUALIDADE.
+    #
+    #   1. tabuleiro       mede focal E distorcao        (o melhor)
+    #   2. trena no teto   a altura determina a focal    (um minuto)
+    #   3. deducao         supoe pixel quadrado e centro optico no meio
+    #
+    # MEDIDO EM 19/08: a deducao pos a camera a 2,73 m onde a trena disse
+    # 2,23. Vinte e dois por cento, e o erro contaminaria toda posicao
+    # calculada adiante — sem parecer errado em lugar nenhum.
+    K = intrinseca_medida(largura_px=int(larg_px), altura_px=int(alt_px))
+    origem = "tabuleiro"
+    if K is None and args.altura_camera:
+        K = focal_pela_altura(h, int(larg_px), int(alt_px), args.altura_camera)
+        origem = f"trena, {args.altura_camera:.2f} m de altura"
+        if K is None:
+            raise SystemExit(
+                f"\n  nao ha focal que ponha a camera a "
+                f"{args.altura_camera:.2f} m com esta homografia.\n"
+                f"  Confira a medida e a calibracao do chao.\n")
+    if K is None:
+        origem = "deducao (supondo pixel quadrado e centro no meio)"
+
+    cam = camera_da_homografia(h, int(larg_px), int(alt_px), K=K)
     if cam is None:
         raise SystemExit(
             "\n  nao consegui deduzir a camera da homografia. Isso acontece\n"
@@ -517,18 +544,20 @@ def _mapear_mono(args):
             "  lente: sem perspectiva nao ha informacao de escala nenhuma.\n"
             "  Recalibre clicando um retangulo mais esticado no chao.\n")
 
-    print("\n  CAMERA deduzida do chao que a trena mediu")
-    print(f"    altura      {cam.altura_m:.2f} m   <- CONFIRA COM A TRENA")
+    diagonal = 2 * math.degrees(math.atan(
+        math.hypot(int(larg_px), int(alt_px)) / 2 / cam.focal))
+    print(f"\n  CAMERA — focal pela {origem}")
+    print(f"    altura      {cam.altura_m:.2f} m")
     print(f"    posicao     ({cam.posicao[0]:+.2f}, {cam.posicao[1]:+.2f}) m")
-    print(f"    focal       {cam.focal:.0f} px")
-    if cam.discordancia > 0.25:
-        print(f"    ATENCAO: as duas estimativas da focal discordam "
-              f"{cam.discordancia * 100:.0f}%.")
-        print("    A lente pode nao ter pixel quadrado ou o centro optico no")
-        print("    meio da imagem. O resto vai sair torto.")
-    else:
-        print(f"    conferencia {cam.discordancia * 100:.1f}% entre as duas "
-              f"estimativas da focal")
+    print(f"    focal       {cam.focal:.0f} px  ->  {diagonal:.0f} graus de "
+          f"diagonal")
+    if not (55.0 <= diagonal <= 100.0):
+        print("    ATENCAO: esse campo de visao nao e de webcam nenhuma.")
+        print("    A C920 tem uns 70 graus de diagonal em 4:3.")
+    if K is None:
+        print("\n    A FOCAL FOI DEDUZIDA, e a deducao ja errou 50 cm aqui.")
+        print("    Meça a altura da camera com a trena e rode de novo:")
+        print("        python ferramentas/mapear.py --mono --altura-camera 2.23")
 
     print(f"\n  rodando {args.modelo_mono}")
     print("  (a primeira vez baixa o modelo; depois fica em cache)")

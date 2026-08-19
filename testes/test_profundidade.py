@@ -156,6 +156,77 @@ def test_sistema_canhoto_nao_enterra_a_camera_no_chao():
         assert cam.posicao[1] == pytest.approx(esperado_y, abs=0.08)
 
 
+def test_a_trena_no_teto_determina_a_focal():
+    """O melhor resultado de 19/08, e veio de uma fita metrica.
+
+    A focal deduzida pos a camera do Eduardo a 2,73 m; a trena disse 2,23.
+    Mas a relacao vale nos dois sentidos: se a focal errada produz a altura
+    errada, a altura CERTA determina a focal certa.
+
+        Uma grandeza dificil de medir se resolve por outra facil de medir,
+        quando as duas estao presas pela mesma geometria.
+    """
+    from src.mundo.profundidade import focal_pela_altura
+
+    for focal, altura in ((430.0, 2.10), (551.0, 2.23), (700.0, 3.00)):
+        K, R, t, C = _camera_de_teste(focal=focal, altura=altura)
+        H = _homografia_de(K, R, t)
+        achada = focal_pela_altura(H, LARG, ALT, altura)
+        assert achada is not None
+        assert achada[0, 0] == pytest.approx(focal, rel=0.02)
+        cam = camera_da_homografia(H, LARG, ALT, K=achada)
+        assert cam.altura_m == pytest.approx(altura, abs=0.01)
+
+
+def test_altura_impossivel_devolve_None_em_vez_da_mais_proxima():
+    """Nao ha resposta, e inventar a mais proxima esconderia que a medida ou
+    a homografia estao erradas."""
+    from src.mundo.profundidade import focal_pela_altura
+    K, R, t, _C = _camera_de_teste(altura=2.5)
+    H = _homografia_de(K, R, t)
+    assert focal_pela_altura(H, LARG, ALT, 0.02) is None
+    assert focal_pela_altura(H, LARG, ALT, 400.0) is None
+    assert focal_pela_altura(H, LARG, ALT, 0.0) is None
+    assert focal_pela_altura(H, LARG, ALT, None) is None
+
+
+def test_a_altura_NAO_e_monotona_na_focal():
+    """Eu supus que fosse, e estava errado. Este teste tranca o fato.
+
+    A curva sobe, satura e DESCE — entao cada altura tem duas focais, e uma
+    busca binaria sobre a faixa inteira pode cair em qualquer uma. Medido na
+    homografia real:
+
+        f=200 -> 0,93 m    f=800  -> 2,81 m    f=1500 -> 3,29 m  (pico)
+        f=500 -> 2,08 m    f=1200 -> 3,23 m    f=3000 -> 2,66 m
+    """
+    K, R, t, _C = _camera_de_teste()
+    H = _homografia_de(K, R, t)
+    alturas = []
+    for f in (300.0, 600.0, 1000.0, 2000.0, 3500.0):
+        Kf = np.array([[f, 0, LARG / 2], [0, f, ALT / 2], [0, 0, 1.0]])
+        alturas.append(camera_da_homografia(H, LARG, ALT, K=Kf).altura_m)
+    assert alturas[0] < alturas[1], "o ramo de baixo tem que subir"
+    assert alturas[-1] < max(alturas), "a curva tem que virar; se nao virar, "\
+                                       "a busca podia ser mais simples"
+
+
+def test_a_raiz_escolhida_e_a_de_campo_de_visao_plausivel():
+    """Das duas focais possiveis, a grande descreve uma teleobjetiva.
+
+        Duas solucoes matematicas nao sao ambiguidade quando uma delas
+        descreve um aparelho que nao existe.
+    """
+    from src.mundo.profundidade import focal_pela_altura
+
+    K, R, t, C = _camera_de_teste(focal=551.0, altura=2.23)
+    H = _homografia_de(K, R, t)
+    achada = focal_pela_altura(H, LARG, ALT, 2.23)
+    diagonal = 2 * math.degrees(math.atan(
+        math.hypot(LARG, ALT) / 2 / achada[0, 0]))
+    assert 55.0 < diagonal < 100.0, f"{diagonal:.0f} graus nao e webcam"
+
+
 def test_a_intrinseca_medida_vence_a_deduzida(tmp_path, monkeypatch):
     """`calibracao/intrinseca.py` existe desde o comeco e nunca foi rodado.
 

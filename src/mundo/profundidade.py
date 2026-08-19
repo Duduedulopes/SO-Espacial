@@ -186,6 +186,97 @@ def intrinseca_da_homografia(homografia, largura_px, altura_px):
     return K, float(discordancia)
 
 
+def focal_pela_altura(homografia, largura_px, altura_px, altura_medida_m,
+                      minimo=150.0, maximo=4000.0, passos=60):
+    """A focal que faz a camera cair na altura que a TRENA mediu.
+
+    O MELHOR RESULTADO DE 19/08, E ELE VEIO DE UMA FITA METRICA
+
+    Deduzir a focal de uma homografia so exige supor pixel quadrado e centro
+    optico no meio da imagem. Na C920, com o barril que ela tem, isso deu:
+
+        focal deduzida     758 px  ->  camera a 2,73 m
+        trena                          camera a 2,23 m
+
+    Cinquenta centimetros, 22% de erro, e ele contaminaria toda posicao
+    calculada adiante.
+
+    Mas a relacao vale nos dois sentidos. Se a focal errada produz a altura
+    errada, entao a altura CERTA determina a focal certa — e altura de camera
+    e uma das poucas coisas deste projeto que se mede em um minuto, com uma
+    fita, sem software nenhum.
+
+        Uma grandeza dificil de medir se resolve por outra facil de medir,
+        quando as duas estao presas pela mesma geometria.
+
+    E A CURVA NAO E MONOTONA, o que eu supus e estava errado. Medido:
+
+        f=200 -> 0,93 m    f=800  -> 2,81 m    f=1500 -> 3,29 m  (pico)
+        f=500 -> 2,08 m    f=1200 -> 3,23 m    f=3000 -> 2,66 m
+
+    Ela sobe, satura e DESCE. Entao cada altura tem DUAS focais possiveis, e
+    uma busca binaria ingenua sobre a faixa inteira pode cair em qualquer uma
+    — ou em nenhuma, se os extremos ficarem do mesmo lado.
+
+    A fisica desempata: a raiz grande, para a altura de 2,23 m, fica acima de
+    1500 px, ou seja menos de 25 graus de campo. Webcam nenhuma e teleobjetiva.
+    Entao a busca acontece no ramo que SOBE, do minimo ate o pico.
+
+        Duas solucoes matematicas nao sao ambiguidade quando uma delas
+        descreve um aparelho que nao existe.
+
+    E O RESULTADO SE CONFERE SOZINHO. Com a altura de 2,23 m a focal deu
+    551 px, ou seja 72 graus de diagonal — e a C920 tem cerca de 70 em 4:3.
+    A trena, a geometria e a folha de dados do fabricante concordando sobre
+    um numero que nenhuma das tres usou para chegar la.
+
+    NAO SUBSTITUI O TABULEIRO. Isto devolve a focal; `calibracao/intrinseca.py`
+    devolve tambem a distorcao radial, que e o que torce as bordas. Devolve o
+    que da para ter agora, e nao o melhor que existe.
+    """
+    if not (altura_medida_m and altura_medida_m > 0):
+        return None
+
+    def altura_com(f):
+        K = np.array([[f, 0.0, largura_px / 2.0],
+                      [0.0, f, altura_px / 2.0],
+                      [0.0, 0.0, 1.0]])
+        cam = camera_da_homografia(homografia, largura_px, altura_px, K=K)
+        return cam.altura_m if cam is not None else None
+
+    # Onde fica o pico. Varredura grossa em escala logaritmica: a focal e uma
+    # escala, e amostrar linearmente gastaria metade dos pontos na parte plana.
+    escala_log = np.geomspace(minimo, maximo, 60)
+    alturas = [altura_com(float(f)) for f in escala_log]
+    validos = [(f, a) for f, a in zip(escala_log, alturas) if a is not None]
+    if not validos:
+        return None
+    f_pico, a_pico = max(validos, key=lambda par: par[1])
+
+    a_min = altura_com(minimo)
+    if a_min is None or not (a_min <= altura_medida_m <= a_pico):
+        # A altura pedida nao e alcancavel no ramo que sobe. Nao ha resposta, e
+        # inventar a mais proxima esconderia que a homografia ou a medida estao
+        # erradas.
+        return None
+
+    lo, hi = minimo, float(f_pico)
+    for _ in range(passos):
+        meio = (lo + hi) / 2.0
+        a = altura_com(meio)
+        if a is None:
+            return None
+        if a < altura_medida_m:
+            lo = meio
+        else:
+            hi = meio
+    focal = (lo + hi) / 2.0
+
+    return np.array([[focal, 0.0, largura_px / 2.0],
+                     [0.0, focal, altura_px / 2.0],
+                     [0.0, 0.0, 1.0]])
+
+
 def camera_da_homografia(homografia, largura_px, altura_px, K=None):
     """A camera inteira: intrinseca, pose e ONDE ELA ESTA. Ou None.
 
@@ -310,10 +401,19 @@ def intrinseca_medida(caminho=None, largura_px=None, altura_px=None):
     import json
     from pathlib import Path
 
-    p = Path(caminho) if caminho else (
-        Path(__file__).resolve().parent.parent.parent
-        / "calibracao" / "intrinseca.json")
-    if not p.exists():
+    if caminho:
+        candidatos = [Path(caminho)]
+    else:
+        # O NOME DO ARQUIVO SEGUE O PAPEL, E NAO O INDICE DO WINDOWS.
+        #
+        # `intrinseca.py` salvava em `cam0.json` — um nome que depende de qual
+        # USB o Windows enumerou primeiro. Com duas webcams ligadas, o mesmo
+        # arquivo descreveria lentes diferentes em dias diferentes, sem nada
+        # mudar de aparencia.
+        calib = Path(__file__).resolve().parent.parent.parent / "calibracao"
+        candidatos = [calib / "intrinseca-alto.json", calib / "intrinseca.json"]
+    p = next((c for c in candidatos if c.exists()), None)
+    if p is None:
         return None
     try:
         d = json.loads(p.read_text(encoding="utf-8"))

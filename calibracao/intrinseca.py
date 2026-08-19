@@ -72,11 +72,59 @@ def cobertura(pontos, w, h, celulas=3):
     return grade
 
 
+def _indice_do_papel(papel):
+    """O indice do Windows para o papel, achado pelo NOME em config/cameras.json.
+
+    POR QUE NAO ACEITAR O INDICE DIRETO, JA QUE ELE EXISTE
+
+    Porque este projeto ja pagou por isso:
+
+        Nomes das cameras no Windows. Sem isto so ha indices numericos, que
+        mudam sozinhos e ja custaram uma sessao inteira de depuracao.
+                                                    — requirements.txt
+
+    Com duas webcams ligadas, `--camera 0` pode ser a C920 do teto ou a VGA
+    da frente, e o programa nao tem como saber qual foi. Calibrar a lente
+    errada nao da erro nenhum: da uma K plausivel, do outro aparelho, que
+    depois entra em todas as contas de posicao.
+
+        Uma escolha errada que produz um resultado plausivel e pior que uma
+        que falha: a falha avisa.
+    """
+    import json
+    import sys
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parent.parent
+    if str(raiz) not in sys.path:
+        sys.path.insert(0, str(raiz))
+    from src.cameras.dispositivos import exigir_indice
+
+    config = raiz / "config" / "cameras.json"
+    if not config.exists():
+        raise SystemExit(f"\n  nao achei {config}\n")
+    d = json.loads(config.read_text(encoding="utf-8"))
+    if papel not in d:
+        raise SystemExit(f"\n  nao ha papel '{papel}' em config/cameras.json. "
+                         f"Ha: {', '.join(d)}\n")
+    fonte = d[papel]["fonte"]
+    if fonte.startswith("http"):
+        raise SystemExit(
+            f"\n  a camera '{papel}' e de rede ({fonte}).\n"
+            f"  Este programa calibra camera USB. Para a de rede, aponte o\n"
+            f"  tabuleiro e grave um video, ou use --camera com o indice.\n")
+    return exigir_indice(fonte), fonte
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--camera", type=int, default=0)
+    p.add_argument("--papel", default="alto",
+                   help="qual camera, pelo NOME em config/cameras.json. "
+                        "E o jeito certo: indice do Windows muda sozinho.")
+    p.add_argument("--camera", type=int, default=None,
+                   help="indice cru, se voce souber o que esta fazendo")
     p.add_argument("--nome", type=str, default=None,
-                   help="nome do arquivo de saida. Padrao: cam<indice>")
+                   help="nome do arquivo de saida. Padrao: intrinseca-<papel>")
     p.add_argument("--cantos", type=int, nargs=2, default=(9, 6),
                    metavar=("COLUNAS", "LINHAS"),
                    help="cantos INTERNOS do tabuleiro. Um tabuleiro 10x7 "
@@ -87,7 +135,16 @@ def main() -> None:
 
     nx, ny = args.cantos
     cap_w, cap_h = (int(v) for v in args.captura.lower().split("x"))
-    nome = args.nome or f"cam{args.camera}"
+
+    if args.camera is not None:
+        indice, fonte = args.camera, f"indice {args.camera}"
+        nome = args.nome or f"cam{args.camera}"
+    else:
+        indice, fonte = _indice_do_papel(args.papel)
+        nome = args.nome or f"intrinseca-{args.papel}"
+    args.camera = indice
+    print(f"\n  calibrando '{fonte}'  (indice {indice} agora)")
+    print(f"  vai salvar em calibracao/{nome}.json\n")
 
     # Pontos do tabuleiro no proprio referencial dele: z=0, espacamento real.
     objp = np.zeros((nx * ny, 3), np.float32)
