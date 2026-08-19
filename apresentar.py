@@ -182,7 +182,8 @@ def main():
 
     tela = Apresentacao(tw, th)
     cw, ch = tela.tamanho_da_cena
-    cena = Cena3D(cw, ch, chao=app.planta.chao, calor_hz=4.0)
+    cena = Cena3D(cw, ch, chao=app.planta.chao, calor_hz=4.0,
+                  contorno=app.planta.contorno)
     app.planta.aplicar_na_cena(cena)
     suavizador = Suavizador()
     contador = ContadorDePegadas()

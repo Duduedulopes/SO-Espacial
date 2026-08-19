@@ -215,9 +215,24 @@ def _osso(img, a, b, ra, rb, cor):
 
 class Cena3D:
     def __init__(self, largura=960, altura=620, chao=(-1.5, 3.5, -1.5, 3.5),
-                 calor_hz=4.0):
+                 calor_hz=4.0, contorno=None):
         self.cam = CameraVirtual(largura, altura)
         self.chao = chao
+
+        # O PISO E UM QUADRILATERO TORTO, NAO UM RETANGULO.
+        #
+        # A pegada de uma camera no chao e a imagem de um retangulo por uma
+        # perspectiva — e isso nunca volta a ser retangulo. A caixa que a
+        # contem mede 16,4 m2 onde a camera mede 8,4: desenhar a caixa poria
+        # metade do comodo onde a camera nunca olhou.
+        #
+        #     Chao desenhado onde nada foi medido e a mesma mentira do
+        #     recorte, ao contrario: um afirma de menos, o outro de mais.
+        #
+        # `None` mantem o retangulo de antes, para quem ainda nao tem contorno.
+        self.contorno = (np.asarray(contorno, dtype=float).reshape(-1, 2)
+                         if contorno is not None and len(contorno) >= 3
+                         else None)
 
         # A CAMERA MIRA O CENTRO DO PISO DECLARADO, NAO UM PONTO FIXO.
         #
@@ -235,9 +250,8 @@ class Cena3D:
         # sala de 2 m quem domina o enquadramento e o corpo de 1,8 m em pe, e
         # nao o piso — enquadrar so pelo chao corta a cabeca do boneco.
         x0, x1, y0, y1 = chao
-        largura_m = max(x1 - x0, y1 - y0, 3.0)
         self.cam.alvo = np.array([(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.95])
-        self.cam.dist = float(np.clip(largura_m * 2.0, 5.5, 18.0))
+        self.cam.dist = self._distancia_que_enquadra()
         # (x_centro, y_centro, largura, profundidade, altura, rotulo, rumo)
         self.moveis = []
 
@@ -262,6 +276,67 @@ class Cena3D:
         self._calor_alfa = None
         self._calor_t = 0.0
         self.calor_hz = calor_hz
+
+    def _distancia_que_enquadra(self, altura_util=1.85, margem=0.05,
+                                minimo=3.0, maximo=40.0):
+        """A distancia em que TUDO cabe na tela, e nem um palmo mais.
+
+        A REGRA DE BOLSO QUEBROU NA SEGUNDA SALA, COMO ELA MESMA AVISOU
+
+        Ate 19/08 aqui estava `dist = clip(largura * 2, 5.5, 18)`, com um
+        comentario dizendo:
+
+            Constante que so vale para um caso deixa de ser constante no dia
+            em que aparece o segundo caso.
+
+        O segundo caso chegou: o piso passou de 1,5 m para 4,1 m de lado. A
+        regra devolveu 8,1 m — longe demais, e o boneco de 1,75 m virou um
+        risco. Nao havia como acertar os dois com o mesmo numero, porque nao
+        e um numero: e uma pergunta de geometria com resposta exata.
+
+            Um valor afinado a mao acerta o caso em que foi afinado. So a
+            conta acerta o proximo.
+
+        COMO SE RESOLVE
+
+        O que precisa caber e o piso — nos dois niveis. No chao, porque e o
+        comodo; a 1,85 m, porque e onde fica a cabeca de quem estiver no
+        canto mais distante, e cortar a cabeca de alguem no canto e o defeito
+        que a regra antiga ja tinha do outro lado.
+
+        A extensao projetada encolhe quando a camera se afasta, sempre. Entao
+        basta a menor distancia que faz tudo caber — busca binaria, vinte e
+        cinco passos, resposta ao milimetro. Roda uma vez, na montagem.
+        """
+        pes = self.pes_do_chao()
+        pontos = np.array([[x, y, z] for x, y in pes for z in (0.0, altura_util)],
+                          dtype=float)
+
+        def cabe(d):
+            antes, self.cam.dist = self.cam.dist, float(d)
+            try:
+                p, z = self.cam.projetar(pontos)
+            finally:
+                self.cam.dist = antes
+            if (z <= 0.05).any():
+                return False
+            mx, my = self.cam.w * margem, self.cam.h * margem
+            return bool((p[:, 0] >= mx).all() and (p[:, 0] <= self.cam.w - mx).all()
+                        and (p[:, 1] >= my).all()
+                        and (p[:, 1] <= self.cam.h - my).all())
+
+        if cabe(minimo):
+            return minimo
+        if not cabe(maximo):
+            return maximo
+        baixo, alto = minimo, maximo
+        for _ in range(25):
+            meio = (baixo + alto) / 2.0
+            if cabe(meio):
+                alto = meio
+            else:
+                baixo = meio
+        return float(alto)
 
     def _chave_camera(self):
         c = self.cam
@@ -343,7 +418,21 @@ class Cena3D:
             cv2.putText(img, txt, tuple(p[0] + [4, -6]),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.42, cor, 1, cv2.LINE_AA)
 
-    def _grade(self, img):
+    def pes_do_chao(self):
+        """Os cantos do piso em metros: o contorno se houver, a caixa se nao."""
+        if self.contorno is not None:
+            return self.contorno
+        x0, x1, y0, y1 = self.chao
+        return np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=float)
+
+    def _grade(self, img, mascara=None):
+        """A grade de 1 m, recortada ao piso.
+
+        A grade e a regua da cena: e por ela que se ve que o comodo tem quatro
+        metros e nao dois. Mas ela desenhada alem do piso vira risco no vazio,
+        e sugere chao onde a camera nao olhou — o mesmo problema que o
+        contorno existe para resolver. Entao ela passa pela mesma mascara.
+        """
         x0, x1, y0, y1 = self.chao
         linhas = []
         for x in np.arange(np.ceil(x0), x1 + .001, 1.0):
@@ -351,12 +440,15 @@ class Cena3D:
         for y in np.arange(np.ceil(y0), y1 + .001, 1.0):
             linhas.append(([x0, y, 0], [x1, y, 0]))
 
+        alvo = img if mascara is None else img.copy()
         for a, b in linhas:
             (pa, pb), z = self.cam.projetar([a, b])
             if z.min() <= 0:
                 continue
-            cv2.line(img, tuple(pa.astype(int)), tuple(pb.astype(int)),
+            cv2.line(alvo, tuple(pa.astype(int)), tuple(pb.astype(int)),
                      GRADE, 1, cv2.LINE_AA)
+        if mascara is not None:
+            np.copyto(img, alvo, where=mascara[..., None].astype(bool))
 
     def _movel(self, img, m):
         """Uma caixa GIRADA em torno do proprio centro.
@@ -648,13 +740,16 @@ class Cena3D:
         """Chao, grade e moveis. So muda quando a camera virtual se move."""
         img = np.full((self.cam.h, self.cam.w, 3), FUNDO, dtype=np.uint8)
 
-        x0, x1, y0, y1 = self.chao
-        quad, z = self.cam.projetar([[x0, y0, 0], [x1, y0, 0],
-                                     [x1, y1, 0], [x0, y1, 0]])
+        pes = self.pes_do_chao()
+        quad, z = self.cam.projetar([[x, y, 0.0] for x, y in pes])
+        mascara = None
         if (z > 0).all():
-            cv2.fillConvexPoly(img, quad.astype(int), CHAO)
+            poly = quad.astype(np.int32)
+            cv2.fillPoly(img, [poly], CHAO)
+            mascara = np.zeros(img.shape[:2], dtype=np.uint8)
+            cv2.fillPoly(mascara, [poly], 255)
 
-        self._grade(img)
+        self._grade(img, mascara)
         for m in self.moveis:
             self._movel(img, m)
         return img

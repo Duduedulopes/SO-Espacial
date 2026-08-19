@@ -29,13 +29,18 @@
   "nome": "Quarto de teste — area calibrada 1,65 x 1,32 m",
   "unidade": "m",
   "chao": {
-    "xmin": -0.616,
-    "xmax": 1.012,
-    "ymin": -0.954,
-    "ymax": 0.752,
+    "xmin": -0.827,
+    "xmax": 3.243,
+    "ymin": -1.865,
+    "ymax": 2.107,
     "_nota": [
-      "Contorno do piso que as cameras reconstruiram.",
-      "Nao e um numero digitado: e o que elas viram."
+      "A CAIXA que contem tudo: a pegada da camera do alto e a nuvem das tres",
+      "vistas. Serve para dimensionar a grade do calor e o enquadramento da",
+      "camera virtual — nao para desenhar o piso.",
+      "",
+      "Para desenhar o piso existe `contorno`, que e o quadrilatero de verdade.",
+      "A caixa dele tem quase o dobro da area: projecao de retangulo nao volta",
+      "a ser retangulo."
     ]
   },
   "moveis": [
@@ -43,12 +48,12 @@
       "id": "estante-aco",
       "nome": "Estante",
       "tipo": "estante",
-      "x": 0.043,
-      "y": 0.086,
+      "x": 0.569,
+      "y": 0.909,
       "largura": 0.92,
       "profundidade": 0.3,
       "altura": 1.9,
-      "rumo_da_face": -1.3792,
+      "rumo_da_face": -0.5592,
       "prateleiras": [
         {
           "id": "p1",
@@ -72,7 +77,7 @@
         }
       ],
       "estante": "estante-aco-teste",
-      "_medido_em": "2026-08-18T16:51:57",
+      "_medido_em": "2026-08-18T17:04:49",
       "_por": "as 3 cameras; a altura de trena deu a escala",
       "_nota": [
         "POSICAO achada pelas cameras. DIMENSOES da trena.",
@@ -88,12 +93,21 @@
   ],
   "zonas": [
     {
+      "id": "entrada",
+      "nome": "Entrada",
+      "x0": -0.192,
+      "x1": 0.258,
+      "y0": 1.294,
+      "y1": 1.844,
+      "movel": "estante-aco"
+    },
+    {
       "id": "saida",
       "nome": "Saida",
-      "x0": 0.241,
-      "x1": 0.691,
-      "y0": -0.927,
-      "y1": -0.377,
+      "x0": 1.172,
+      "x1": 1.622,
+      "y0": 0.44,
+      "y1": 0.99,
       "movel": "estante-aco"
     }
   ],
@@ -146,5 +160,41 @@
     "Se confirmado, a saida NAO e melhorar a frontal: e a lateral assumir o",
     "braco quando a pessoa esta virada para a estante. Cada camera responde o",
     "que enxerga; nenhuma precisa enxergar tudo."
+  ],
+  "contorno": [
+    [
+      3.243,
+      0.147
+    ],
+    [
+      1.129,
+      2.107
+    ],
+    [
+      -0.827,
+      0.804
+    ],
+    [
+      0.085,
+      -1.865
+    ]
+  ],
+  "_contorno_nota": [
+    "O PISO QUE A CAMERA DO ALTO REALMENTE MEDE, em metros.",
+    "",
+    "Ate 19/08 o comodo saia da extensao da nuvem do DUSt3R: 2,1 m2. A mesma",
+    "homografia que ja existia mede 8,4 m2 do mesmo chao.",
+    "",
+    "    A reconstrucao diz o que TEM na sala. Quem sabe o tamanho dela e o",
+    "    campo de visao de quem mede posicao.",
+    "",
+    "O retangulo de 1,65 x 1,32 da calibracao nunca foi o limite da medida:",
+    "era o alcance da trena. Fora dele a homografia continua valendo — medido",
+    "perturbando cada canto clicado em 2 px, 400 vezes, o erro e 0,8 cm dentro",
+    "do retangulo e 4,7 cm no pior canto da imagem.",
+    "",
+    "So a camera do alto entra aqui, porque so ela tem homografia. A frontal e",
+    "a lateral tambem veem piso e nao sabem dizer em metros onde ele esta. No",
+    "dia em que uma delas for calibrada, o comodo cresce de novo."
   ]
 }

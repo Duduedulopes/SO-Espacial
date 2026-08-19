@@ -69,9 +69,22 @@ class Movel:
 class Planta:
     id: str
     nome: str
-    chao: tuple            # (xmin, xmax, ymin, ymax)
+    chao: tuple            # (xmin, xmax, ymin, ymax) — a CAIXA
     moveis: list = field(default_factory=list)
     zonas: list = field(default_factory=list)      # objetos Zona
+
+    # O CONTORNO DO PISO, e ele nao e a caixa.
+    #
+    # A pegada de uma camera no chao e um quadrilatero torto — a imagem e um
+    # retangulo, mas a projecao de um retangulo por uma perspectiva nao e.
+    # A caixa que o contem tem 16,4 m2; o piso que a camera realmente mede tem
+    # 8,4. Desenhar a caixa seria inventar metade do comodo.
+    #
+    #     A caixa serve para dimensionar (a grade do calor, o enquadramento).
+    #     Para DESENHAR o chao, so o contorno diz a verdade.
+    #
+    # Vazio quando a planta e antiga: ai o desenho cai na caixa, como antes.
+    contorno: tuple = ()   # ((x, y), ...) em metros
 
     @staticmethod
     def carregar(caminho):
@@ -99,6 +112,8 @@ class Planta:
             id=d["id"], nome=d["nome"],
             chao=(c["xmin"], c["xmax"], c["ymin"], c["ymax"]),
             moveis=moveis, zonas=zonas,
+            contorno=tuple((float(p[0]), float(p[1]))
+                           for p in d.get("contorno", ())),
         )
 
     def aplicar_na_cena(self, cena):

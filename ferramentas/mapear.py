@@ -71,6 +71,7 @@ sys.path.insert(0, str(RAIZ))
 import cv2                                                    # noqa: E402
 import numpy as np                                            # noqa: E402
 
+from percepcao.chao import caixa_do_contorno, pegada_no_chao   # noqa: E402
 from src.mundo.ambiente import Gabarito                        # noqa: E402
 from src.mundo.mapeamento import montar                        # noqa: E402
 
@@ -343,6 +344,29 @@ def main():
         print("  SEM HOMOGRAFIA: o ambiente vai sair num mundo proprio, e o")
         print("  gemeo nao vai coincidir com ele.")
 
+    # O TAMANHO DO COMODO NAO SAI DA NUVEM. SAI DE QUEM MEDE POSICAO.
+    #
+    # Ate 19/08 o piso era a extensao dos pontos que o DUSt3R conseguiu casar
+    # entre as vistas: 2,1 m2. A camera do alto, pela homografia que ja
+    # existia, mede 8,4 m2 do mesmo chao — quatro vezes mais.
+    #
+    #     A reconstrucao diz o que TEM na sala. Quem sabe o tamanho dela e o
+    #     campo de visao de quem mede posicao.
+    #
+    # LIMITE HONESTO: so a camera do alto entra nesta conta, porque so ela tem
+    # homografia. A frontal e a lateral tambem enxergam piso e nao sabem dizer
+    # em metros onde ele esta. No dia em que uma delas for calibrada, o comodo
+    # cresce de novo — e o codigo que faz isso e o mesmo.
+    contorno = None
+    if h is not None:
+        larg_px, alt_px = (calib or {}).get("resolucao", (640, 480))
+        contorno = pegada_no_chao(h, int(larg_px), int(alt_px))
+        if contorno is not None:
+            area = float(abs(np.dot(contorno[:, 0], np.roll(contorno[:, 1], -1))
+                             - np.dot(contorno[:, 1],
+                                      np.roll(contorno[:, 0], -1))) / 2.0)
+            print(f"  piso: a camera do alto mede {area:.1f} m2 de chao")
+
     amb = montar(nuvem, gab, mapa_do_alto=mapa_do_alto, homografia=h,
                  calib=calib)
     if amb is None:
@@ -351,7 +375,7 @@ def main():
             "  reconhecivel, ou nao ha nada alto o bastante para ser a\n"
             "  estante. Confira as tres imagens em dados/levantamento.\n")
 
-    x0, x1, y0, y1 = amb.chao
+    x0, x1, y0, y1 = _caixa(amb, contorno)
     ex, ey, rumo = amb.estante
     print(f"\n  AMBIENTE   escala {amb.escala:.2f}")
     if amb.no_mundo_do_gemeo:
@@ -374,7 +398,7 @@ def main():
     print(f"  nuvem      {len(amb.nuvem)} pontos em metros")
 
     if args.gravar:
-        _gravar_planta(amb, gab, args.planta)
+        _gravar_planta(amb, gab, args.planta, contorno)
         np.savez(RAIZ / "loja" / "nuvem.npz", pontos=amb.nuvem)
         print(f"\n  gravado em {args.planta} e loja/nuvem.npz")
         print("\n  agora:  python rodar.py\n")
@@ -382,7 +406,29 @@ def main():
         print("\n  (nao gravei — use --gravar)\n")
 
 
-def _gravar_planta(amb, gab, caminho):
+def _caixa(amb, contorno):
+    """A caixa que contem TUDO: a pegada da camera e a nuvem.
+
+    Nao e uma das duas, e a uniao. A caixa dimensiona a grade do calor e o
+    enquadramento da camera virtual — se algo medido cair fora dela, esse algo
+    some do mapa de calor sem aviso.
+
+        Uma caixa que nao contem tudo que foi medido recorta em silencio, que
+        e o defeito que este projeto passou um dia inteiro caçando.
+    """
+    caixas = []
+    if amb is not None and amb.chao is not None:
+        caixas.append(amb.chao)
+    c = caixa_do_contorno(contorno)
+    if c is not None:
+        caixas.append(c)
+    if not caixas:
+        return (0.0, 1.0, 0.0, 1.0)
+    return (min(b[0] for b in caixas), max(b[1] for b in caixas),
+            min(b[2] for b in caixas), max(b[3] for b in caixas))
+
+
+def _gravar_planta(amb, gab, caminho, contorno=None):
     """Escreve o ambiente na planta que o `rodar.py` ja le.
 
     O chao, a estante com as medidas de trena, e a entrada e a saida
@@ -392,15 +438,43 @@ def _gravar_planta(amb, gab, caminho):
     from ferramentas.achar_ambiente import _portas
     from src.mundo.ambiente import Ambiente
 
-    x0, x1, y0, y1 = amb.chao
+    x0, x1, y0, y1 = _caixa(amb, contorno)
     ex, ey, rumo = amb.estante
 
     caminho = RAIZ / caminho
     d = json.loads(caminho.read_text(encoding="utf-8"))
     d["chao"] = {"xmin": round(x0, 3), "xmax": round(x1, 3),
                  "ymin": round(y0, 3), "ymax": round(y1, 3),
-                 "_nota": ["Contorno do piso que as cameras reconstruiram.",
-                           "Nao e um numero digitado: e o que elas viram."]}
+                 "_nota": [
+                     "A CAIXA que contem tudo: a pegada da camera do alto e a",
+                     "nuvem das tres vistas. Serve para dimensionar a grade do",
+                     "calor e o enquadramento — nao para desenhar o piso.",
+                     "",
+                     "Para desenhar o piso existe `contorno`, que e o",
+                     "quadrilatero de verdade. A caixa dele tem quase o dobro",
+                     "da area: projecao de retangulo nao volta a ser",
+                     "retangulo.",
+                 ]}
+    if contorno is not None and len(contorno) >= 3:
+        d["contorno"] = [[round(float(x), 3), round(float(y), 3)]
+                         for x, y in contorno]
+        d["_contorno_nota"] = [
+            "O PISO QUE A CAMERA DO ALTO REALMENTE MEDE, em metros.",
+            "",
+            "Ate 19/08 o comodo saia da extensao da nuvem do DUSt3R: 2,1 m2.",
+            "A mesma homografia que ja existia mede 8,4 m2 do mesmo chao.",
+            "",
+            "    A reconstrucao diz o que TEM na sala. Quem sabe o tamanho",
+            "    dela e o campo de visao de quem mede posicao.",
+            "",
+            "O retangulo de 1,65 x 1,32 da calibracao nunca foi o limite da",
+            "medida: era o alcance da trena. Fora dele a homografia continua",
+            "valendo — medido, o erro no pior canto da imagem e 4,7 cm.",
+            "",
+            "So a camera do alto entra aqui, porque so ela tem homografia. A",
+            "frontal e a lateral tambem veem piso e nao sabem dizer em metros",
+            "onde ele esta.",
+        ]
     d["moveis"] = [{
         "id": "estante-aco", "nome": "Estante", "tipo": "estante",
         "x": round(ex, 3), "y": round(ey, 3),

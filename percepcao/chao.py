@@ -47,6 +47,111 @@ def para_metros(H, x, y):
     return float(v[0] / v[2]), float(v[1] / v[2])
 
 
+# Quanto chao um pixel pode valer e a medida ainda significar alguma coisa.
+#
+# Longe da camera um pixel cobre cada vez mais piso. Nao ha uma fronteira
+# subita: ha um ponto a partir do qual dizer "a pessoa esta AQUI" deixa de
+# querer dizer algo. Cinco centimetros e menos que um pe.
+#
+#     O alcance de um sensor nao acaba onde ele para de ver. Acaba onde a
+#     resolucao dele deixa de responder a pergunta.
+#
+# Na camera do alto deste projeto o pior pixel da imagem vale 0,83 cm — nada
+# e cortado, e o limite existe para o dia em que a camera for outra.
+CM_POR_PIXEL_MAXIMO = 5.0
+
+
+def pegada_no_chao(H, largura_px, altura_px, cm_por_pixel_maximo=None,
+                   passos=48):
+    """O contorno, em METROS, do chao que esta camera enxerga. Convexo.
+
+    POR QUE ISTO EXISTE, E QUAL ERRO ELE DESFAZ
+
+    Ate 19/08 o tamanho do comodo saia da NUVEM reconstruida — a extensao dos
+    pontos que o DUSt3R conseguiu casar entre as tres vistas. Medido:
+
+        quarto desenhado pela nuvem      2,1 m2
+        chao que a camera do alto mede   8,4 m2
+
+    Quatro vezes menor, e nao por falta de camera: por deixar o instrumento
+    errado responder a pergunta. A reconstrucao diz o que TEM na sala. Quem
+    sabe o TAMANHO dela e o campo de visao de quem mede posicao.
+
+        Perguntar as dimensoes do comodo a quem so sabe reconhecer objetos
+        devolve o tamanho da coleçao de objetos, nao o do comodo.
+
+    COMO SE ACHA O CONTORNO
+
+    A homografia mapeia o plano do chao inteiro, nao so o retangulo que foi
+    clicado na calibracao — o retangulo era o alcance da TRENA, nunca o da
+    medida. Entao a resposta e a imagem inteira levada ao chao.
+
+    Duas coisas podem estragar isso, e as duas estao tratadas:
+
+    1. A LINHA DO HORIZONTE. Onde `w = h31*u + h32*v + 1` chega a zero, o
+       plano some no infinito. Pixels alem dela caem ATRAS da camera e
+       voltariam com sinal trocado — um chao fantasma do outro lado do mundo.
+       Ficam de fora pelo teste `w > 0`.
+
+    2. A RESOLUCAO. Chegando perto do horizonte, um pixel passa a valer
+       metros. O ponto continua sendo chao de verdade e ja nao serve para
+       dizer onde alguem esta. Fica de fora por `cm_por_pixel_maximo`, medido
+       de verdade em cada amostra pela diferenca finita — nao estimado.
+
+    O que sobra e convexo por construcao (retangulo da imagem cortado por uma
+    reta, levado por uma projetividade), entao o fecho convexo das amostras e
+    a resposta exata e nao uma aproximacao.
+
+    Devolve um array (N, 2) em metros, no sentido anti-horario, ou None se
+    nada da imagem servir.
+    """
+    import cv2
+
+    h = np.asarray(H, dtype=float)
+    limite_m = (cm_por_pixel_maximo if cm_por_pixel_maximo is not None
+                else CM_POR_PIXEL_MAXIMO) / 100.0
+
+    us = np.linspace(0, largura_px - 1, passos)
+    vs = np.linspace(0, altura_px - 1, passos)
+    grade = np.stack(np.meshgrid(us, vs), axis=-1).reshape(-1, 2)
+
+    def leva(pontos):
+        p = np.column_stack([pontos, np.ones(len(pontos))]) @ h.T
+        w = p[:, 2]
+        seguro = np.where(np.abs(w) < 1e-12, 1e-12, w)
+        return p[:, :2] / seguro[:, None], w
+
+    metros, w = leva(grade)
+    # o tamanho do pixel medido, e nao suposto: um passo em u, um passo em v
+    du, _ = leva(grade + [1.0, 0.0])
+    dv, _ = leva(grade + [0.0, 1.0])
+    tamanho = np.maximum(np.linalg.norm(du - metros, axis=1),
+                         np.linalg.norm(dv - metros, axis=1))
+
+    bons = (w > 1e-9) & (tamanho <= limite_m)
+    if bons.sum() < 3:
+        return None
+
+    fecho = cv2.convexHull(metros[bons].astype(np.float32))
+    # O fecho de uma grade de amostras traz vertices quase colineares — catorze
+    # pontos para descrever um quadrilatero. Um centimetro de tolerancia deixa
+    # so as quinas de verdade, e um centimetro e menos que o erro da propria
+    # homografia longe do retangulo calibrado (medido: 2 a 5 cm).
+    simples = cv2.approxPolyDP(fecho, 0.01, True)
+    if len(simples) >= 3:
+        fecho = simples
+    return fecho.reshape(-1, 2).astype(float)
+
+
+def caixa_do_contorno(contorno):
+    """(xmin, xmax, ymin, ymax) de um contorno. None vira None."""
+    if contorno is None or not len(contorno):
+        return None
+    c = np.asarray(contorno, dtype=float).reshape(-1, 2)
+    return (float(c[:, 0].min()), float(c[:, 0].max()),
+            float(c[:, 1].min()), float(c[:, 1].max()))
+
+
 class EstimadorDePe:
     """Combina tornozelo e base da caixa SEM criar teletransporte.
 

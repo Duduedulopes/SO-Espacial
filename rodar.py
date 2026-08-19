@@ -115,7 +115,8 @@ def main():
         from src.gemeo import boneco
         from src.gemeo.suave import Suavizador
         from src.acao.vocabulario import Locomocao
-        cena = Cena3D(960, 620, chao=app.planta.chao, calor_hz=4.0)
+        cena = Cena3D(960, 620, chao=app.planta.chao, calor_hz=4.0,
+                      contorno=app.planta.contorno)
         suavizador = Suavizador()
         app.planta.aplicar_na_cena(cena)
 
