@@ -177,7 +177,13 @@ class EstimadorDePe:
         self.desvio: dict[int, np.ndarray] = {}
         self.alfa = suavizacao
 
-    def estimar(self, tid, caixa, kp_xy, kp_conf, minimo=0.5):
+    def estimar(self, tid, caixa, kp_xy, kp_conf, minimo=0.5, quadro=None,
+                margem_px=6):
+        """Devolve ((x, y), origem) ou (None, motivo).
+
+        `quadro` = (largura, altura) da imagem. Sem ele a checagem de corte
+        nao acontece, e o comportamento e o de antes.
+        """
         x1, y1, x2, y2 = caixa
         pe_caixa = np.array([(x1 + x2) / 2.0, float(y2)])
 
@@ -196,11 +202,52 @@ class EstimadorDePe:
                 self.desvio[tid] = d
             return (int(pe_tornozelo[0]), int(pe_tornozelo[1])), "tornozelo"
 
+        # CAIXA ENCOSTADA NA BORDA NAO TEM BASE: TEM RECORTE.
+        #
+        # ISTO CONGELOU O BONECO NA CORRIDA DE 19/08, E O VIDEO MOSTROU.
+        #
+        # De 28 s em diante o Eduardo andou ate a beirada do campo da camera
+        # do teto. Ele continuava aparecendo — mas os PES saiam do quadro. A
+        # caixa do detector para de terminar no pe e passa a terminar na
+        # BORDA DA IMAGEM, que e uma linha de pixels fixa.
+        #
+        # A homografia converte linha fixa em posicao fixa. O boneco travou
+        # num ponto, o mapa de calor virou uma mancha unica, e a velocidade
+        # ficou em 0,00 a 0,06 m/s enquanto ele atravessava a sala.
+        #
+        #     Uma caixa cortada pela borda nao mede a pessoa: mede onde a
+        #     imagem acabou. E a borda nao se move.
+        #
+        # Pior que o erro: ele nao parece erro. Nada falha, o rastro
+        # sobrevive, o funil marca 90% de medidas — e todas dizem a mesma
+        # coisa errada com confianca alta.
+        #
+        # Sem tornozelo E com a caixa cortada, a resposta honesta e nao ter
+        # resposta. O Kalman passa a prever SABENDO que preve, e a acao cai
+        # para `desconhecida` em vez de inventar.
+        if quadro is not None and self._cortada(caixa, quadro, margem_px):
+            return None, "caixa cortada pela borda"
+
         if tid in self.desvio:
             p = pe_caixa + self.desvio[tid]
             return (int(p[0]), int(p[1])), "caixa+correcao"
 
         return (int(pe_caixa[0]), int(pe_caixa[1])), "caixa"
+
+    @staticmethod
+    def _cortada(caixa, quadro, margem_px=6):
+        """A caixa encosta em alguma borda da imagem?
+
+        Basta encostar em UMA. Uma pessoa cortada de lado tem o pe do outro
+        lado ainda dentro, mas a caixa ja nao a contem — e a base dela deixa
+        de ser o ponto mais baixo do corpo para ser o ponto mais baixo do que
+        sobrou.
+        """
+        x1, y1, x2, y2 = caixa
+        larg, alt = quadro
+        return bool(x1 <= margem_px or y1 <= margem_px
+                    or x2 >= larg - 1 - margem_px
+                    or y2 >= alt - 1 - margem_px)
 
     def esquecer(self, vivos):
         for tid in list(self.desvio):

@@ -455,3 +455,84 @@ if __name__ == "__main__":
             print(f"  ERRO  {t.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(testes) - falhas}/{len(testes)} passaram")
     sys.exit(1 if falhas else 0)
+
+
+# ============================ A CAIXA NA BORDA NAO TEM PE (19/08, pelo video)
+#
+# De 28 s em diante o Eduardo andou ate a beirada do campo da camera do teto.
+# Ele continuava aparecendo — mas os PES saiam do quadro. A caixa deixa de
+# terminar no pe e passa a terminar na BORDA DA IMAGEM, que e uma linha de
+# pixels fixa; a homografia converte linha fixa em posicao fixa em metros.
+#
+# O boneco travou num ponto, o mapa de calor virou uma mancha unica, e a
+# velocidade ficou em 0,00 a 0,06 m/s enquanto ele atravessava a sala.
+#
+#     Uma caixa cortada pela borda nao mede a pessoa: mede onde a imagem
+#     acabou. E a borda nao se move.
+#
+# Pior que o erro: ele nao parece erro. Nada falha, o rastro sobrevive, e o
+# funil marcava 90% de medidas — todas dizendo a mesma coisa errada.
+
+from percepcao.chao import EstimadorDePe, para_metros    # noqa: E402
+
+
+def test_caixa_encostada_na_borda_e_reconhecida():
+    c = EstimadorDePe._cortada
+    quadro = (640, 480)
+    assert c((300, 200, 340, 479), quadro), "encostou embaixo"
+    assert c((0, 200, 40, 400), quadro), "encostou na esquerda"
+    assert c((600, 200, 639, 400), quadro), "encostou na direita"
+    assert c((300, 0, 340, 400), quadro), "encostou em cima"
+    assert not c((300, 200, 340, 400), quadro), "esta inteira"
+
+
+def test_sem_tornozelo_e_com_caixa_cortada_nao_ha_pe():
+    """A resposta honesta e nao ter resposta. O Kalman passa a prever SABENDO
+    que preve, e a acao cai para `desconhecida` em vez de inventar."""
+    e = EstimadorDePe()
+    e.desvio[7] = np.array([0.0, -90.0])          # ja aprendeu o desvio
+    pe, motivo = e.estimar(7, (10, 100, 90, 479), None, None, quadro=(640, 480))
+    assert pe is None and "borda" in motivo
+
+
+def test_com_tornozelo_a_borda_nao_importa():
+    """Tornozelo visto e medida de verdade, venha a caixa cortada ou nao."""
+    e = EstimadorDePe()
+    j = np.zeros((17, 2)); j[15] = [40, 300]; j[16] = [50, 300]
+    conf = np.zeros(17); conf[15] = conf[16] = 0.9
+    pe, origem = e.estimar(7, (10, 100, 90, 479), j, conf, quadro=(640, 480))
+    assert origem == "tornozelo" and pe == (45, 300)
+
+
+def test_sem_saber_o_tamanho_do_quadro_nada_muda():
+    """Quem nao passa `quadro` continua com o comportamento antigo."""
+    e = EstimadorDePe()
+    pe, origem = e.estimar(7, (10, 100, 90, 479), None, None)
+    assert pe is not None and origem == "caixa"
+
+
+def test_a_posicao_congela_quando_a_caixa_encosta_na_borda():
+    """A prova do defeito: sem a guarda, andar para a beirada vira ficar parado.
+
+    A pessoa se move 200 px na horizontal enquanto sai do quadro por baixo. A
+    base da caixa fica travada na borda, e a posicao em metros para de mudar
+    no eixo que a borda fixa.
+    """
+    H = homografia_sintetica()
+    e = EstimadorDePe()
+    e.desvio[1] = np.array([0.0, -20.0])
+    ys = []
+    for k in range(6):
+        x = 200 + k * 40
+        caixa = (x, 300, x + 60, 479)             # sempre colada embaixo
+        pe, _ = e.estimar(1, caixa, None, None)   # SEM a guarda
+        ys.append(para_metros(H, *pe)[1])
+    assert max(ys) - min(ys) < 0.02, (
+        "o teste nao reproduziu o congelamento; reveja a homografia sintetica")
+
+    # com a guarda, nenhuma dessas viraria medida
+    for k in range(6):
+        x = 200 + k * 40
+        pe, _ = e.estimar(1, (x, 300, x + 60, 479), None, None,
+                          quadro=(640, 480))
+        assert pe is None

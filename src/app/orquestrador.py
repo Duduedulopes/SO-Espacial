@@ -382,6 +382,10 @@ class Orquestrador:
                    f"({100 * f['plausibilidade'] / obs:4.1f}%)  descartadas",
                    f"  tornozelo    {f['tornozelo']:6}  "
                    f"({100 * f['tornozelo'] / obs:4.1f}%)  descartadas",
+                   # A pessoa na beirada do campo: a caixa termina na borda da
+                   # imagem, nao no pe. Ver `EstimadorDePe._cortada`.
+                   f"  na borda     {f.get('cortada', 0):6}  "
+                   f"({100 * f.get('cortada', 0) / obs:4.1f}%)  sem pe medivel",
                    f"  MEDIDAS      {f['medidas']:6}  "
                    f"({100 * f['medidas'] / obs:4.1f}%)  sobreviveram",
                    "",

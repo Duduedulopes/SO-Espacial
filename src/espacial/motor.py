@@ -318,8 +318,16 @@ class SpatialEngine:
         # adivinhar — e adivinhar com trabalho ja custou caro duas vezes.
         self._dt_atual = 1 / 30
         self.funil = {"observadas": 0, "sem_id": 0, "plausibilidade": 0,
-                      "tornozelo": 0, "medidas": 0}
-        self.rejeitadas = {"plausibilidade": 0, "tornozelo": 0}
+                      "tornozelo": 0, "cortada": 0, "medidas": 0}
+        self.rejeitadas = {"plausibilidade": 0, "tornozelo": 0, "cortada": 0}
+
+        # O TAMANHO DO QUADRO, PARA SABER O QUE ENCOSTA NA BORDA.
+        #
+        # Sem ele, uma caixa truncada pela beirada da imagem passa por caixa
+        # inteira, e a base dela — que e a borda — vira posicao fixa em
+        # metros. Foi o que congelou o boneco em 19/08. Ver
+        # `EstimadorDePe._cortada`.
+        self._quadro = tuple(resolucao_captura) if resolucao_captura else None
 
     # ------------------------------------------------------------ geometria
     def _ajustar_escala(self, H, calib, captura):
@@ -354,6 +362,8 @@ class SpatialEngine:
         mudou = not np.allclose(nova, self.H)
         self.H = nova
         self.plausibilidade = FiltroDePlausibilidade(self.H)
+        # A resolucao REAL, que e a que define onde fica a borda.
+        self._quadro = (int(largura), int(altura))
         return mudou
 
     # ------------------------------------------------------------ ciclo
@@ -473,7 +483,16 @@ class SpatialEngine:
 
             # 2. ponto do pe
             pe, origem = self.estimador_pe.estimar(
-                tid, o.caixa, o.juntas_2d, o.conf_2d)
+                tid, o.caixa, o.juntas_2d, o.conf_2d, quadro=self._quadro)
+
+            # 2b. sem tornozelo E com a caixa na borda: nao ha pe para medir.
+            #
+            #     Uma caixa cortada pela borda nao mede a pessoa: mede onde a
+            #     imagem acabou. E a borda nao se move.
+            if pe is None:
+                self.rejeitadas["cortada"] += 1
+                self.funil["cortada"] += 1
+                continue
 
             # 4. o rastro ja provou ser gente?
             if not self.filtro_tornozelo.ver(tid, origem):
