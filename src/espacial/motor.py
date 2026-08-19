@@ -538,7 +538,6 @@ class SpatialEngine:
 
     # ------------------------------------------------------------ 5 e 7
     def _montar_estados(self, rastros):
-        agora = max((r.kf and 0 for r in rastros.values()), default=0)
         juntas_pessoa, visiveis = self.fusor.esqueleto(self._agora())
         varias = len(rastros) > 1
 

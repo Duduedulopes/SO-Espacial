@@ -117,7 +117,6 @@ class Suavizador:
     arrastar o boneco pela cena. Acima deste salto o filtro desiste e vai
     direto: e a diferenca entre alisar ruido e esconder movimento.
 
-
     `piso_de_velocidade_m_s` — abaixo de que velocidade o Kalman esta medindo
     o proprio ruido e nao movimento. Ver `_confianca_na_velocidade`.
     """

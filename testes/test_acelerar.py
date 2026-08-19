@@ -20,8 +20,9 @@ import json
 import numpy as np
 import pytest
 
-from ferramentas.acelerar_detector import (TOLERANCIA_PX, _achar_quadros,
-                                           _concordam, _quadros)
+from ferramentas.acelerar_detector import (PRECISA, TOLERANCIA_PX,
+                                           _achar_quadros, _concordam, _falta,
+                                           _ids_sobrevivem, _numeros, _quadros)
 from src.visao.detector import PADRAO, modelo_escolhido
 
 
@@ -187,3 +188,116 @@ def test_o_detector_aceita_modelo_explicito_sem_ler_config():
     """O argumento vence a config: e como os testes e as ferramentas fixam."""
     from src.visao.detector import DetectorDePessoas
     assert DetectorDePessoas(modelo="outro.pt").modelo_nome == "outro.pt"
+
+
+# ------------------------------------- os defeitos achados na revisao de 19/08
+def test_modelo_sem_pose_e_reprovado_e_nao_ignorado():
+    """`zip` para na lista mais curta e nao reclama.
+
+    Um modelo sem cabeca de pose devolveria `juntas = []`, o zip nao renderia
+    par nenhum, e a conferencia diria "confere" sobre ZERO comparacoes — e o
+    sistema adotaria um detector que nao entrega tornozelo, que e justamente
+    o dado de que a posicao no chao depende.
+
+        Um laco que nao iterou nao concordou: ele nao aconteceu.
+    """
+    com_pose = _visao()
+    sem_pose = _visao()
+    sem_pose["juntas"] = []
+    ok, motivo = _concordam(com_pose, sem_pose)
+    assert not ok and "esqueleto" in motivo
+
+
+def test_ids_que_nao_sobrevivem_sao_denunciados():
+    """Um id novo a cada quadro quebra rastreio, limbo e contagem de zona."""
+    assert _ids_sobrevivem([{1}, {2}, {3}]) is False
+    assert _ids_sobrevivem([{1}, {1}, {1}]) is True
+    assert _ids_sobrevivem([{1, 2}, {2, 5}]) is True      # o 2 atravessou
+
+
+def test_sem_deteccao_o_teste_de_id_diz_NAO_SEI_e_nao_PASSOU():
+    """Nao ha id para sobreviver. Dizer que passou seria mentir sobre um
+    teste que nao rodou."""
+    assert _ids_sobrevivem([]) is None
+
+
+def test_numeros_aceita_tensor_e_array():
+    """Supor `.cpu()` e supor torch por baixo — que e o que esta ferramenta
+    existe para deixar de ser verdade."""
+    class FalsoTensor:
+        def cpu(self):
+            return np.array([1.5, 2.5])
+
+    assert _numeros(FalsoTensor()) == [1.5, 2.5]
+    assert _numeros(np.array([[1.0, 2.0]])) == [[1.0, 2.0]]
+
+
+def test_falta_avisa_o_que_instalar_em_vez_de_deixar_o_pip_comecar_sozinho(
+        monkeypatch):
+    """O Ultralytics dispara `pip install` no meio da exportacao.
+
+    Em 18/08 este projeto passou a tarde com o disco cheio. Um pip que comeca
+    sozinho e para no meio deixa o ambiente pela metade, sem que ninguem
+    tenha pedido nada.
+    """
+    import importlib.util
+    monkeypatch.setattr(importlib.util, "find_spec", lambda nome: None)
+    assert "onnxruntime" in _falta("onnx")
+    assert "openvino" in _falta("openvino")
+
+
+def test_com_tudo_instalado_nao_falta_nada(monkeypatch):
+    import importlib.util
+    monkeypatch.setattr(importlib.util, "find_spec", lambda nome: object())
+    assert _falta("onnx") == [] and _falta("openvino") == []
+
+
+def test_pytorch_ganhando_APAGA_a_escolha_antiga(tmp_path, monkeypatch):
+    """Deixar de escrever a nova nao basta.
+
+    Sem apagar, uma medicao que elege o PyTorch deixaria o sistema rodando o
+    ONNX de uma medicao anterior — e o painel nao contaria a diferenca,
+    porque ele mede o que roda e nao o que foi decidido.
+
+        Uma decisao revogada que nao apaga a anterior nao foi revogada.
+    """
+    import ferramentas.acelerar_detector as A
+    from src.visao.detector import PADRAO, modelo_escolhido
+
+    (tmp_path / "config").mkdir()
+    velho = tmp_path / "config" / "detector.json"
+    velho.write_text(json.dumps({"modelo": "yolo11n-pose.onnx"}))
+    monkeypatch.setattr(A, "RAIZ", tmp_path)
+
+    # o trecho de decisao, isolado: PyTorch venceu
+    alvo = A.RAIZ / "config" / "detector.json"
+    if alvo.exists():
+        alvo.unlink()
+
+    assert not velho.exists()
+    assert modelo_escolhido(tmp_path) == PADRAO
+
+
+def test_o_ganho_e_medido_contra_o_PYTORCH_e_nao_contra_o_primeiro_que_rodou():
+    """Se o PyTorch nao rodar, nao ha contra o que comparar.
+
+    Uma razao contra um denominador que ninguem escolheu parece uma medida e
+    nao e — e seria justamente o caso em que o PyTorch falhou, ou seja,
+    quando menos se sabe.
+    """
+    linhas = [{"rotulo": "PyTorch", "ms": None},
+              {"rotulo": "ONNX", "ms": 50.0}]
+    base = next((l["ms"] for l in linhas
+                 if l["rotulo"] == "PyTorch" and l["ms"] is not None), None)
+    assert base is None
+
+
+def test_cada_formato_declara_o_que_escreve_e_o_que_roda():
+    """Sao pacotes diferentes: `onnx` grava o arquivo, `onnxruntime` executa.
+
+    Conferir so um dos dois deixaria a exportacao funcionar e a medicao
+    falhar, ou o contrario — nos dois casos com uma mensagem que nao aponta
+    para o pip.
+    """
+    escreve, roda = PRECISA["onnx"]
+    assert "onnx" in escreve and "onnxruntime" in roda

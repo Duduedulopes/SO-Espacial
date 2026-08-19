@@ -244,15 +244,12 @@ class Cena3D:
         #     Constante que so vale para um caso deixa de ser constante no
         #     dia em que aparece o segundo caso.
         #
-        # A distancia tambem sai da planta: uma sala de 2 m e uma de 10 m nao
-        # se enquadram do mesmo lugar.
-        # A distancia considera a ALTURA DAS PESSOAS, nao so a planta. Numa
-        # sala de 2 m quem domina o enquadramento e o corpo de 1,8 m em pe, e
-        # nao o piso — enquadrar so pelo chao corta a cabeca do boneco.
+        # A distancia ja nao e uma regra de bolso: e resolvida em
+        # `_distancia_que_enquadra`, que precisa do alvo ja posto.
         x0, x1, y0, y1 = chao
         self.cam.alvo = np.array([(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.95])
         self.cam.dist = self._distancia_que_enquadra()
-        # (x_centro, y_centro, largura, profundidade, altura, rotulo, rumo)
+        # (x, y, largura, profundidade, altura, rotulo, rumo, alturas)
         self.moveis = []
 
         # ---- caches ----

@@ -139,15 +139,30 @@ def _quadros(caminhos, quantos):
 
 
 def _medir(caminho_modelo, quadros, imgsz, conf, aquecer=5):
-    """Mediana de ms por quadro, e o que ele viu no primeiro quadro.
+    """Cronometra e observa numa passada so. Devolve um dicionario.
+
+    MEDE `track`, E NAO `predict`. Consertado antes da primeira corrida.
+
+    O sistema nao chama `predict` em lugar nenhum: chama `track(persist=True)`,
+    porque precisa do id. O rastreador custa — associacao, Kalman por caixa,
+    manutencao de tracks — e medir `predict` daria um numero menor que o do
+    painel, que compara com 130 ms.
+
+        Cronometrar uma chamada que o programa nao faz mede um programa que
+        nao existe.
+
+    De quebra, medir com `track` faz o teste dos ids sair da mesma passada, e
+    entao o modelo e carregado UMA vez por formato em vez de duas.
 
     MEDIANA, NAO MEDIA. Em 19/08 o painel registrou um quadro de 1047 ms num
     detector de 130 — uma amostra envenena a media e nao a mediana.
 
-    E AQUECE ANTES. A primeira inferencia do Ultralytics custou 15,2 s
-    naquela mesma maquina: ele faz na estreia coisas que nunca mais repete.
-    Contar estreia como regime ja produziu um diagnostico errado neste
-    projeto (ver `detector._aquecer`).
+    E AQUECE ANTES, com `predict`. A primeira inferencia do Ultralytics custou
+    15,2 s naquela mesma maquina: ele faz na estreia coisas que nunca mais
+    repete. Contar estreia como regime ja produziu um diagnostico errado neste
+    projeto. O aquecimento usa `predict` de proposito — aquecer com `track`
+    criaria estado de rastreio a partir de uma imagem preta, e o primeiro
+    quadro real ja nasceria com historico inventado (ver `detector._aquecer`).
     """
     from ultralytics import YOLO
 
@@ -156,15 +171,52 @@ def _medir(caminho_modelo, quadros, imgsz, conf, aquecer=5):
     for _ in range(aquecer):
         modelo.predict(vazio, imgsz=imgsz, verbose=False)
 
-    tempos, vistas = [], None
+    tempos, vistas, ids = [], None, []
     for k, img in enumerate(quadros):
         t = time.perf_counter()
-        r = modelo.predict(img, imgsz=imgsz, conf=conf, classes=[0],
-                           verbose=False)[0]
+        r = modelo.track(img, persist=True, conf=conf, classes=[0],
+                         imgsz=imgsz, verbose=False)[0]
         tempos.append((time.perf_counter() - t) * 1000.0)
         if k == 0:
             vistas = _resumir(r)
-    return statistics.median(tempos), min(tempos), max(tempos), vistas
+        if r.boxes is not None and r.boxes.id is not None:
+            ids.append({int(v) for v in r.boxes.id.tolist()})
+
+    return {"mediana": statistics.median(tempos),
+            "menor": min(tempos), "maior": max(tempos),
+            "vistas": vistas, "ids_sobrevivem": _ids_sobrevivem(ids)}
+
+
+def _ids_sobrevivem(ids):
+    """Algum id atravessou todos os quadros em que houve deteccao?
+
+    O id que sai do `track` E a identidade da pessoa no resto do programa. Um
+    formato que roda rapido e troca o id a cada quadro quebra o rastreio, o
+    limbo e a contagem de quem entrou na zona — sem parecer quebrado.
+
+        Um numero que muda quando nao deveria e pior que um erro: o erro
+        aparece.
+
+    `None` quando nao houve deteccao nenhuma: ai nao ha id para sobreviver, e
+    dizer que o teste passou seria mentir sobre um teste que nao rodou.
+    """
+    if not ids:
+        return None
+    if len(ids) == 1:
+        return True
+    return bool(set.intersection(*ids))
+
+
+def _numeros(t):
+    """Tensor do torch ou array do numpy -> lista. Nao supoe o backend.
+
+    O Ultralytics embrulha a saida nas classes dele em qualquer formato, mas
+    supor `.cpu()` e supor que sempre havera torch por baixo — que e
+    exatamente o que esta ferramenta existe para deixar de ser verdade.
+    """
+    if hasattr(t, "cpu"):
+        t = t.cpu()
+    return np.asarray(t).tolist()
 
 
 def _resumir(r):
@@ -172,23 +224,35 @@ def _resumir(r):
     caixas = r.boxes
     if caixas is None or len(caixas) == 0:
         return {"quantas": 0, "centros": [], "juntas": []}
-    centros = [tuple(float(v) for v in b.xyxy[0].tolist()) for b in caixas]
+    centros = [_numeros(b.xyxy[0]) for b in caixas]
     juntas = []
     if r.keypoints is not None:
-        juntas = [p.xy[0].cpu().numpy().tolist() for p in r.keypoints]
+        juntas = [_numeros(p.xy[0]) for p in r.keypoints]
     return {"quantas": len(caixas), "centros": centros, "juntas": juntas}
 
 
 def _concordam(a, b, tolerancia=TOLERANCIA_PX):
     """As duas saidas descrevem a mesma cena? Devolve (bool, motivo)."""
     if a["quantas"] != b["quantas"]:
-        return False, f"achou {b['quantas']} pessoas onde o PyTorch achou {a['quantas']}"
+        return False, (f"achou {b['quantas']} pessoas onde o PyTorch achou "
+                       f"{a['quantas']}")
+    # COMPARAR AS CONTAGENS ANTES DE COMPARAR OS PARES.
+    #
+    # `zip` para na lista mais curta e nao reclama. Um modelo sem cabeca de
+    # pose devolveria `juntas = []`, o `zip` nao renderia par nenhum, e a
+    # conferencia diria "confere" sobre zero comparacoes.
+    #
+    #     Um laco que nao iterou nao concordou: ele nao aconteceu.
+    if len(a["juntas"]) != len(b["juntas"]):
+        return False, (f"tem {len(b['juntas'])} esqueletos onde o PyTorch tem "
+                       f"{len(a['juntas'])}")
+
     for k, (ca, cb) in enumerate(zip(a["centros"], b["centros"])):
         d = max(abs(x - y) for x, y in zip(ca, cb))
         if d > tolerancia:
             return False, f"a caixa {k} saiu {d:.1f} px fora"
     for k, (ja, jb) in enumerate(zip(a["juntas"], b["juntas"])):
-        pa, pb = np.array(ja), np.array(jb)
+        pa, pb = np.array(ja, dtype=float), np.array(jb, dtype=float)
         if pa.shape != pb.shape:
             return False, f"o esqueleto {k} tem outro formato"
         d = float(np.abs(pa - pb).max()) if pa.size else 0.0
@@ -197,29 +261,38 @@ def _concordam(a, b, tolerancia=TOLERANCIA_PX):
     return True, "confere"
 
 
-def _rastreia(caminho_modelo, quadros, imgsz, conf):
-    """Os ids sobrevivem entre quadros neste formato?
+# O que cada formato precisa: para ESCREVER o arquivo, e para RODAR ele.
+PRECISA = {
+    "onnx": (("onnx", "onnxslim"), ("onnxruntime",)),
+    "openvino": (("openvino",), ("openvino",)),
+}
 
-    O sistema nao usa `predict`: usa `track(persist=True)`, e o id que sai
-    dali E a identidade da pessoa no resto do programa. Um formato que roda
-    rapido e perde o id a cada quadro quebra o rastreio, o limbo e a
-    contagem de quem entrou na zona — sem parecer quebrado.
 
-        Um numero que muda quando nao deveria e pior que um erro: o erro
-        aparece.
+def _falta(formato):
+    """Os pacotes ausentes para este formato. Vazio quer dizer pronto.
+
+    POR QUE CONFERIR EM VEZ DE DEIXAR O ULTRALYTICS INSTALAR SOZINHO
+
+    Ele faz `check_requirements`, que dispara um `pip install` no meio da
+    exportacao. Em 18/08 este projeto passou a tarde com o disco cheio, e um
+    pip que comeca sozinho e para no meio deixa o ambiente pela metade — sem
+    que ninguem tenha pedido nada.
+
+        Instalacao que comeca sem ser pedida e a que ninguem esta olhando
+        quando falha.
+
+    Aqui a ferramenta pula o formato e imprime o comando. Quem decide gastar
+    400 MB e o dono do disco.
     """
-    from ultralytics import YOLO
+    import importlib.util
 
-    modelo = YOLO(str(caminho_modelo))
-    ids = []
-    for img in quadros[:12]:
-        r = modelo.track(img, persist=True, conf=conf, classes=[0],
-                         imgsz=imgsz, verbose=False)[0]
-        if r.boxes is not None and r.boxes.id is not None:
-            ids.append({int(v) for v in r.boxes.id.tolist()})
-    if not ids:
-        return None                     # nada detectado: nao da para afirmar
-    return bool(set.intersection(*ids)) if len(ids) > 1 else True
+    faltando = []
+    for grupo in PRECISA.get(formato, ((), ())):
+        for pacote in grupo:
+            if (importlib.util.find_spec(pacote) is None
+                    and pacote not in faltando):
+                faltando.append(pacote)
+    return faltando
 
 
 def _exportar(origem, formato, imgsz):
@@ -255,9 +328,8 @@ def main():
     if livre < ESPACO_MINIMO_GB:
         raise SystemExit(
             f"\n  menos de {ESPACO_MINIMO_GB} GB livres. As exportacoes sao\n"
-            f"  pequenas (uns 12 MB cada), mas o Ultralytics instala\n"
-            f"  onnxruntime e openvino sozinho se faltarem, e ai sao uns\n"
-            f"  400 MB. Libere espaco antes.\n")
+            f"  pequenas (uns 12 MB cada), mas o disco cheio no meio de uma\n"
+            f"  escrita deixa arquivo pela metade. Libere espaco antes.\n")
 
     if args.pasta:
         caminhos = (sorted((RAIZ / args.pasta).glob("*.jpg"))
@@ -279,6 +351,11 @@ def main():
 
     candidatos = [("PyTorch", Path(args.modelo))]
     for formato, rotulo in (("onnx", "ONNX"), ("openvino", "OpenVINO")):
+        faltando = _falta(formato)
+        if faltando:
+            print(f"  {rotulo}: pulando, falta  {' '.join(faltando)}")
+            print(f"      pip install {' '.join(faltando)}")
+            continue
         print(f"  exportando para {rotulo}...", end=" ", flush=True)
         caminho, erro = _exportar(args.modelo, formato, args.imgsz)
         if caminho is None:
@@ -288,103 +365,141 @@ def main():
         candidatos.append((rotulo, caminho))
     print()
 
-    referencia = None
+    referencia, referencia_rastreia = None, None
     linhas = []
     for rotulo, caminho in candidatos:
         try:
-            mediana, menor, maior, vistas = _medir(caminho, quadros,
-                                                   args.imgsz, args.conf)
+            m = _medir(caminho, quadros, args.imgsz, args.conf)
         except Exception as e:
-            linhas.append((rotulo, caminho, None, None, None,
-                           f"nao rodou: {type(e).__name__}: {e}"))
+            linhas.append({"rotulo": rotulo, "caminho": caminho, "ms": None,
+                           "nota": f"nao rodou: {type(e).__name__}: {e}",
+                           "ok": False})
             continue
 
         if referencia is None:
-            referencia, ok, motivo = vistas, True, "referencia"
+            referencia = m["vistas"]
+            referencia_rastreia = m["ids_sobrevivem"]
+            ok, motivo = True, "referencia"
         else:
-            ok, motivo = _concordam(referencia, vistas)
+            ok, motivo = _concordam(referencia, m["vistas"])
 
-        rastreio = _rastreia(caminho, quadros, args.imgsz, args.conf)
-        if rastreio is False:
+        # O TESTE DOS IDS SO REPROVA QUEM FAZ PIOR QUE A REFERENCIA.
+        #
+        # Se o proprio PyTorch nao segurou os ids nestes quadros, o teste nao
+        # esta discriminando nada — esta descrevendo os quadros. Reprovar
+        # todo mundo por isso seria culpar os candidatos pelo instrumento.
+        if m["ids_sobrevivem"] is False and referencia_rastreia is True:
             ok, motivo = False, "perdeu os ids entre quadros"
-        elif rastreio is None and motivo == "confere":
-            motivo = "confere (sem gente nos quadros: rastreio nao testado)"
+        elif m["ids_sobrevivem"] is None and ok:
+            motivo += "  (sem gente: ids nao testados)"
 
-        linhas.append((rotulo, caminho, mediana, menor, maior,
-                       motivo if ok else f"REPROVADO: {motivo}"))
+        linhas.append({"rotulo": rotulo, "caminho": caminho,
+                       "ms": m["mediana"], "menor": m["menor"],
+                       "maior": m["maior"], "ok": ok,
+                       "nota": motivo if ok else f"REPROVADO: {motivo}"})
 
-    print(f"  {'formato':<10} {'mediana':>9} {'melhor':>8} {'pior':>8}   conferencia")
-    print(f"  {'-' * 10} {'-' * 9} {'-' * 8} {'-' * 8}   {'-' * 40}")
-    base = None
-    for rotulo, _c, mediana, menor, maior, nota in linhas:
-        if mediana is None:
-            print(f"  {rotulo:<10} {'—':>9} {'—':>8} {'—':>8}   {nota}")
+    # A BASE DA COLUNA DE GANHO E O PYTORCH, E NAO O PRIMEIRO QUE RODOU.
+    # Se o PyTorch falhar, nao ha contra o que comparar — melhor coluna vazia
+    # que uma razao contra um denominador que ninguem escolheu.
+    base = next((l["ms"] for l in linhas
+                 if l["rotulo"] == "PyTorch" and l["ms"] is not None), None)
+
+    print(f"  {'formato':<10} {'mediana':>9} {'melhor':>8} {'pior':>8} "
+          f"{'ganho':>7}   conferencia")
+    print(f"  {'-' * 10} {'-' * 9} {'-' * 8} {'-' * 8} {'-' * 7}   {'-' * 40}")
+    for l in linhas:
+        if l["ms"] is None:
+            print(f"  {l['rotulo']:<10} {'—':>9} {'—':>8} {'—':>8} {'—':>7}"
+                  f"   {l['nota']}")
             continue
-        if base is None:
-            base = mediana
-        ganho = f"{base / mediana:.2f}x" if mediana else "—"
-        print(f"  {rotulo:<10} {mediana:7.1f}ms {menor:6.1f}ms {maior:6.1f}ms"
-              f"   {nota}   {ganho}")
+        ganho = f"{base / l['ms']:.2f}x" if base else "—"
+        print(f"  {l['rotulo']:<10} {l['ms']:7.1f}ms {l['menor']:6.1f}ms "
+              f"{l['maior']:6.1f}ms {ganho:>7}   {l['nota']}")
 
-    aprovados = [(m, r, c) for r, c, m, _n, _x, nota in linhas
-                 if m is not None and not nota.startswith("REPROVADO")]
+    aprovados = sorted((l for l in linhas if l["ms"] is not None and l["ok"]),
+                       key=lambda l: l["ms"])
     if not aprovados:
         raise SystemExit("\n  nenhum formato passou na conferencia.\n")
+    melhor = aprovados[0]
 
-    aprovados.sort()
-    melhor_ms, melhor_rotulo, melhor_caminho = aprovados[0]
-    pytorch_ms = next((m for r, _c, m, _n, _x, _t in linhas
-                       if r == "PyTorch" and m is not None), None)
+    print(f"\n  MAIS RAPIDO QUE ACERTA: {melhor['rotulo']}  "
+          f"{melhor['ms']:.1f} ms por quadro")
+    if base and melhor["ms"] < base:
+        economia = base - melhor["ms"]
+        # O CICLO NAO SE EXTRAPOLA DAQUI, E DIZER QUE SE EXTRAPOLA E PIOR QUE
+        # NAO DIZER NADA.
+        #
+        # A tentacao e somar: "o ciclo era 152 com 130 de detector, entao com
+        # 50 fica 72". Mas aquele 130 foi medido noutra corrida, com as duas
+        # cameras disputando CPU e o resto do sistema rodando junto. Misturar
+        # a medida de agora, isolada, com o painel de ontem produz um numero
+        # com duas casas e nenhuma procedencia.
+        #
+        #     Numero preciso feito de duas medidas incomparaveis mente com
+        #     mais confianca do que um chute.
+        #
+        # O que se pode afirmar: o detector economiza tanto por quadro. O que
+        # isso vale no ciclo inteiro, quem responde e o painel do `rodar.py`.
+        print(f"  economiza {economia:.0f} ms por quadro "
+              f"({base / melhor['ms']:.2f}x)")
+        print(f"  a {1000 / melhor['ms']:.1f} quadros/s ele "
+              f"{'ainda nao' if melhor['ms'] > 66 else 'ja'} acompanha os "
+              f"15,0 que a camera entrega")
+        print("  quanto disso vira fps do sistema, o painel do rodar.py diz")
 
-    print(f"\n  MAIS RAPIDO QUE ACERTA: {melhor_rotulo}  {melhor_ms:.1f} ms")
-    if pytorch_ms:
-        # O que isso vale no sistema inteiro, e nao so neste arquivo. O ciclo
-        # em regime era 152 ms com 130 de detector; o resto nao muda.
-        resto = 152.0 - 130.0
-        novo_ciclo = resto + melhor_ms
-        print(f"  ciclo estimado: {152.0:.0f} ms -> {novo_ciclo:.0f} ms"
-              f"   ({1000 / 152:.1f} -> {1000 / novo_ciclo:.1f} quadros/s)")
-        print(f"  atraso do cano a 1 m/s: {13:.0f} cm -> "
-              f"{melhor_ms / 10:.0f} cm")
-
-    if args.gravar and melhor_rotulo != "PyTorch":
-        alvo = RAIZ / "config" / "detector.json"
-        alvo.parent.mkdir(exist_ok=True)
-        try:
-            relativo = str(Path(melhor_caminho).resolve().relative_to(RAIZ))
-        except ValueError:
-            relativo = str(Path(melhor_caminho).resolve())
-        alvo.write_text(json.dumps({
-            "modelo": relativo,
-            "_formato": melhor_rotulo,
-            "_ms_por_quadro": round(melhor_ms, 1),
-            "_imgsz": args.imgsz,
-            "_medido_em": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "_nota": [
-                "MEDIDO NESTA MAQUINA, nao escolhido no codigo.",
-                "",
-                f"PyTorch {pytorch_ms:.0f} ms  ->  {melhor_rotulo} "
-                f"{melhor_ms:.0f} ms",
-                "",
-                "Sao os mesmos pesos e a mesma conta; o que muda e quem",
-                "executa. A conferencia exigiu as mesmas caixas e as mesmas",
-                "17 juntas dentro de 2 px, e os ids sobrevivendo entre",
-                "quadros — um formato rapido que perde o id quebraria o",
-                "rastreio sem parecer quebrado.",
-                "",
-                "    Uma constante de desempenho escrita no codigo e uma",
-                "    medicao feita na maquina de outra pessoa.",
-                "",
-                f"IMPORTANTE: exportado para imgsz={args.imgsz}. Rodar com",
-                "outro imgsz nao vai acelerar, e pode nem funcionar. Se mudar",
-                "o --imgsz do rodar.py, rode esta ferramenta de novo.",
-            ]}, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"\n  gravado em config/detector.json")
-        print(f"\n  agora:  python rodar.py\n")
-    elif args.gravar:
-        print("\n  o PyTorch ganhou — nao ha nada a gravar.\n")
-    else:
+    alvo = RAIZ / "config" / "detector.json"
+    if not args.gravar:
         print("\n  (nao gravei — use --gravar)\n")
+        return
+
+    if melhor["rotulo"] == "PyTorch":
+        # APAGAR A ESCOLHA ANTIGA, E NAO SO DEIXAR DE ESCREVER A NOVA.
+        # Sem isto, uma medicao que elege o PyTorch deixaria o sistema rodando
+        # o ONNX de uma medicao anterior — e o painel nao contaria a diferenca.
+        if alvo.exists():
+            alvo.unlink()
+            print("\n  o PyTorch ganhou — apaguei a escolha anterior.\n")
+        else:
+            print("\n  o PyTorch ganhou — nao ha nada a gravar.\n")
+        return
+
+    alvo.parent.mkdir(exist_ok=True)
+    try:
+        relativo = str(Path(melhor["caminho"]).resolve().relative_to(RAIZ))
+    except ValueError:
+        relativo = str(Path(melhor["caminho"]).resolve())
+    comparacao = (f"PyTorch {base:.0f} ms  ->  {melhor['rotulo']} "
+                  f"{melhor['ms']:.0f} ms" if base else
+                  f"{melhor['rotulo']} {melhor['ms']:.0f} ms "
+                  f"(o PyTorch nao rodou nesta medicao)")
+    alvo.write_text(json.dumps({
+        "modelo": relativo,
+        "_formato": melhor["rotulo"],
+        "_ms_por_quadro": round(melhor["ms"], 1),
+        "_imgsz": args.imgsz,
+        "_medido_em": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "_nota": [
+            "MEDIDO NESTA MAQUINA, nao escolhido no codigo.",
+            "",
+            comparacao,
+            "",
+            "Sao os mesmos pesos e a mesma conta; o que muda e quem executa.",
+            "A conferencia exigiu as mesmas caixas e as mesmas 17 juntas",
+            "dentro de 2 px, e os ids sobrevivendo entre quadros — um formato",
+            "rapido que perde o id quebraria o rastreio sem parecer quebrado.",
+            "",
+            "    Uma constante de desempenho escrita no codigo e uma medicao",
+            "    feita na maquina de outra pessoa.",
+            "",
+            f"IMPORTANTE: exportado para imgsz={args.imgsz}. Rodar com outro",
+            "imgsz nao vai acelerar, e pode nem funcionar. Se mudar o --imgsz",
+            "do rodar.py, rode esta ferramenta de novo.",
+            "",
+            "PARA VOLTAR AO PYTORCH: apague este arquivo.",
+        ]}, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("\n  gravado em config/detector.json")
+    print("  (para voltar atras, apague esse arquivo)")
+    print("\n  agora:  python rodar.py\n")
 
 
 if __name__ == "__main__":

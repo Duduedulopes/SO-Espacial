@@ -82,9 +82,21 @@ def test_mede_a_estatura_de_qualquer_um_depois_de_calibrada():
         assert abs(e.estatura(pid) - verdade) < 0.01, pid
 
 
-def test_sem_calibracao_nao_responde():
+def test_a_escala_sem_calibracao_se_cala():
     """Nao calibrada, a escala nao chuta uma altura de camera plausivel — ela
-    se cala, e a altura da mao volta a ser estimada pelo tronco e marcada."""
+    se cala, e a altura da mao volta a ser estimada pelo tronco e marcada.
+
+    ESTE TESTE PASSOU 10 DIAS SEM RODAR. Achado em 19/08.
+
+    Ele se chamava `test_sem_calibracao_nao_responde`, e mais abaixo neste
+    mesmo arquivo havia OUTRA funcao com o mesmo nome, sobre outra coisa. Em
+    Python a segunda definicao simplesmente substitui a primeira no modulo, e
+    o pytest so ve a que sobrou. Nenhum erro, nenhum aviso, e a contagem de
+    testes continuava fechando.
+
+        Um teste que nao roda nao e um teste fraco: e uma linha de codigo
+        que parece uma prova.
+    """
     e = EscalaVertical()
 
     for _ in range(20):
@@ -290,7 +302,7 @@ def test_sem_os_dois_quadris_nao_responde():
     assert altura_do_alto(p, c, caixa, horizonte_fixo, FATOR) is None
 
 
-def test_sem_calibracao_nao_responde():
+def test_altura_do_alto_sem_fator_nao_responde():
     """Sem o fator nao ha metro nenhum a devolver."""
     p, c, caixa = cena(0.95)
     assert altura_do_alto(p, c, caixa, horizonte_fixo, None) is None
