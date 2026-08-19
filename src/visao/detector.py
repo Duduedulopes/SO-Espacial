@@ -15,26 +15,92 @@ pouco mais. Os 17 pontos vem junto com a deteccao, sem uma segunda passada.
 
 CUSTO MEDIDO NESTA MAQUINA
 
-    yolo11n-pose  imgsz=320  ~84 ms/quadro em CPU
+    yolo11n-pose  imgsz=320  ~84 ms/quadro em CPU, e 130 ms em regime (19/08)
 
-E o gargalo do sistema, com folga. O caminho para melhorar e exportar para
-ONNX (costuma render 2 a 3x em CPU), nao trocar de arquitetura.
+E o gargalo do sistema, com folga. Na corrida de 19/08:
+
+    camera do alto entrega          15,0 quadros/s
+    o detector consome               7,7 quadros/s
+    quadros descartados na fila    721 de 2743
+
+Ou seja: metade do que a camera ve e jogada fora sem ser olhada, e o sistema
+inteiro anda no passo deste arquivo.
+
+QUAL MODELO RODA NAO ESTA ESCRITO AQUI
+
+O padrao e `yolo11n-pose.pt` em PyTorch, mas `config/detector.json` pode
+apontar para uma versao exportada — ONNX ou OpenVINO — que costuma render 2 a
+3x em CPU pela mesma aritmetica e os mesmos pesos.
+
+Qual das tres e a mais rapida DEPENDE DA MAQUINA, e por isso a escolha nao
+esta no codigo: ela sai de `ferramentas/acelerar_detector.py`, que mede as
+tres nos quadros reais e confere que as tres respondem a mesma coisa.
+
+    Uma constante de desempenho escrita no codigo e uma medicao feita na
+    maquina de outra pessoa.
 """
+
+import json
+from pathlib import Path
 
 import numpy as np
 
 from src.nucleo.erros import ModeloIndisponivel
+from src.nucleo.log import Log
 from src.visao.observacao import Observacao
 from src.visao.trabalhador import Trabalhador
+
+RAIZ = Path(__file__).resolve().parent.parent.parent
+PADRAO = "yolo11n-pose.pt"
+
+
+def modelo_escolhido(raiz=None):
+    """O modelo que `ferramentas/acelerar_detector.py` mediu e escolheu.
+
+    Ausente devolve o padrao em PyTorch, calado — quem nunca rodou a medicao
+    nao tem nada errado a corrigir. Presente e ilegivel aparece no log, porque
+    ai alguem mediu e o resultado se perdeu.
+
+        arquivo ausente        nunca medi              esperado
+        arquivo quebrado       medi e voce perdeu      defeito
+
+    A mesma regra de `_ler_config` em `espacial/motor.py`, e ela existe
+    porque `except Exception: return None` custou um dia inteiro em 11/08.
+
+    O caminho e conferido: um `.onnx` que foi apagado nao pode virar um erro
+    obscuro do AutoBackend no meio do primeiro quadro.
+    """
+    raiz = Path(raiz) if raiz else RAIZ
+    caminho = raiz / "config" / "detector.json"
+    if not caminho.exists():
+        return PADRAO
+    try:
+        nome = json.loads(caminho.read_text(encoding="utf-8"))["modelo"]
+    except Exception as e:
+        Log("config").aviso(
+            f"config/detector.json existe mas nao pode ser lida "
+            f"({type(e).__name__}: {e}) — seguindo com {PADRAO}",
+            erro=f"{type(e).__name__}: {e}")
+        return PADRAO
+
+    alvo = raiz / nome
+    if not (alvo.exists() or Path(nome).exists()):
+        Log("config").aviso(
+            f"config/detector.json aponta para {nome}, que nao existe — "
+            f"seguindo com {PADRAO}. Rode: "
+            f"python ferramentas/acelerar_detector.py --gravar",
+            modelo=nome)
+        return PADRAO
+    return str(alvo) if alvo.exists() else nome
 
 
 class DetectorDePessoas(Trabalhador):
     nome = "detector"
 
-    def __init__(self, papel="alto", modelo="yolo11n-pose.pt", imgsz=320,
+    def __init__(self, papel="alto", modelo=None, imgsz=320,
                  conf=0.35, a_cada_n=1):
         super().__init__(papel, a_cada_n)
-        self.modelo_nome = modelo
+        self.modelo_nome = modelo if modelo is not None else modelo_escolhido()
         self.imgsz = imgsz
         self.conf = conf
         self._yolo = None
