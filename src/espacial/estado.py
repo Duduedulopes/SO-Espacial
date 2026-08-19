@@ -57,7 +57,28 @@ class EstadoDePessoa:
     quadros: int = 0
     visto_por: set = field(default_factory=set)
     associacao_confiavel: bool = True
+
+    # DOIS INSTANTES, E ELES NAO SAO O MESMO.
+    #
+    #     t_mono    quando o SISTEMA concluiu
+    #     t_medido  quando a CAMERA viu
+    #
+    # Entre um e outro passam o detector (130 ms medidos em 19/08), a fila e
+    # o ciclo. Quem desenha precisa do segundo: a posicao entregue aqui e onde
+    # a pessoa ESTAVA, e sem saber ha quanto tempo nao da para dizer onde ela
+    # esta. A 1 m/s sao 15 cm de diferenca — um pe inteiro.
+    #
+    #     Uma medida sem a hora em que foi tirada so serve enquanto nada se
+    #     move.
     t_mono: float = 0.0
+    t_medido: float = 0.0
+
+    @property
+    def idade_s(self):
+        """Ha quanto tempo a camera viu isto. Zero quando nao se sabe."""
+        if not self.t_medido or not self.t_mono:
+            return 0.0
+        return max(0.0, self.t_mono - self.t_medido)
 
     @property
     def velocidade(self):

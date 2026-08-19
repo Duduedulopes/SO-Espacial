@@ -243,7 +243,8 @@ def main():
                                   acao.braco_direito, prateleira)
 
                 x, y, rumo = suavizador.suavizar(
-                    pes.id, pes.x, pes.y, getattr(leitura, "rumo_corpo", None))
+                    pes.id, pes.x, pes.y, getattr(leitura, "rumo_corpo", None),
+                    vx=pes.vx, vy=pes.vy, idade_s=pes.idade_s)
                 esqueletos.append(Esqueleto(
                     id=pes.id,
                     juntas=boneco.montar(

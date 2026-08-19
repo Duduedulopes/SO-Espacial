@@ -294,6 +294,17 @@ class SpatialEngine:
         self._encolhimento = {}
         self._quadril_na_caixa = {}
         self._ombros = {}
+        # QUANDO A CAMERA VIU, e nao quando o sistema concluiu.
+        #
+        # Sao instantes diferentes e a diferenca nao e pequena: entre a
+        # captura e o desenho passam o detector (130 ms medidos), a fila e o
+        # ciclo. Quem desenha precisa saber a IDADE da medida para poder
+        # extrapolar — senao o boneco aparece onde a pessoa estava, que a
+        # 1 m/s fica 15 cm atras de onde ela esta.
+        #
+        #     Uma medida sem a hora em que foi tirada so serve enquanto nada
+        #     se move.
+        self._visto_em = {}
         # Ultima pose relativa de cada papel, guardada CRUA. O fusor guarda a
         # dele ja combinada; a camada de corpo precisa de UMA vista por vez,
         # justamente para nao herdar o erro da combinacao.
@@ -475,6 +486,9 @@ class SpatialEngine:
             medidas.append((tid, mx, my))
             self.funil["medidas"] += 1
             self._caixas[tid] = o.caixa
+            # A hora da CAPTURA, que vem carimbada desde `cameras/fonte.py`.
+            # Sem guardar aqui ela se perde: `medidas` so leva posicao.
+            self._visto_em[tid] = float(getattr(o, "t_mono", 0.0))
             # Os ombros vistos DE CIMA sao a fonte do rumo do corpo:
             # de cima a linha dos ombros deita no plano do chao, e o
             # plano do chao e o que a homografia sabe converter.
@@ -488,6 +502,9 @@ class SpatialEngine:
         for tid in list(self._ombros):
             if tid not in vivos:
                 del self._ombros[tid]
+        for tid in list(self._visto_em):
+            if tid not in vivos:
+                del self._visto_em[tid]
         return medidas
 
     # ------------------------------------------------------------ 6
@@ -555,6 +572,8 @@ class SpatialEngine:
                 visto_por=self._vistas_ativas(),
                 associacao_confiavel=not varias,
                 t_mono=self._agora(),
+                t_medido=max((self._visto_em[e] for e in r.ids_externos
+                              if e in self._visto_em), default=0.0),
             ))
 
         self._descrever(estados, rastros)

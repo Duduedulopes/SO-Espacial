@@ -164,8 +164,16 @@ def main():
                     # O filtro fica AQUI, do lado de quem desenha, e nao no
                     # Kalman: a logica precisa da medida crua e rapida, o olho
                     # precisa dela lisa. Ver `src/gemeo/suave.py`.
+                    # A VELOCIDADE ENTRA, E ATE 19/08 ELA ERA JOGADA FORA.
+                    #
+                    # `p.vx, p.vy` sempre estiveram aqui. Sem eles o filtro so
+                    # sabia puxar a saida na direcao da entrada, e por isso
+                    # ficava 42 cm atras de quem anda a 1,2 m/s. `idade_s` diz
+                    # ha quanto tempo a camera capturou aquela posicao — a
+                    # medida descreve o passado, o desenho e do presente.
                     x, y, rumo = suavizador.suavizar(
-                        p.id, p.x, p.y, getattr(leitura, "rumo_corpo", None))
+                        p.id, p.x, p.y, getattr(leitura, "rumo_corpo", None),
+                        vx=p.vx, vy=p.vy, idade_s=p.idade_s, agora=agora)
                     esqueletos.append(Esqueleto(
                         id=p.id,
                         juntas=boneco.montar(
