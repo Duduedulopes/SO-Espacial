@@ -20,7 +20,8 @@ import json
 import numpy as np
 import pytest
 
-from ferramentas.acelerar_detector import TOLERANCIA_PX, _concordam, _quadros
+from ferramentas.acelerar_detector import (TOLERANCIA_PX, _achar_quadros,
+                                           _concordam, _quadros)
 from src.visao.detector import PADRAO, modelo_escolhido
 
 
@@ -82,19 +83,69 @@ def test_cena_vazia_confere_com_cena_vazia():
 
 
 # ----------------------------------------------------- os quadros de teste
-def test_sem_imagem_nenhuma_a_ferramenta_recusa_medir(tmp_path):
-    """Medir em imagem preta mediria o caminho rapido: sem deteccao nao ha
-    pos-processamento, e o pos-processamento e parte do custo."""
-    with pytest.raises(SystemExit, match="nao achei imagem"):
-        _quadros(tmp_path, 10)
+def test_sem_quadro_nenhum_a_ferramenta_recusa_medir_e_ensina_como(tmp_path):
+    """Recusar sem dizer o proximo comando e so recusar."""
+    with pytest.raises(SystemExit, match="salvar-quadros"):
+        _quadros([], 10)
 
 
 def test_os_quadros_se_repetem_ate_dar_amostra(tmp_path):
     """Um quadro so nao tem mediana. E mediana e o ponto — ver o quadro de
     1047 ms que apareceu num detector de 130."""
     import cv2
-    cv2.imwrite(str(tmp_path / "a.png"), np.zeros((80, 80, 3), np.uint8))
-    assert len(_quadros(tmp_path, 25)) == 25
+    p = tmp_path / "a.png"
+    cv2.imwrite(str(p), np.zeros((80, 80, 3), np.uint8))
+    assert len(_quadros([p], 25)) == 25
+
+
+def _por_um_quadro(raiz, relativo):
+    import cv2
+    caminho = raiz / relativo
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(caminho), np.zeros((80, 80, 3), np.uint8))
+    return caminho
+
+
+def test_prefere_os_quadros_COM_PESSOA(tmp_path):
+    """Sem gente em cena os tres formatos concordam em 'nao vi nada'.
+
+    Isso e verdade e nao prova nada — e o teste dos ids nem roda, porque nao
+    ha id para sobreviver.
+    """
+    _por_um_quadro(tmp_path, "dados/quadros/alto-00007-sem-pessoa.jpg")
+    _por_um_quadro(tmp_path, "dados/levantamento/alto.png")
+    esperado = _por_um_quadro(tmp_path, "dados/quadros/alto-00042-com-pessoa.jpg")
+    caminhos, _origem, tem_gente = _achar_quadros(tmp_path)
+    assert caminhos == [esperado] and tem_gente
+
+
+def test_so_a_camera_do_ALTO_entra_na_medida(tmp_path):
+    """A frontal e a lateral vao para o MediaPipe. Medir nelas mediria o que
+    nunca acontece neste detector."""
+    _por_um_quadro(tmp_path, "dados/quadros/frontal-00001-com-pessoa.jpg")
+    _por_um_quadro(tmp_path, "dados/quadros/lateral-00001-com-pessoa.jpg")
+    alto = _por_um_quadro(tmp_path, "dados/quadros/alto-00001-com-pessoa.jpg")
+    caminhos, _o, _g = _achar_quadros(tmp_path)
+    assert caminhos == [alto]
+
+
+def test_nao_varre_png_solto_na_pasta_do_levantamento(tmp_path):
+    """Em 19/08 eu deixei tres diagramas meus la dentro.
+
+    Um glob de `*.png` teria cronometrado o detector em cima das minhas
+    proprias figuras — e o numero sairia, com cara de medida.
+    """
+    _por_um_quadro(tmp_path, "dados/levantamento/o_quarto_cabe_4x.png")
+    _por_um_quadro(tmp_path, "dados/levantamento/chao_antes_e_depois.png")
+    alto = _por_um_quadro(tmp_path, "dados/levantamento/alto.png")
+    caminhos, _o, tem_gente = _achar_quadros(tmp_path)
+    assert caminhos == [alto]
+    assert not tem_gente, "levantamento nao tem pessoa; nao pode dizer que tem"
+
+
+def test_sem_nada_devolve_vazio_em_vez_de_estourar(tmp_path):
+    caminhos, _o, _g = _achar_quadros(tmp_path)
+    assert caminhos == []
 
 
 # --------------------------------------------- a escolha, lida pelo sistema

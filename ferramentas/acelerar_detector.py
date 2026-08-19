@@ -79,22 +79,62 @@ TOLERANCIA_PX = 2.0
 ESPACO_MINIMO_GB = 1.5
 
 
-def _quadros(pasta, quantos):
-    """Os quadros de teste. Reais, e da camera do alto.
+def _achar_quadros(raiz, papel="alto"):
+    """Os melhores quadros disponiveis, e diz de onde vieram.
 
-    Medir com imagem preta mediria o caminho rapido: sem deteccao nao ha
-    pos-processamento, e o pos-processamento e parte do custo. A imagem
-    precisa ter gente — ou pelo menos moveis — como a de verdade tem.
+    TRES FONTES, EM ORDEM DE HONESTIDADE:
+
+        1. dados/quadros/alto-*-com-pessoa.jpg   gente de verdade, camera certa
+        2. dados/quadros/alto-*.jpg              camera certa, talvez sem gente
+        3. dados/levantamento/alto.png           o levantamento
+
+    Por que a ordem importa, e nao e capricho:
+
+    So a camera do ALTO passa por este detector. As outras duas vao para o
+    MediaPipe, que e outro modelo e outro custo — medir nelas mediria uma
+    coisa que nunca acontece.
+
+    E a conferencia de saida precisa de GENTE. Sem ninguem no quadro as tres
+    versoes concordam em "nao vi nada", o que e verdade e nao prova nada; e o
+    teste dos ids nem roda, porque nao ha id para sobreviver.
+
+        Duas medidas que concordam sobre o vazio nao concordam sobre coisa
+        alguma.
+
+    Nao busca `*.png` solto na pasta de proposito: em 19/08 eu deixei tres
+    diagramas meus em `dados/levantamento` e a ferramenta teria cronometrado
+    o detector em cima das minhas proprias figuras.
     """
-    caminhos = sorted(Path(pasta).glob("*.png")) + sorted(Path(pasta).glob("*.jpg"))
+    quadros = raiz / "dados" / "quadros"
+    com_gente = sorted(quadros.glob(f"{papel}-*-com-pessoa.jpg"))
+    if com_gente:
+        return com_gente, "gravados com pessoa em cena", True
+    qualquer = sorted(quadros.glob(f"{papel}-*.jpg"))
+    if qualquer:
+        return qualquer, "gravados, sem pessoa marcada", False
+    levantamento = raiz / "dados" / "levantamento" / f"{papel}.png"
+    if levantamento.exists():
+        return [levantamento], "do levantamento", False
+    return [], "", False
+
+
+def _quadros(caminhos, quantos):
+    """Carrega e repete ate ter `quantos`.
+
+    Repetir nao falseia o que se mede: o custo por quadro e por quadro, e uma
+    imagem so nao tem amostra para mediana — e mediana e o ponto.
+    """
     if not caminhos:
         raise SystemExit(
-            f"\n  nao achei imagem nenhuma em {pasta}.\n"
-            f"  rode antes:  python ferramentas/achar_ambiente.py --so-salvar\n")
+            "\n  nao achei quadro nenhum da camera do alto.\n\n"
+            "  o melhor jeito de conseguir uns, com voce em cena:\n"
+            "      python rodar.py --salvar-quadros 0.5 --segundos 25\n\n"
+            "  ou, so o levantamento:\n"
+            "      python ferramentas/achar_ambiente.py --so-salvar\n")
     imagens = [cv2.imread(str(c)) for c in caminhos]
     imagens = [i for i in imagens if i is not None]
-    # repete o conjunto ate ter `quantos`: o que se mede e o custo por quadro,
-    # e um so nao tem amostra para mediana
+    if not imagens:
+        raise SystemExit("\n  achei os arquivos e nenhum abriu como imagem.\n")
     return [imagens[k % len(imagens)] for k in range(quantos)]
 
 
@@ -201,7 +241,8 @@ def main():
     p = argparse.ArgumentParser(
         description="mede o detector em PyTorch, ONNX e OpenVINO")
     p.add_argument("--modelo", default="yolo11n-pose.pt")
-    p.add_argument("--pasta", default="dados/levantamento")
+    p.add_argument("--pasta", default=None,
+                   help="por padrao procura sozinho os quadros da camera do alto")
     p.add_argument("--quadros", type=int, default=40)
     p.add_argument("--imgsz", type=int, default=320,
                    help="TEM que ser o mesmo do rodar.py")
@@ -218,8 +259,23 @@ def main():
             f"  onnxruntime e openvino sozinho se faltarem, e ai sao uns\n"
             f"  400 MB. Libere espaco antes.\n")
 
-    quadros = _quadros(RAIZ / args.pasta, args.quadros)
-    print(f"  {len(quadros)} quadros de {args.pasta}, imgsz {args.imgsz}\n")
+    if args.pasta:
+        caminhos = (sorted((RAIZ / args.pasta).glob("*.jpg"))
+                    + sorted((RAIZ / args.pasta).glob("*.png")))
+        origem, tem_gente = args.pasta, False
+    else:
+        caminhos, origem, tem_gente = _achar_quadros(RAIZ)
+
+    quadros = _quadros(caminhos, args.quadros)
+    print(f"  {len(caminhos)} quadro(s) {origem}, imgsz {args.imgsz}")
+    if not tem_gente:
+        print("\n  ATENCAO: nenhum quadro com pessoa marcada.")
+        print("  O tempo sai certo, mas a conferencia de saida fica fraca:")
+        print("  sem ninguem em cena os tres formatos concordam em 'nao vi")
+        print("  nada', e o teste dos ids nem roda. Para medir de verdade:")
+        print("      python rodar.py --salvar-quadros 0.5 --segundos 25")
+        print("  (ande na frente da camera do alto) e rode isto de novo.")
+    print()
 
     candidatos = [("PyTorch", Path(args.modelo))]
     for formato, rotulo in (("onnx", "ONNX"), ("openvino", "OpenVINO")):
