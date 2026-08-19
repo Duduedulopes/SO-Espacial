@@ -169,22 +169,31 @@ def test_zona_acumula_tempo_por_rastro_e_nao_por_quadro():
 
 def test_rastro_perdido_dentro_da_zona_nao_deixa_fantasma():
     """Se o esquecimento falhar, a pessoa reaparece 'saindo' de uma zona onde
-    nunca mais esteve — e a contagem de saidas passa a inventar."""
+    nunca mais esteve — e a contagem de saidas passa a inventar.
+
+    Os cinco quadros de permanencia sao por causa da confirmacao de 0,4 s que
+    a zona passou a exigir em 19/08 (ver `test_zona_fronteira.py`). Um quadro
+    solto ja nao conta como entrar, e nao deve mesmo: era isso que fazia uma
+    pessoa sentada gerar quinze visitas.
+    """
     g, ev = gemeo()
-    g.atualizar([p(1, 0.5, 0.5)], {}, 0.1)
+    for _ in range(5):
+        g.atualizar([p(1, 0.5, 0.5)], {}, 0.1)
     g.atualizar([], {}, 0.1)                          # perdeu dentro da zona
 
     assert 1 not in g._zonas_anteriores, "memoria de zona nao foi limpa"
     assert ev.contagem.get(Tipo.PERSON_LEFT_ZONE) is None
 
-    g.atualizar([p(1, 3.5, 0.5)], {}, 0.1)            # volta na outra ponta
+    for _ in range(5):
+        g.atualizar([p(1, 3.5, 0.5)], {}, 0.1)        # volta na outra ponta
     entradas = ev.ultimos(20, tipo=Tipo.PERSON_ENTERED_ZONE)
     assert [e.dados["zona"] for e in entradas] == ["esquerda", "direita"]
 
 
 def test_duas_pessoas_em_zonas_diferentes_nao_se_confundem():
     g, ev = gemeo()
-    g.atualizar([p(1, 0.5, 0.5), p(2, 3.5, 0.5)], {}, 0.1)
+    for _ in range(5):
+        g.atualizar([p(1, 0.5, 0.5), p(2, 3.5, 0.5)], {}, 0.1)
 
     zonas = {e.dados["pessoa"]: e.dados["zona"]
              for e in ev.ultimos(20, tipo=Tipo.PERSON_ENTERED_ZONE)}
@@ -243,8 +252,9 @@ def test_gemeo_sem_motor_de_eventos_continua_funcionando():
 
 def test_resumo_conta_zonas_ocupadas():
     g, _ = gemeo()
-    g.atualizar([p(1, 0.5, 0.5)], {}, 0.1)
-    assert g.resumo() == {"pessoas": 1, "quadros": 1, "zonas_ocupadas": 1}
+    for _ in range(5):                    # a zona confirma em 0,4 s
+        g.atualizar([p(1, 0.5, 0.5)], {}, 0.1)
+    assert g.resumo() == {"pessoas": 1, "quadros": 5, "zonas_ocupadas": 1}
 
 
 def test_trilha_guarda_o_percurso_e_esquece_quem_saiu():

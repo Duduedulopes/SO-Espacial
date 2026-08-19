@@ -122,10 +122,25 @@ class DigitalTwin:
         """Entrada e saida por comparacao com o quadro anterior.
 
         A zona ja sabe quem esta dentro; o gemeo e que percebe a MUDANCA.
+
+        E ATE 19/08 ELE NAO PERGUNTAVA A ELA. Este metodo refazia o teste
+        geometrico com `z.contem(p.x, p.y)` — a linha crua, sem a histerese
+        que a zona aplica. Duas respostas para a mesma pergunta, e os eventos
+        liam a que ninguem tinha filtrado. Resultado numa corrida de 45 s com
+        uma pessoa sentada e parada:
+
+            PERSON_ENTERED_ZONE      15
+            PERSON_LEFT_ZONE         15
+
+        O docstring acima ja dizia "a zona ja sabe quem esta dentro". Estava
+        certo e nao estava sendo obedecido.
+
+            Duas respostas para a mesma pergunta nao sao redundancia: uma
+            delas vai ser lida por engano.
         """
         for pid, p in agora.items():
             dentro = {getattr(z, "id", z.nome) for z in self.zonas
-                      if z.contem(p.x, p.y)}
+                      if pid in z.dentro}
             antes = self._zonas_anteriores.get(pid, set())
 
             for z in dentro - antes:
