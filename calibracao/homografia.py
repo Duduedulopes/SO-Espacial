@@ -106,11 +106,60 @@ def pixel_para_metro(H, x, y) -> tuple[float, float]:
     return float(v[0] / v[2]), float(v[1] / v[2])
 
 
+def abrir(papel=None, indice=None):
+    """Abre a camera do papel, seja ela USB ou de REDE. Devolve (cap, fonte).
+
+    DOIS MOTIVOS PARA ISTO NAO SER UM `VideoCapture(indice)`.
+
+    1. INDICE MUDA SOZINHO. E a licao que o projeto ja pagou com o
+       DirectShow, e esta escrita no requirements.txt. Com tres cameras
+       ligadas, calibrar a errada nao da erro: da uma homografia plausivel
+       de outro ponto de vista.
+
+    2. A LATERAL NAO E USB. Ela e um tablet em `http://.../video`, e
+       `CAP_DSHOW` nao abre URL. O programa foi escrito quando so havia a
+       camera do teto, e a suposicao ficou embutida no unico caminho.
+
+           Um programa que so foi usado com um caso nao esta certo para
+           aquele caso: esta sem ter sido contrariado.
+    """
+    import json as _json
+    import sys as _sys
+
+    if indice is not None:
+        return cv2.VideoCapture(indice, cv2.CAP_DSHOW), f"indice {indice}"
+
+    if str(RAIZ) not in _sys.path:
+        _sys.path.insert(0, str(RAIZ))
+    config = RAIZ / "config" / "cameras.json"
+    if not config.exists():
+        raise SystemExit(f"\n  nao achei {config}\n")
+    d = _json.loads(config.read_text(encoding="utf-8"))
+    if papel not in d:
+        raise SystemExit(f"\n  nao ha papel '{papel}' em config/cameras.json. "
+                         f"Ha: {', '.join(d)}\n")
+    fonte = d[papel]["fonte"]
+
+    if str(fonte).startswith("http"):
+        return cv2.VideoCapture(fonte), fonte
+
+    from src.cameras.dispositivos import exigir_indice
+    return cv2.VideoCapture(exigir_indice(fonte), cv2.CAP_DSHOW), fonte
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--camera", type=int, default=0)
+    p.add_argument("--papel", default="alto",
+                   help="qual camera, pelo NOME em config/cameras.json")
+    p.add_argument("--camera", type=int, default=None,
+                   help="indice cru, se voce souber o que esta fazendo")
     p.add_argument("--largura-m", type=float, required=True, help="lado horizontal do retangulo, em metros")
     p.add_argument("--altura-m", type=float, required=True, help="lado vertical do retangulo, em metros")
+    p.add_argument("--origem", type=float, nargs=2, default=(0.0, 0.0),
+                   metavar=("X", "Y"),
+                   help="onde o PRIMEIRO canto do retangulo esta no mundo, em "
+                        "metros, medido com trena a partir da origem da fita. "
+                        "Padrao 0 0 — a propria origem.")
     p.add_argument("--px-por-m", type=int, default=200, help="escala da vista de cima")
     p.add_argument(
         "--vista-escala",
@@ -122,18 +171,37 @@ def main() -> None:
     args = p.parse_args()
 
     # Cantos do retangulo no MUNDO, em metros, na mesma ordem dos cliques.
-    # Origem no canto superior esquerdo, x para a direita, y para baixo.
+    #
+    # O RETANGULO NAO PRECISA ESTAR NA ORIGEM, E PARA A SEGUNDA CAMERA ELE
+    # NAO PODE ESTAR.
+    #
+    # A camera lateral nao enxerga a fita do retangulo de 1,65 x 1,32 que
+    # calibrou a do teto. Sem `--origem` a unica saida seria marcar um
+    # retangulo novo e chamar aquele canto de (0,0) — e ai as duas cameras
+    # teriam mundos DIFERENTES, e a fusao viraria um problema de alinhamento.
+    #
+    # Com a origem declarada, o segundo retangulo e medido com trena a
+    # partir da MESMA marca de fita, e as duas homografias caem no mesmo
+    # sistema de coordenadas por construcao. Nao ha o que alinhar depois.
+    #
+    #     Dois instrumentos so concordam de graca quando foram referidos ao
+    #     mesmo zero. Referi-los depois custa uma etapa que pode falhar.
+    ox, oy = args.origem
     pontos_mundo = np.array(
         [
-            [0.0, 0.0],
-            [args.largura_m, 0.0],
-            [args.largura_m, args.altura_m],
-            [0.0, args.altura_m],
+            [ox, oy],
+            [ox + args.largura_m, oy],
+            [ox + args.largura_m, oy + args.altura_m],
+            [ox, oy + args.altura_m],
         ],
         dtype=np.float32,
     )
 
-    cam = cv2.VideoCapture(args.camera, cv2.CAP_DSHOW)
+    cam, fonte = abrir(args.papel, args.camera)
+    print(f"\n  calibrando '{fonte}'")
+    print(f"  retangulo de {args.largura_m:.2f} x {args.altura_m:.2f} m, "
+          f"primeiro canto em ({ox:+.2f}, {oy:+.2f})")
+    print(f"  vai salvar em calibracao/homografia-{args.papel}.json\n")
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cam.set(cv2.CAP_PROP_FPS, 30)
@@ -285,22 +353,43 @@ def main() -> None:
             if not ver_de_cima:
                 cv2.destroyWindow("vista de cima")
         elif tecla == ord("s") and H is not None:
-            SAIDA.write_text(
-                json.dumps(
-                    {
-                        "H": H.tolist(),
-                        "pontos_imagem_px": pontos_ordenados,
-                        "pontos_clicados_px": pontos_img,
-                        "pontos_mundo_m": pontos_mundo.tolist(),
-                        "largura_m": args.largura_m,
-                        "altura_m": args.altura_m,
-                        "resolucao": [640, 480],
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
+            # UM ARQUIVO POR PAPEL, E O DA CAMERA DO ALTO CONTINUA ONDE
+            # ESTAVA. Trocar o nome do arquivo da alto quebraria o
+            # `rodar.py`, o `mapear.py` e o `--mono` de uma vez — e nao ha
+            # nada de errado com ele.
+            destinos = [RAIZ / "calibracao" / f"homografia-{args.papel}.json"]
+            if args.papel == "alto":
+                destinos.append(SAIDA)
+
+            corpo = json.dumps(
+                {
+                    "H": H.tolist(),
+                    "papel": args.papel,
+                    "fonte": fonte,
+                    "pontos_imagem_px": pontos_ordenados,
+                    "pontos_clicados_px": pontos_img,
+                    "pontos_mundo_m": pontos_mundo.tolist(),
+                    "origem_m": [float(ox), float(oy)],
+                    "largura_m": args.largura_m,
+                    "altura_m": args.altura_m,
+                    "resolucao": [640, 480],
+                    "_nota": [
+                        "O retangulo NAO precisa estar na origem.",
+                        "",
+                        "Este foi medido com trena a partir da MESMA marca de",
+                        "fita que calibrou a camera do alto — por isso as",
+                        "homografias caem no mesmo sistema de coordenadas por",
+                        "construcao, e nao ha o que alinhar depois.",
+                        "",
+                        "    Dois instrumentos so concordam de graca quando",
+                        "    foram referidos ao mesmo zero.",
+                    ],
+                },
+                indent=2, ensure_ascii=False,
             )
-            print(f"salvo em {SAIDA}")
+            for destino in destinos:
+                destino.write_text(corpo, encoding="utf-8")
+                print(f"salvo em {destino}")
 
     cam.release()
     cv2.destroyAllWindows()
