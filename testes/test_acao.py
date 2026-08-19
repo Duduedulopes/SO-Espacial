@@ -348,3 +348,106 @@ def test_giro_humano_continua_sendo_reconhecido():
 
     assert abs(acao.giro_graus_s) > 100, (
         f"giro humano de ~190 graus/s foi recusado: {acao.giro_graus_s:.0f}")
+
+
+# ================================================== A CONFIANCA MANDA (19/08)
+#
+# O classificador CALCULA uma confianca e ate a reduz quando a posicao e
+# previsao do Kalman em vez de medida. E entregava a proposta ao `Estavel`,
+# que ignorava o numero.
+#
+# As confiancas cruas de `_propor_locomocao` sao 0,6 a 0,9. Os 24%, 30% e 34%
+# que apareceram no painel do Eduardo sao exatamente 0,6, 0,75 e 0,85 vezes
+# 0,4 — o fator do `prevendo`. Aquelas acoes nao vieram de medida ruim:
+# vieram de NENHUMA MEDIDA.
+#
+#     Duvida sustentada nao vira certeza por insistir. Insistir e o que o
+#     tempo mede; se a evidencia e fraca, tempo so acumula a fraqueza.
+
+
+def test_proposta_sem_confianca_nao_compromete():
+    e = Estavel(Locomocao.PARADO, minimo_s=0.2, confianca_minima=0.45)
+    for _ in range(30):
+        e.propor(Locomocao.TRAS, 0.1, confianca=0.30)
+    assert e.valor != Locomocao.TRAS, "comprometeu com 30% de confianca"
+
+
+def test_duvida_sustentada_vira_NAO_SEI_e_nao_o_ultimo_palpite():
+    """O sistema passa a dizer que nao sabe, em vez de afirmar o que ele
+    proprio marcou como palpite."""
+    e = Estavel(Locomocao.DESCONHECIDA, minimo_s=0.2)
+    for _ in range(10):
+        e.propor(Locomocao.FRENTE, 0.1, confianca=0.9)
+    assert e.valor == Locomocao.FRENTE
+
+    for _ in range(30):
+        e.propor(Locomocao.TRAS, 0.1, confianca=0.24)
+    assert e.valor == Locomocao.DESCONHECIDA
+
+
+def test_desistir_e_mais_lento_que_decidir():
+    """Uma piscada de incerteza nao pode apagar um estado bem medido."""
+    e = Estavel(Locomocao.DESCONHECIDA, minimo_s=0.2)
+    for _ in range(5):
+        e.propor(Locomocao.FRENTE, 0.1, confianca=0.9)
+    assert e.valor == Locomocao.FRENTE
+
+    for _ in range(3):                      # 0,3 s de duvida: menos que 2x0,2
+        e.propor(Locomocao.TRAS, 0.1, confianca=0.2)
+    assert e.valor == Locomocao.FRENTE, "apagou um estado por uma piscada"
+
+    for _ in range(3):                      # agora sim, 0,6 s
+        e.propor(Locomocao.TRAS, 0.1, confianca=0.2)
+    assert e.valor == Locomocao.DESCONHECIDA
+
+
+def test_o_desconhecido_e_o_valor_com_que_ele_nasceu():
+    """Cada vocabulario tem o seu, e passar o nome duas vezes seria discordar
+    de si mesmo mais tarde."""
+    for inicial in (Locomocao.DESCONHECIDA, Postura.DESCONHECIDA,
+                    Braco.DESCONHECIDO):
+        e = Estavel(inicial, minimo_s=0.1)
+        for _ in range(40):
+            e.propor("qualquer_outra_coisa", 0.1, confianca=0.1)
+        assert e.valor == inicial
+
+
+def test_com_confianca_boa_nada_mudou():
+    """A porta nova nao pode ter fechado o caminho antigo."""
+    e = Estavel(Locomocao.PARADO, minimo_s=0.3)
+    for _ in range(2):
+        e.propor(Locomocao.FRENTE, 0.1, confianca=0.85)
+    assert e.valor == Locomocao.PARADO       # ainda nao insistiu o bastante
+    e.propor(Locomocao.FRENTE, 0.1, confianca=0.85)
+    assert e.valor == Locomocao.FRENTE
+
+
+def test_o_limiar_separa_medido_de_previsto():
+    """0,45 nao e um numero afinado: e o vao entre as duas populacoes.
+
+        medido      0,60 0,70 0,75 0,80 0,85 0,90
+        prevendo    os mesmos vezes 0,4 -> 0,24 a 0,36
+    """
+    e = Estavel(Locomocao.PARADO)
+    cruas = (0.6, 0.7, 0.75, 0.8, 0.85, 0.9)
+    assert all(c >= e.confianca_minima for c in cruas)
+    assert all(c * 0.4 < e.confianca_minima for c in cruas)
+
+
+def test_kalman_prevendo_nao_muda_a_locomocao():
+    """De ponta a ponta, pelo classificador. Era isto que produzia
+    `andando_tras conf 30%` e `+276 graus/s`."""
+    c = ClassificadorDeAcao(estabilidade_s=0.2)
+    p = EstadoDePessoa(id=1, x=0.0, y=0.0, vx=0.6, vy=0.0, rumo=0.0)
+    for _ in range(20):                       # medindo: aprende que anda
+        acao, _ = c.classificar(p, 0.1)
+    andando = acao.locomocao
+    assert andando != Locomocao.DESCONHECIDA
+
+    p.prevendo = 5                            # o Kalman passa a deslizar
+    p.vx, p.vy = -0.6, 0.0                    # e o palpite inverte o sentido
+    p.rumo = math.pi
+    for _ in range(3):
+        acao, _ = c.classificar(p, 0.1)
+    assert acao.locomocao == andando, (
+        f"trocou para {acao.locomocao} sem ninguem ter sido visto")

@@ -143,26 +143,44 @@ class ClassificadorDeAcao:
 
         proposta, confianca, motivo = self._propor_locomocao(
             pessoa, v, giro, rumo_corpo)
-        mudou_loc = self.locomocao.propor(proposta, dt)
+
+        # A INCERTEZA CHEGA ANTES DA DECISAO, E NAO DEPOIS DELA.
+        #
+        # Ate 19/08 esta multiplicacao acontecia LOGO ABAIXO do `propor`. O
+        # classificador sabia que a evidencia era um palpite do Kalman,
+        # comprometia-se assim mesmo, e so entao rotulava o compromisso como
+        # fraco. Na corrida real saiu `andando_tras conf 30%` e um giro de
+        # +276 graus/s — impossivel para um corpo humano.
+        #
+        #     Reduzir a confianca depois de decidir nao e prudencia: e um
+        #     rotulo de aviso colado numa decisao que ja foi tomada.
+        #
+        # Prever onde alguem deveria estar nao e o mesmo que ve-lo ali.
+        if pessoa.prevendo:
+            confianca *= 0.4
+
+        mudou_loc = self.locomocao.propor(proposta, dt, confianca)
 
         # O painel mostra o estado COMPROMETIDO. Se o motivo vier da proposta,
         # aparece `parado ... [-61 graus/s]` — o estado diz uma coisa e a
         # justificativa ao lado diz outra, e quem le nao sabe em qual acreditar.
+        #
+        # Esta penalidade fica DEPOIS de proposito: ela nao mede a qualidade
+        # da evidencia, mede a discordancia com o que ja estava comprometido.
+        # Usa-la como porteiro reprovaria justamente as mudancas legitimas.
         if proposta != self.locomocao.valor:
             motivo = f"propondo {proposta} ({motivo})"
             confianca *= 0.7
 
         prop_postura, razao = self._propor_postura(
             razao_altura, k_referencia, leitura.encolhimento)
-        mudou_pos = self.postura.propor(prop_postura, dt)
+        # Postura tambem nao se decide em cima de previsao: `razao_altura` sai
+        # da caixa do detector, e quando o Kalman esta prevendo nao houve caixa.
+        mudou_pos = self.postura.propor(
+            prop_postura, dt, 0.0 if pessoa.prevendo else 1.0)
 
         mudou_bre = self.braco_esquerdo.propor(leitura.braco_esquerdo, dt)
         mudou_brd = self.braco_direito.propor(leitura.braco_direito, dt)
-
-        # A confianca cai quando a posicao e previsao do Kalman e nao medida.
-        # Prever onde alguem deveria estar nao e o mesmo que ve-lo ali.
-        if pessoa.prevendo:
-            confianca *= 0.4
 
         acao = Acao(
             locomocao=self.locomocao.valor,
@@ -301,6 +319,28 @@ class ClassificadorDeAcao:
         esta errada — esta apenas cega para este movimento em UMA montagem de
         camera. Numa camera lateral ou frontal ela funcionaria.
         """
+        # ATENCAO, DEFEITO CONHECIDO E NAO CORRIGIDO — 19/08.
+        #
+        # Na corrida real saiu `POSTURA_MUDOU estado=agachado proporcao=0.0`.
+        # Tentei barrar isso com um piso anatomico e ERREI: `encolhimento`
+        # nao e uma grandeza, sao DUAS, sob o mesmo nome (ver
+        # `corpo.LeituraDoCorpo.encolhimento`):
+        #
+        #     verticalidade_coxa    um COSSENO. 1,0 de pe, 0,0 coxa
+        #                           horizontal. Zero e legitimo.
+        #     altura_quadril razao  um COMPRIMENTO. 1,0 de pe, ~0,2 agachado.
+        #                           Zero e impossivel.
+        #
+        # O docstring de la afirma que "as duas medem a mesma coisa por
+        # caminhos independentes". Medem coisas parecidas com FAIXAS
+        # DIFERENTES, e um piso que serve para uma reprova a outra — foi
+        # exatamente o que os testes pegaram.
+        #
+        #     Duas grandezas sob o mesmo nome nao sao redundancia: sao um
+        #     limiar que nao pode existir.
+        #
+        # Nao da para saber, so pelo log, qual das duas produziu o 0,0. Fica
+        # anotado para ser medido antes de qualquer guarda ser escrita.
         if encolhimento is not None:
             if encolhimento < self.agachado_abaixo:
                 return Postura.AGACHADO, encolhimento

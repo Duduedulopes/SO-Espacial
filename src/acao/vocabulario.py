@@ -181,15 +181,67 @@ class Estavel:
     no raio de recostura, que quebrou a 4 fps em 08/08.
 
         Limiar temporal se declara em tempo. Quadro nao e unidade de tempo.
+
+    E TEMPO SOZINHO NAO BASTA. MEDIDO EM 19/08.
+
+    O classificador CALCULA uma confianca e ate a reduz quando a posicao e
+    previsao do Kalman em vez de medida:
+
+        if pessoa.prevendo:
+            confianca *= 0.4
+
+    E entregava a proposta aqui, que ignorava o numero. Resultado na corrida
+    real: `andando_tras conf 30%` e `+276 graus/s` — uma taxa de giro
+    impossivel, comprometida porque durou 0,35 s.
+
+    As confiancas cruas do classificador sao 0,6 a 0,9. Os 24%, 30% e 34% que
+    apareceram no painel sao exatamente 0,6, 0,75 e 0,85 multiplicados por
+    0,4. Ou seja: aquelas acoes nao vieram de medida ruim — vieram de
+    NENHUMA MEDIDA. Era o Kalman deslizando sozinho, classificado como se
+    tivesse sido visto.
+
+        Duvida sustentada nao vira certeza por insistir. Insistir e o que o
+        tempo mede; se a evidencia e fraca, tempo so acumula a fraqueza.
+
+    Agora a duvida propoe IGNORANCIA — o valor com que este `Estavel`
+    nasceu, que e sempre o DESCONHECIDO do seu vocabulario. E ela tambem
+    precisa insistir, e por mais tempo: uma piscada de incerteza nao pode
+    apagar um estado que estava bem medido.
     """
 
     valor: str
     minimo_s: float = 0.35
+    # Abaixo disto a proposta nao e evidencia. 0,45 nao e um numero afinado:
+    # e o que separa "medido" (0,60 a 0,90) de "o Kalman estava prevendo"
+    # (os mesmos valores vezes 0,4, ou seja 0,24 a 0,36).
+    confianca_minima: float = 0.45
+    # Quanto a duvida precisa insistir para apagar um estado. Zero usa o
+    # dobro do `minimo_s`: desistir tem que ser mais lento que decidir.
+    minimo_duvida_s: float = 0.0
     _candidato: str = field(default="", repr=False)
     _acumulado: float = field(default=0.0, repr=False)
+    _desconhecido: str = field(default="", repr=False)
 
-    def propor(self, novo, dt):
-        """Devolve True quando o valor MUDOU de fato."""
+    def __post_init__(self):
+        # O valor de nascimento E o desconhecido do vocabulario: estes objetos
+        # sao sempre construidos com Locomocao.DESCONHECIDA, Postura.
+        # DESCONHECIDA ou Braco.DESCONHECIDO. Guardar isso evita passar o
+        # nome duas vezes e discordar de si mesmo depois.
+        self._desconhecido = self.valor
+
+    def propor(self, novo, dt, confianca=1.0):
+        """Devolve True quando o valor MUDOU de fato.
+
+        `confianca` de 0 a 1. Abaixo do minimo, a proposta e substituida por
+        ignorancia — o sistema passa a dizer que nao sabe, em vez de afirmar
+        o que ele proprio marcou como palpite.
+        """
+        duvidoso = confianca < self.confianca_minima
+        if duvidoso:
+            novo = self._desconhecido
+        limite = ((self.minimo_duvida_s or 2.0 * self.minimo_s) if duvidoso
+                  else self.minimo_s)
+
         if novo == self.valor:
             self._candidato, self._acumulado = "", 0.0
             return False
@@ -199,7 +251,7 @@ class Estavel:
         else:
             self._candidato, self._acumulado = novo, dt
 
-        if self._acumulado >= self.minimo_s:
+        if self._acumulado >= limite:
             self.valor = novo
             self._candidato, self._acumulado = "", 0.0
             return True
