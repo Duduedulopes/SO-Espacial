@@ -302,6 +302,69 @@ def _dust3r(imagens):
     return nuvem, poses, do_alto, pixels
 
 
+MONO_PADRAO = "depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf"
+
+
+def _profundidade_monocular(caminho, modelo=MONO_PADRAO):
+    """Uma imagem -> profundidade em METROS. Devolve (mapa, None) ou (None, erro).
+
+    POR QUE ISTO EXISTE AO LADO DO DUSt3R, E NAO DEPOIS DELE
+
+    Reconstrucao multi-vista precisa que as cameras vejam AS MESMAS
+    SUPERFICIES. As tres deste arranjo quase nao veem — a do alto olha o
+    piso, a frontal olha a pessoa, a lateral olha o perfil da estante. O
+    DUSt3R nao estava mal configurado: estava sendo usado fora da hipotese
+    dele, e por isso devolveu um comodo de 2,1 m2 num sistema proprio.
+
+    Profundidade monocular metrica nao tem esse requisito. Uma imagem entra,
+    metros saem.
+
+    O CUIDADO QUE ESTA FUNCAO EXISTE PARA TOMAR
+
+    O `pipeline` do transformers devolve duas coisas com nomes parecidos:
+
+        depth              uma IMAGEM, normalizada de 0 a 255, para olhar
+        predicted_depth    o tensor, em METROS
+
+    Usar a primeira daria um mapa lindo e sem unidade, e o erro so
+    apareceria la adiante como uma escala absurda — depois de passar por
+    tres etapas que nao teriam culpa nenhuma.
+
+        Duas saidas com nomes parecidos e unidades diferentes sao um erro
+        esperando o momento mais caro para acontecer.
+    """
+    try:
+        import torch
+        from PIL import Image
+        from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+    except ImportError as e:
+        return None, (f"falta um pacote ({e}).\n"
+                      f"      pip install transformers pillow")
+
+    try:
+        imagem = Image.open(caminho).convert("RGB")
+        processador = AutoImageProcessor.from_pretrained(modelo)
+        rede = AutoModelForDepthEstimation.from_pretrained(modelo)
+        rede.eval()
+        entrada = processador(images=imagem, return_tensors="pt")
+        with torch.no_grad():
+            saida = rede(**entrada)
+
+        alvo = [(imagem.height, imagem.width)]
+        if hasattr(processador, "post_process_depth_estimation"):
+            pos = processador.post_process_depth_estimation(
+                saida, target_sizes=alvo)
+            mapa = pos[0]["predicted_depth"].cpu().numpy()
+        else:
+            bruto = saida.predicted_depth.unsqueeze(1)
+            mapa = torch.nn.functional.interpolate(
+                bruto, size=alvo[0], mode="bicubic",
+                align_corners=False)[0, 0].cpu().numpy()
+        return np.asarray(mapa, dtype=float), None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
 def main():
     p = argparse.ArgumentParser(description="as 3 cameras mapeiam o quarto")
     p.add_argument("--pasta", default="dados/levantamento")
@@ -309,7 +372,14 @@ def main():
     p.add_argument("--gravar", action="store_true")
     p.add_argument("--vggt", action="store_true",
                    help="usa o VGGT em vez do DUSt3R (peso de 5 GB)")
+    p.add_argument("--mono", action="store_true",
+                   help="profundidade monocular na camera do alto; nao precisa "
+                        "de sobreposicao entre as vistas")
+    p.add_argument("--modelo-mono", default=MONO_PADRAO)
     args = p.parse_args()
+
+    if args.mono:
+        return _mapear_mono(args)
 
     pasta = RAIZ / args.pasta
     imagens = [str(pasta / f"{papel}.png") for papel in PAPEIS
@@ -396,6 +466,110 @@ def main():
     print(f"  estante    em ({ex:+.2f}, {ey:+.2f}) m, "
           f"face a {math.degrees(rumo):+.0f} graus")
     print(f"  nuvem      {len(amb.nuvem)} pontos em metros")
+
+    if args.gravar:
+        _gravar_planta(amb, gab, args.planta, contorno)
+        np.savez(RAIZ / "loja" / "nuvem.npz", pontos=amb.nuvem)
+        print(f"\n  gravado em {args.planta} e loja/nuvem.npz")
+        print("\n  agora:  python rodar.py\n")
+    else:
+        print("\n  (nao gravei — use --gravar)\n")
+
+
+def _mapear_mono(args):
+    """O caminho monocular: uma imagem da camera do alto, e a trena.
+
+    CADA PASSO IMPRIME UM NUMERO QUE DA PARA CONFERIR
+
+        a altura da camera      confira com a trena, no teto
+        o chao plano            quanto ele ficou torto, em cm
+        a altura da estante     tem que dar os 1,90 que a trena mediu
+
+    Nenhum dos tres foi usado para chegar nos outros. Sao tres reguas
+    independentes sobre a mesma cena, e e a concordancia entre elas que
+    autoriza gravar.
+
+        Um resultado que nao produz nenhum numero conferivel nao pode ser
+        aceito nem recusado — so acreditado.
+    """
+    from percepcao.chao import carregar_homografia
+    from src.mundo.profundidade import (ambiente_do_mono, camera_da_homografia,
+                                        nuvem_do_alto)
+
+    caminho = RAIZ / args.pasta / "alto.png"
+    if not caminho.exists():
+        raise SystemExit(
+            f"\n  nao achei {caminho}.\n"
+            f"  rode antes:  python ferramentas/achar_ambiente.py --so-salvar\n")
+
+    gab = Gabarito.de_arquivo("loja/estante.json")
+    print("\n  MONOCULAR — uma imagem, sem precisar de sobreposicao")
+    print(f"  a regua: a estante tem {gab.altura:.2f} m de altura, de trena")
+
+    h, calib = carregar_homografia()
+    larg_px, alt_px = calib.get("resolucao", (640, 480))
+
+    cam = camera_da_homografia(h, int(larg_px), int(alt_px))
+    if cam is None:
+        raise SystemExit(
+            "\n  nao consegui deduzir a camera da homografia. Isso acontece\n"
+            "  quando o retangulo calibrado esta quase de frente para a\n"
+            "  lente: sem perspectiva nao ha informacao de escala nenhuma.\n"
+            "  Recalibre clicando um retangulo mais esticado no chao.\n")
+
+    print("\n  CAMERA deduzida do chao que a trena mediu")
+    print(f"    altura      {cam.altura_m:.2f} m   <- CONFIRA COM A TRENA")
+    print(f"    posicao     ({cam.posicao[0]:+.2f}, {cam.posicao[1]:+.2f}) m")
+    print(f"    focal       {cam.focal:.0f} px")
+    if cam.discordancia > 0.25:
+        print(f"    ATENCAO: as duas estimativas da focal discordam "
+              f"{cam.discordancia * 100:.0f}%.")
+        print("    A lente pode nao ter pixel quadrado ou o centro optico no")
+        print("    meio da imagem. O resto vai sair torto.")
+    else:
+        print(f"    conferencia {cam.discordancia * 100:.1f}% entre as duas "
+              f"estimativas da focal")
+
+    print(f"\n  rodando {args.modelo_mono}")
+    print("  (a primeira vez baixa o modelo; depois fica em cache)")
+    mapa, erro = _profundidade_monocular(caminho, args.modelo_mono)
+    if mapa is None:
+        raise SystemExit(f"\n  nao deu: {erro}\n")
+    print(f"  profundidade {mapa.shape[1]}x{mapa.shape[0]}, "
+          f"{np.nanmin(mapa):.2f} a {np.nanmax(mapa):.2f} (unidade da rede)")
+
+    nuvem = nuvem_do_alto(mapa, h, tamanho_original=(int(larg_px), int(alt_px)),
+                          camera=cam)
+    if nuvem is None:
+        raise SystemExit(
+            "\n  a nuvem nao fechou. A escala nao pode ser recuperada do\n"
+            "  chao — o que acontece se a maior parte da imagem NAO for\n"
+            "  piso, ou se o modelo devolveu profundidade relativa em vez\n"
+            "  de metrica. Confira que o modelo tem 'Metric' no nome.\n")
+
+    print(f"\n  NUVEM  {len(nuvem.pontos)} pontos, ja em metros no mundo do gemeo")
+    print(f"    escala da rede corrigida por {nuvem.escala:.3f}x")
+    print(f"    {nuvem.fracao_de_chao * 100:.0f}% da imagem era chao")
+    print(f"    chao plano em {nuvem.residuo_chao_m * 100:.1f} cm   <- a nota")
+
+    contorno = pegada_no_chao(h, int(larg_px), int(alt_px))
+    amb = ambiente_do_mono(nuvem, gab)
+    if amb is None:
+        raise SystemExit(
+            "\n  achei o chao e nao achei a estante. Ou ela nao aparece nesta\n"
+            "  vista, ou o que sobe na cena nao tem a forma dela.\n")
+
+    ex, ey, rumo = amb.estante
+    altura_vista = amb.escala_da_estante * gab.altura
+    print(f"\n  ESTANTE em ({ex:+.2f}, {ey:+.2f}) m, "
+          f"face a {math.degrees(rumo):+.0f} graus")
+    print(f"    altura na nuvem {altura_vista:.2f} m  contra "
+          f"{gab.altura:.2f} da trena")
+    concordam = amb.as_duas_reguas_concordam
+    print(f"    as duas reguas {'concordam' if concordam else 'DISCORDAM'}")
+    if concordam is False:
+        print("    Duas reguas independentes discordando e a informacao mais")
+        print("    util desta cena. Confira antes de gravar.")
 
     if args.gravar:
         _gravar_planta(amb, gab, args.planta, contorno)
