@@ -407,6 +407,74 @@ def test_o_residuo_do_chao_denuncia_uma_camera_errada():
     assert n is None or n.residuo_chao_m > 0.05 or not n.pronta
 
 
+# ------------------------------------- o que a camera pode e nao pode conferir
+def test_a_camera_baixa_nao_enxerga_o_topo_da_estante():
+    """MEDIDO EM 19/08, e foi o que reprovou uma cena boa.
+
+    A camera do Eduardo esta a 2,23 m, so 33 cm acima do topo da estante de
+    1,90. Da posicao dela, o topo cai em v = -310 — trezentos pixels ACIMA da
+    borda da imagem.
+
+        Antes de comparar duas medidas, vale perguntar se o instrumento podia
+        produzir a segunda.
+    """
+    from src.mundo.profundidade import altura_visivel
+
+    # No ponto para onde a camera OLHA, que e onde o chao certamente aparece.
+    # Perguntar noutro lugar mediria o enquadramento, nao a altura util.
+    mira = (0.9, 0.7)
+    K, R, t, _C = _camera_de_teste(altura=2.23, focal=551.0, olhando=mira)
+    cam = camera_da_homografia(_homografia_de(K, R, t), LARG, ALT)
+    limite = altura_visivel(cam, *mira)
+    assert 0.0 < limite < 1.90, f"enxergaria ate {limite:.2f} m"
+
+
+def test_camera_alta_enxerga_o_topo():
+    """A mesma cena com pe direito de sobra: a conferencia volta a ser possivel.
+
+    E a mesma geometria: o que corta o topo nao e a lente, e a camera estar
+    perto demais dele. Subir a camera resolve; trocar de modelo, nao.
+    """
+    from src.mundo.profundidade import altura_visivel
+
+    mira = (0.9, 0.7)
+    K, R, t, _C = _camera_de_teste(altura=4.2, focal=551.0, olhando=mira)
+    cam = camera_da_homografia(_homografia_de(K, R, t), LARG, ALT)
+    assert altura_visivel(cam, *mira) > 1.90
+
+
+def test_a_regua_escolhida_e_a_bandeja_mais_alta_que_APARECE():
+    """Uma conferencia mais fraca que se pode fazer vale mais que uma forte
+    que nao se pode."""
+    from src.mundo.ambiente import Gabarito
+    from src.mundo.profundidade import regua_possivel
+
+    gab = Gabarito.de_arquivo("loja/estante.json")
+    mira = (0.9, 0.7)
+    K, R, t, _C = _camera_de_teste(altura=2.23, focal=551.0, olhando=mira)
+    cam = camera_da_homografia(_homografia_de(K, R, t), LARG, ALT)
+    alvo, limite = regua_possivel(cam, gab, *mira)
+
+    alturas = sorted(float(a) for _i, a in gab.prateleiras)
+    assert alvo is None or alvo in alturas, "inventou uma altura"
+    if alvo is not None:
+        assert alvo <= limite
+        acima = [a for a in alturas if limite >= a > alvo]
+        assert not acima, f"havia bandeja visivel mais alta: {acima}"
+
+
+def test_sem_bandeja_nenhuma_no_quadro_a_regua_e_None():
+    """Dizer 'nao da para conferir' e uma resposta. Fingir que conferiu, nao."""
+    from src.mundo.ambiente import Gabarito
+    from src.mundo.profundidade import regua_possivel
+
+    gab = Gabarito.de_arquivo("loja/estante.json")
+    K, R, t, _C = _camera_de_teste()
+    cam = camera_da_homografia(_homografia_de(K, R, t), LARG, ALT)
+    alvo, _limite = regua_possivel(cam, gab, 40.0, 40.0)   # bem fora do quadro
+    assert alvo is None
+
+
 def test_profundidade_vazia_e_recusada():
     K, R, t, _C = _camera_de_teste()
     H = _homografia_de(K, R, t)

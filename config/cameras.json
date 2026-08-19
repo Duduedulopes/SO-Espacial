@@ -8,7 +8,7 @@
     "captura": "640x480"
   },
   "lateral": {
-    "fonte": "http://192.168.1.14:8080/video",
+    "fonte": "http://192.168.1.4:8080/video",
     "captura": "640x480",
     "_nota": [
       "13/08: a PIXY era emprestada e voltou para o dono. A lateral e o tablet.",

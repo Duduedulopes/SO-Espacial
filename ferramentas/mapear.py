@@ -499,7 +499,7 @@ def _mapear_mono(args):
     from percepcao.chao import carregar_homografia
     from src.mundo.profundidade import (ambiente_do_mono, camera_da_homografia,
                                         focal_pela_altura, intrinseca_medida,
-                                        nuvem_do_alto)
+                                        nuvem_do_alto, regua_possivel)
 
     caminho = RAIZ / args.pasta / "alto.png"
     if not caminho.exists():
@@ -592,12 +592,39 @@ def _mapear_mono(args):
     altura_vista = amb.escala_da_estante * gab.altura
     print(f"\n  ESTANTE em ({ex:+.2f}, {ey:+.2f}) m, "
           f"face a {math.degrees(rumo):+.0f} graus")
-    print(f"    altura na nuvem {altura_vista:.2f} m  contra "
-          f"{gab.altura:.2f} da trena")
-    concordam = amb.as_duas_reguas_concordam
-    print(f"    as duas reguas {'concordam' if concordam else 'DISCORDAM'}")
+
+    # ANTES DE COMPARAR, PERGUNTAR SE O INSTRUMENTO PODIA RESPONDER.
+    #
+    # Em 19/08 esta conferencia reprovou uma cena boa: a camera esta a 2,23 m,
+    # so 33 cm acima do topo da estante, e o topo cai FORA DO QUADRO. A nuvem
+    # nao podia conter os 1,90 m, e nenhum estimador recuperaria isso.
+    #
+    #     Uma conferencia impossivel reprovada parece um defeito e e uma
+    #     pergunta mal feita.
+    alvo, limite = regua_possivel(cam, gab, ex, ey)
+    print(f"    a camera enxerga ate {limite:.2f} m nesse ponto")
+
+    if alvo is None:
+        print("    NENHUMA bandeja aparece no quadro — sem conferencia possivel.")
+        print("    A estante esta no lugar certo? A camera esta apontada para ela?")
+        concordam = None
+    elif alvo < gab.altura - 0.01:
+        print(f"    o topo ({gab.altura:.2f} m) esta FORA DO QUADRO — nao da")
+        print(f"    para conferir por ele. Conferindo pela bandeja de "
+              f"{alvo:.2f} m,")
+        print("    que e a mais alta que aparece:")
+        print(f"      a nuvem sobe ate {altura_vista:.2f} m ali")
+        concordam = abs(altura_vista - alvo) <= 0.20
+        print(f"      {'confere' if concordam else 'NAO CONFERE'} "
+              f"({abs(altura_vista - alvo) * 100:.0f} cm de diferenca)")
+    else:
+        print(f"    altura na nuvem {altura_vista:.2f} m  contra "
+              f"{gab.altura:.2f} da trena")
+        concordam = amb.as_duas_reguas_concordam
+        print(f"    as duas reguas {'concordam' if concordam else 'DISCORDAM'}")
+
     if concordam is False:
-        print("    Duas reguas independentes discordando e a informacao mais")
+        print("\n    Duas reguas independentes discordando e a informacao mais")
         print("    util desta cena. Confira antes de gravar.")
 
     if args.gravar:

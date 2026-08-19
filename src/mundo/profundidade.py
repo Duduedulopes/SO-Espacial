@@ -577,6 +577,76 @@ def nuvem_do_alto(profundidade, homografia, tamanho_original=None,
                           residuo_chao_m=residuo, fracao_de_chao=fracao)
 
 
+def altura_visivel(camera, x, y, margem_px=2.0):
+    """Ate que altura, em (x, y), a camera ainda enxerga. Em metros.
+
+    A PERGUNTA QUE FALTAVA FAZER, E QUE CUSTOU UMA CONFERENCIA INTEIRA
+
+    Em 19/08 o `--mono` reportou a estante com 1,46 m contra os 1,90 da
+    trena, e concluiu que as duas reguas discordavam. Nao discordavam: a
+    camera esta a 2,23 m, ou seja apenas 33 cm acima do topo da estante, e o
+    topo cai FORA DO QUADRO. Medido, para a estante em (0,68, 0,65):
+
+        bandeja 3, 0,95 m  ->  pixel v = 124   dentro
+        bandeja 4, 1,35 m  ->  pixel v =  11   na borda
+        topo,      1,90 m  ->  pixel v = -310  fora
+
+    A nuvem nao pode conter o que a lente nao ve, e nenhum estimador recupera
+    isso. A conferencia nao falhou — ela era impossivel, e ninguem tinha
+    perguntado se era possivel.
+
+        Antes de comparar duas medidas, vale perguntar se o instrumento
+        podia produzir a segunda. Uma conferencia impossivel reprovada
+        parece um defeito e e uma pergunta mal feita.
+
+    Devolve a maior altura cujo pixel ainda cai dentro da imagem, ou 0.0 se
+    nem o chao naquele ponto aparece.
+    """
+    larg, alt = camera.tamanho
+    Ki = camera.K
+
+    def dentro(z):
+        p = camera.para_camera([[x, y, z]])[0]
+        if p[2] <= 1e-6:
+            return False
+        px = Ki @ p
+        u, v = px[0] / px[2], px[1] / px[2]
+        return (-margem_px <= u < larg + margem_px
+                and -margem_px <= v < alt + margem_px)
+
+    if not dentro(0.0):
+        return 0.0
+    baixo, cima = 0.0, 6.0
+    if dentro(cima):
+        return cima
+    for _ in range(40):
+        meio = (baixo + cima) / 2.0
+        if dentro(meio):
+            baixo = meio
+        else:
+            cima = meio
+    return baixo
+
+
+def regua_possivel(camera, gabarito, x, y):
+    """A prateleira mais alta que ESTA camera consegue conferir. Ou None.
+
+    A trena mediu cinco bandejas. Conferir contra a mais alta e o ideal e
+    aqui e impossivel — entao confere-se contra a mais alta que aparece no
+    quadro, que continua sendo um numero de trena que a geometria nao usou
+    para chegar em lugar nenhum.
+
+        Uma conferencia mais fraca que se pode fazer vale mais que uma
+        forte que nao se pode.
+    """
+    limite = altura_visivel(camera, x, y)
+    alturas = sorted(float(a) for _i, a in gabarito.prateleiras)
+    visiveis = [a for a in alturas if a <= limite]
+    if not visiveis:
+        return None, limite
+    return visiveis[-1], limite
+
+
 def ambiente_do_mono(nuvem, gabarito):
     """A `NuvemMonocular` no formato que o resto do programa ja consome.
 
