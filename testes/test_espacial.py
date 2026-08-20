@@ -476,14 +476,38 @@ if __name__ == "__main__":
 from percepcao.chao import EstimadorDePe, para_metros    # noqa: E402
 
 
-def test_caixa_encostada_na_borda_e_reconhecida():
+def test_so_a_borda_DE_BAIXO_invalida_o_pe():
+    """Erro meu de 19/08, medido em 20/08.
+
+    A primeira versao recusava a caixa que tocasse QUALQUER borda, e isso
+    custou quase toda a area util da camera do teto:
+
+        piso que a camera enxerga            8,44 m2  100%
+        recusando qualquer borda tocada      0,26 m2    3%
+        recusando so a borda de baixo        7,91 m2   94%
+
+    A camera esta a 2,23 m e a pessoa tem 1,75: sobram 48 cm acima da cabeca,
+    entao a caixa toca a borda de CIMA em quase todo lugar. E o pe e o ponto
+    mais BAIXO do corpo — cabeca cortada nao move o pe.
+
+        Nem toda borda corta a mesma coisa. Recusar por tocar qualquer uma
+        trata um recorte inofensivo como se fosse o fatal.
+    """
     c = EstimadorDePe._cortada
     quadro = (640, 480)
-    assert c((300, 200, 340, 479), quadro), "encostou embaixo"
-    assert c((0, 200, 40, 400), quadro), "encostou na esquerda"
-    assert c((600, 200, 639, 400), quadro), "encostou na direita"
-    assert c((300, 0, 340, 400), quadro), "encostou em cima"
+    assert c((300, 200, 340, 479), quadro), "embaixo: o pe esta fora"
+    assert not c((300, 0, 340, 400), quadro), "em cima: so a cabeca saiu"
+    assert not c((0, 200, 40, 400), quadro), "na esquerda: o pe ainda aparece"
+    assert not c((600, 200, 639, 400), quadro), "na direita: idem"
     assert not c((300, 200, 340, 400), quadro), "esta inteira"
+
+
+def test_pessoa_alta_demais_para_o_pe_direito_continua_medivel():
+    """O caso real: cabeca cortada em cima, pes bem dentro do quadro."""
+    e = EstimadorDePe()
+    e.desvio[3] = np.array([0.0, -40.0])
+    pe, origem = e.estimar(3, (280, 0, 360, 430), None, None, quadro=(640, 480))
+    assert pe is not None and origem == "caixa+correcao"
 
 
 def test_sem_tornozelo_e_com_caixa_cortada_nao_ha_pe():

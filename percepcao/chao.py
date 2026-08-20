@@ -202,7 +202,7 @@ class EstimadorDePe:
                 self.desvio[tid] = d
             return (int(pe_tornozelo[0]), int(pe_tornozelo[1])), "tornozelo"
 
-        # CAIXA ENCOSTADA NA BORDA NAO TEM BASE: TEM RECORTE.
+        # CAIXA ENCOSTADA NA BORDA DE BAIXO NAO TEM BASE: TEM RECORTE.
         #
         # ISTO CONGELOU O BONECO NA CORRIDA DE 19/08, E O VIDEO MOSTROU.
         #
@@ -236,18 +236,39 @@ class EstimadorDePe:
 
     @staticmethod
     def _cortada(caixa, quadro, margem_px=6):
-        """A caixa encosta em alguma borda da imagem?
+        """A caixa encosta na borda DE BAIXO? So essa importa.
 
-        Basta encostar em UMA. Uma pessoa cortada de lado tem o pe do outro
-        lado ainda dentro, mas a caixa ja nao a contem — e a base dela deixa
-        de ser o ponto mais baixo do corpo para ser o ponto mais baixo do que
-        sobrou.
+        MEDIDO EM 20/08, E FOI UM ERRO MEU DE ONTEM.
+
+        A primeira versao recusava a caixa que tocasse QUALQUER borda. O
+        raciocinio parecia prudente e custou quase toda a area util:
+
+            piso que a camera enxerga                8,44 m2  100%
+            recusando qualquer borda tocada          0,26 m2    3%
+            recusando so a borda de baixo            7,91 m2   94%
+
+        A camera do teto esta a 2,23 m e a pessoa tem 1,75. Sobram 48 cm
+        acima da cabeca — entao a cabeca sai do quadro em quase todo lugar, e
+        a caixa toca a borda de CIMA quase sempre.
+
+        Mas o pe e o ponto mais BAIXO do corpo. Cabeca cortada em cima nao
+        move o pe um milimetro.
+
+            Nem toda borda corta a mesma coisa. Recusar por tocar qualquer
+            uma trata um recorte inofensivo como se fosse o fatal.
+
+        A de baixo e a fatal, e por um motivo que nao e simetrico: se o ponto
+        mais baixo do corpo esta fora do quadro, o ponto mais baixo do que
+        SOBROU e a propria borda — e a borda nao se move.
+
+        Cortes laterais ficam aceitos de proposito. Eles enviesam o centro
+        horizontal da caixa em ate meia largura de pessoa; a borda de baixo
+        erra sem limite e sempre no mesmo lugar. Exigir as duas coisas
+        devolveria 36% da area, e 36% de uma sala nao e uma sala.
         """
-        x1, y1, x2, y2 = caixa
-        larg, alt = quadro
-        return bool(x1 <= margem_px or y1 <= margem_px
-                    or x2 >= larg - 1 - margem_px
-                    or y2 >= alt - 1 - margem_px)
+        _x1, _y1, _x2, y2 = caixa
+        _larg, alt = quadro
+        return bool(y2 >= alt - 1 - margem_px)
 
     def esquecer(self, vivos):
         for tid in list(self.desvio):
