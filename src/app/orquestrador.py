@@ -225,6 +225,25 @@ class Orquestrador:
         a mesma verdade vira consequencia: se a C920 responder 640x480 a um
         pedido de 1280x720, cada pixel passa a valer o dobro e a posicao no
         chao sai com o dobro do erro — sem sintoma nenhum alem do numero.
+
+        CHAMADA A CADA PASSO, E NAO SO NO INICIAR. Consertado em 20/08.
+
+        Ate aqui isto rodava UMA VEZ, dentro do `iniciar()`, e so se a camera
+        do alto ja estivesse online naquele instante. A C920 leva uns nove
+        segundos para conectar; o tablet a 30 fps chega antes; o `iniciar`
+        retorna assim que UMA camera sobe. Resultado: o aviso "sem camera
+        alto" saia, a camera conectava logo depois, e a homografia ficava
+        para sempre escalada para a resolucao PEDIDA.
+
+        Medido na calibracao andando: 1,80 m de estatura sairam como 1,35 —
+        exatamente 1,80 x 0,748, o fator entre 1280x720 pedido e 640x480
+        entregue. E a caminhada de 90 s "cobriu" 1,01 x 0,55 m de chao.
+
+            Uma verificacao que roda uma vez, antes de a coisa existir, nao
+            verifica nada.
+
+        `ajustar_para_resolucao` sai cedo quando nada mudou, entao chamar
+        sempre custa uma comparacao de tupla.
         """
         fonte = self.cameras.por_papel("alto")
         if fonte is None or not fonte.largura or not fonte.altura:
@@ -245,6 +264,10 @@ class Orquestrador:
         t = time.perf_counter()
         if self._t_volta:
             self.tempos["esperando"] += t - self._t_volta
+
+        # A resolucao real pode chegar DEPOIS do iniciar(): a camera do alto
+        # demora a conectar. Custa uma comparacao de tupla quando nada mudou.
+        self._casar_homografia_com_a_camera()
 
         instante = self.sincronizador.montar(self.cameras.buffers())
         self.tempos["sincronizar"] += time.perf_counter() - t

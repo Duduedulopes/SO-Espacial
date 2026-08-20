@@ -258,3 +258,70 @@ if __name__ == "__main__":
             print(f"  ERRO  {t.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(testes) - falhas}/{len(testes)} passaram")
     sys.exit(1 if falhas else 0)
+
+
+# ===== A CAMERA QUE CHEGA ATRASADA (20/08, achado na calibracao andando)
+#
+# `_casar_homografia_com_a_camera` rodava UMA VEZ, dentro do `iniciar()`, e so
+# se a camera do alto ja estivesse online. A C920 leva uns nove segundos para
+# conectar; o tablet a 30 fps chega antes; o `iniciar` retorna assim que UMA
+# camera sobe.
+#
+# Resultado medido: 1,80 m de estatura sairam como 1,35 — exatamente
+# 1,80 x 0,748, o fator entre os 1280x720 pedidos e os 640x480 entregues. E
+# 90 s de caminhada "cobriram" 1,01 x 0,55 m de chao.
+#
+#     Uma verificacao que roda uma vez, antes de a coisa existir, nao
+#     verifica nada.
+
+
+def test_ajustar_para_resolucao_sai_cedo_quando_nada_mudou():
+    """Ela RECRIA o filtro de plausibilidade, e o filtro APRENDE.
+
+    Sem a saida cedo, chamar por quadro apagaria o `k` a cada quadro, e o
+    filtro ficaria eternamente ABSTIDO sem nunca dar erro.
+
+        Uma funcao que reinicia estado precisa dizer quando NAO faz nada.
+    """
+    import numpy as np
+
+    from src.espacial.motor import SpatialEngine
+    H = np.array([[0.005, 0, 0], [0, 0.005, -1.0], [0, 0.0002, 1.0]])
+    e = SpatialEngine(H, resolucao_calibracao=(640, 480),
+                      resolucao_captura=(640, 480), usar_plausibilidade=True)
+
+    antes = e.plausibilidade
+    assert e.ajustar_para_resolucao(640, 480) is False
+    assert e.plausibilidade is antes, "recriou o filtro sem nada ter mudado"
+
+    assert e.ajustar_para_resolucao(1280, 720) is True
+    assert e.plausibilidade is not antes
+
+
+def test_a_homografia_e_casada_quando_a_camera_chega_atrasada():
+    """O caso real: o alto conecta DEPOIS do iniciar()."""
+    import numpy as np
+
+    from src.espacial.motor import SpatialEngine
+    H = np.array([[0.005, 0, 0], [0, 0.005, -1.0], [0, 0.0002, 1.0]])
+    e = SpatialEngine(H, resolucao_calibracao=(640, 480),
+                      resolucao_captura=(1280, 720))
+
+    # nasce escalada para o que foi PEDIDO
+    escalada = e.H.copy()
+    assert not np.allclose(escalada, H)
+
+    # a camera conecta e diz o que entrega de verdade
+    assert e.ajustar_para_resolucao(640, 480) is True
+    assert np.allclose(e.H, H), "nao voltou para a resolucao de calibracao"
+    assert e._quadro == (640, 480)
+
+
+def test_o_passo_casa_a_homografia_sozinho():
+    """Chamar so no iniciar() e confiar que a camera estava la."""
+    import inspect
+
+    from src.app.orquestrador import Orquestrador
+    fonte = inspect.getsource(Orquestrador.passo)
+    assert "_casar_homografia_com_a_camera" in fonte, (
+        "o passo nao recasa a homografia; camera atrasada volta a quebrar")

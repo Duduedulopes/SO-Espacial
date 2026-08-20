@@ -356,7 +356,23 @@ class SpatialEngine:
 
         Recalcula sempre a partir de `H_original`. Compor escala sobre escala
         ja ajustada acumularia erro a cada chamada.
+
+        SAI CEDO QUANDO NADA MUDOU, E ISSO NAO E OTIMIZACAO.
+
+        Esta funcao RECRIA o `FiltroDePlausibilidade`, e o filtro APRENDE — o
+        `k` dele sai de dezenas de amostras de gente andando. Chamada a cada
+        quadro sem esta guarda, ela apagaria o aprendizado a cada quadro, e o
+        filtro ficaria eternamente ABSTIDO sem nunca dar erro.
+
+            Uma funcao que reinicia estado precisa dizer quando NAO faz nada,
+            senao ela so pode ser chamada por quem ja sabe a resposta.
+
+        E preciso poder chama-la sempre: a resolucao real da camera chega
+        depois do `iniciar()` quando ela demora a conectar — a C920 leva uns
+        nove segundos. Ver `orquestrador._casar_homografia_com_a_camera`.
         """
+        if self._quadro == (int(largura), int(altura)):
+            return False
         nova = self._ajustar_escala(self.H_original, self.resolucao_calibracao,
                                     (largura, altura))
         mudou = not np.allclose(nova, self.H)
