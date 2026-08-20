@@ -217,11 +217,28 @@ def main() -> None:
 
     H = None
     ver_de_cima = False
+    # A RESOLUCAO REAL, E NAO A PEDIDA.
+    #
+    # `cam.set(FRAME_WIDTH, 640)` e um PEDIDO; a camera responde o que quiser,
+    # e num stream http ele nao faz nada — o tablet manda o que ele decidiu.
+    # Ate 20/08 o arquivo gravava `[640, 480]` cravado.
+    #
+    # Se o aparelho entregasse 1280x720, a homografia estaria certa nos pixels
+    # reais e o arquivo diria outra coisa — e tudo que reescala depois
+    # (`motor._ajustar_escala`, `intrinseca_medida`) erraria por um fator de
+    # dois, sem sintoma nenhum alem de numeros errados.
+    #
+    #     Resolucao pedida nao e resolucao obtida, e gravar a pedida e
+    #     documentar uma intencao como se fosse uma medida.
+    resolucao = None
 
     print(__doc__)
 
     while True:
         ok, frame = cam.read()
+        if ok and frame is not None and resolucao is None:
+            resolucao = [int(frame.shape[1]), int(frame.shape[0])]
+            print(f"  a camera entregou {resolucao[0]}x{resolucao[1]}")
         if not ok:
             break
 
@@ -372,7 +389,7 @@ def main() -> None:
                     "origem_m": [float(ox), float(oy)],
                     "largura_m": args.largura_m,
                     "altura_m": args.altura_m,
-                    "resolucao": [640, 480],
+                    "resolucao": resolucao or [640, 480],
                     "_nota": [
                         "O retangulo NAO precisa estar na origem.",
                         "",

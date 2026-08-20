@@ -287,5 +287,71 @@ def test_o_arquivo_antigo_do_alto_continua_valendo():
 
     from src.mundo.camaras import _ler_homografia
     calib = Path(__file__).resolve().parent.parent / "calibracao"
-    H, tam, _d = _ler_homografia(calib, "alto")
+    H, tam = _ler_homografia(calib, "alto")
     assert H is not None and tam == (640, 480)
+
+
+# ============ A DISTORCAO CHEGA ATE A CAMARA (defeito achado em 20/08)
+#
+# `carregar` recebia `dist` de `_ler_homografia`, que nunca teve essa
+# informacao e devolvia None sempre. O `intrinseca-<papel>.json` GRAVA os
+# coeficientes desde o primeiro dia — e ninguem lia.
+#
+# O resultado seria mudo: `sem_distorcao` viraria uma funcao que nao faz
+# nada, o barril da C920 continuaria torcendo as bordas, e o erro apareceria
+# como centimetros no chao sem nada apontando para a lente.
+#
+#     Um dado gravado que ninguem le e pior que um dado ausente: o ausente
+#     aparece na primeira execucao.
+
+
+def _calibracao_falsa(tmp_path, com_distorcao=True):
+    import json
+    calib = tmp_path / "calibracao"
+    calib.mkdir(parents=True, exist_ok=True)
+    cam = _camara("alto", 551.0, (0.9, 0.2, 2.4))
+    (calib / "homografia-alto.json").write_text(json.dumps({
+        "H": cam.homografia.tolist(), "resolucao": [LARG, ALT]}))
+    corpo = {"resolucao": [LARG, ALT], "K": cam.K.tolist()}
+    if com_distorcao:
+        corpo["dist"] = [-0.12, 0.08, 0.001, -0.002, 0.0]
+    (calib / "intrinseca-alto.json").write_text(json.dumps(corpo))
+    return tmp_path
+
+
+def test_a_distorcao_do_tabuleiro_chega_na_camara(tmp_path):
+    cams = Camaras.carregar(_calibracao_falsa(tmp_path))
+    c = cams["alto"]
+    assert c.origem_da_focal == "tabuleiro"
+    assert c.dist is not None, "a distorcao foi gravada e nao foi lida"
+    assert len(c.dist) == 5
+
+
+def test_sem_distorcao_desfaz_o_barril_de_verdade(tmp_path):
+    """Se `dist` chegar mas nao for usada, esta funcao vira um `return x`."""
+    cams = Camaras.carregar(_calibracao_falsa(tmp_path))
+    c = cams["alto"]
+    borda = [(20.0, 30.0)]
+    assert np.linalg.norm(c.sem_distorcao(borda)[0] - borda[0]) > 1.0
+
+
+def test_sem_tabuleiro_a_distorcao_e_None_e_nao_zero(tmp_path):
+    """Nao saber a distorcao e diferente de saber que ela e zero."""
+    cams = Camaras.carregar(_calibracao_falsa(tmp_path, com_distorcao=False))
+    assert cams["alto"].dist is None
+    ponto = [(20.0, 30.0)]
+    assert cams["alto"].sem_distorcao(ponto)[0] == pytest.approx(ponto[0])
+
+
+def test_a_homografia_grava_a_resolucao_REAL(tmp_path):
+    """`cam.set(FRAME_WIDTH, 640)` e um PEDIDO; num stream http nao faz nada.
+
+        Resolucao pedida nao e resolucao obtida, e gravar a pedida e
+        documentar uma intencao como se fosse uma medida.
+    """
+    import inspect
+
+    import calibracao.homografia as hg
+    fonte = inspect.getsource(hg.main)
+    assert "frame.shape[1]" in fonte, "nao le a resolucao entregue"
+    assert '"resolucao": [640, 480],' not in fonte, "ainda grava cravado"

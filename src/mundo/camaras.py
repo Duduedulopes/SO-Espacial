@@ -218,13 +218,13 @@ class Camaras:
         achadas = {}
 
         for papel in papeis:
-            homog, tam, dist = _ler_homografia(calib, papel)
+            homog, tam = _ler_homografia(calib, papel)
             if homog is None:
                 continue
             larg, alt = tam
 
-            K, origem = _ler_intrinseca(calib, papel, larg, alt,
-                                        intrinseca_medida)
+            K, dist, origem = _ler_intrinseca(calib, papel, larg, alt,
+                                              intrinseca_medida)
             if K is None and alturas.get(papel):
                 K = focal_pela_altura(homog, larg, alt, alturas[papel])
                 origem = f"trena ({alturas[papel]:.2f} m)"
@@ -428,7 +428,7 @@ def _duas_que_discordam(medidas, limite=DESVIOS_PARA_DISPARATE):
 
 
 def _ler_homografia(calib, papel):
-    """(H, (largura, altura), dist) do papel, ou (None, None, None).
+    """(H, (largura, altura)) do papel, ou (None, None).
 
     O arquivo da camera do alto vive em `homografia.json` desde o comeco, e
     continua la: `rodar.py`, `mapear.py` e o `--mono` leem de la. Os outros
@@ -439,20 +439,47 @@ def _ler_homografia(calib, papel):
         candidatos.append(calib / "homografia.json")
     caminho = next((c for c in candidatos if c.exists()), None)
     if caminho is None:
-        return None, None, None
+        return None, None
     try:
         d = json.loads(caminho.read_text(encoding="utf-8"))
         H = np.array(d["H"], dtype=float)
         larg, alt = d.get("resolucao", (640, 480))
-        return H, (int(larg), int(alt)), None
+        return H, (int(larg), int(alt))
     except Exception:
-        return None, None, None
+        return None, None
 
 
 def _ler_intrinseca(calib, papel, larg, alt, leitor):
-    """K medida com tabuleiro, e os coeficientes de distorcao junto."""
+    """(K, dist, origem) do tabuleiro, ou (None, None, "").
+
+    A DISTORCAO VEM JUNTO, E ELA E METADE DO MOTIVO DE RODAR O TABULEIRO.
+
+    Defeito achado em 20/08, antes da primeira corrida: `carregar` recebia
+    `dist` de `_ler_homografia`, que nunca teve essa informacao e devolvia
+    None sempre. O `intrinseca-<papel>.json` GRAVA os coeficientes desde o
+    primeiro dia — e ninguem lia.
+
+    O resultado seria mudo: `sem_distorcao` viraria uma funcao que nao faz
+    nada, o barril da C920 continuaria torcendo as bordas, e o erro
+    apareceria como centimetros no chao sem nada apontando para a lente.
+
+        Um dado gravado que ninguem le e pior que um dado ausente: o ausente
+        aparece na primeira execucao.
+    """
     caminho = calib / f"intrinseca-{papel}.json"
     if not caminho.exists():
-        return None, ""
+        return None, None, ""
     K = leitor(caminho, largura_px=larg, altura_px=alt)
-    return (K, "tabuleiro") if K is not None else (None, "")
+    if K is None:
+        return None, None, ""
+    dist = None
+    try:
+        d = json.loads(caminho.read_text(encoding="utf-8"))
+        bruto = d.get("dist")
+        if bruto:
+            # Os coeficientes sao adimensionais, em coordenadas normalizadas.
+            # Ao contrario de K, eles NAO se reescalam com a resolucao.
+            dist = np.asarray(bruto, dtype=float).ravel()
+    except Exception:
+        dist = None
+    return K, dist, "tabuleiro"
