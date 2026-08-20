@@ -1,11 +1,24 @@
-"""Calibra a lateral e a frontal com voce ANDANDO. Sem papel, sem fita.
+"""Calibra a lateral e a frontal com voce PARANDO em varios lugares.
 
-    python ferramentas/calibrar_andando.py --segundos 90
-    python ferramentas/calibrar_andando.py --segundos 90 --gravar
+    python ferramentas/calibrar_andando.py --segundos 120
+    python ferramentas/calibrar_andando.py --segundos 120 --gravar
 
-O QUE FAZER: ande. Devagar, pela MAIOR area que as cameras alcancarem, de pe
-e olhando para frente. Um minuto e meio basta. Nao precisa clicar em nada nem
-imprimir nada.
+O QUE FAZER: pare, conte ate tres, ande para outro lugar, pare de novo. Dez a
+quinze paradas, o mais espalhadas que as cameras alcancarem, de pe e olhando
+para frente. Nao precisa clicar em nada nem imprimir nada.
+
+POR QUE PARANDO, E NAO ANDANDO — MEDIDO EM 20/08
+
+A conta supoe que voce e um BASTAO VERTICAL: que o ombro esta exatamente
+acima do meio dos tornozelos. Andando, isso e falso — o tronco inclina e os
+pes se afastam. Medido na caminhada real: 15 a 25 cm de desvio, em TODO
+quadro. Nao e ruido que se rejeite; e vies.
+
+    A hipotese nao estava errada por pouco: estava sendo aplicada exatamente
+    no momento em que ela nao vale.
+
+Parado, o corpo e vertical de verdade e os pes ficam juntos. Andar continua
+sendo necessario — para cobrir area — mas o que ele mede sao as PARADAS.
 
 POR QUE ISSO FUNCIONA
 
@@ -52,13 +65,48 @@ sys.path.insert(0, str(RAIZ))
 
 import numpy as np                                            # noqa: E402
 
-from src.gemeo.boneco import ALTURA_NARIZ, ALTURA_OMBRO       # noqa: E402
+from src.gemeo.boneco import (ALTURA_JOELHO, ALTURA_NARIZ,     # noqa: E402
+                              ALTURA_OMBRO, ALTURA_QUADRIL,
+                              ALTURA_TORNOZELO)
 from src.mundo.andando import (Coleta, diagnostico,           # noqa: E402
                                homografia_da_pose, resolver)
 
-TORNOZELO = (15, 16)
-OMBRO = (5, 6)
-NARIZ = (0,)
+# CINCO ALTURAS AO LONGO DO EIXO DO CORPO, E NAO DUAS.
+#
+# ERRO MEU, MEDIDO EM 20/08: eu usava so ombro e nariz, que ficam a 17 cm um
+# do outro. Dois planos a 17 cm, com a camera a 1,5 m, sao praticamente um
+# plano so — e a focal fica INDETERMINADA. Ela saiu 166 px numa corrida e
+# 37 359 px noutra: o otimizador pode por a camera em qualquer lugar ao
+# longo de um raio.
+#
+# Escrevi "um plano so nao tem profundidade para revelar" no cabecalho deste
+# arquivo e nao percebi que 17 cm e um plano so.
+#
+#     Duas medidas quase no mesmo lugar nao sao duas medidas. Sao uma, com
+#     um numero a mais para dar confianca.
+#
+# Cotovelo e pulso ficam de fora de proposito: eles BALANCAM, e nao estao
+# sobre o eixo vertical do corpo. As cinco abaixo estao.
+PONTOS = {
+    "nariz": ((0,), ALTURA_NARIZ),
+    "ombro": ((5, 6), ALTURA_OMBRO),
+    "quadril": ((11, 12), ALTURA_QUADRIL),
+    "joelho": ((13, 14), ALTURA_JOELHO),
+    "tornozelo": ((15, 16), ALTURA_TORNOZELO),
+}
+
+# Acima desta velocidade, o corpo nao e um bastao vertical.
+#
+# MEDIDO: andando, o desvio entre o meio dos tornozelos e o meio dos ombros
+# chega a 15-25 cm — o tronco inclina e os pes se afastam. Isso nao e ruido
+# que se rejeita: e vies presente em TODO quadro de caminhada.
+#
+#     A hipotese nao estava errada por pouco: estava sendo aplicada
+#     exatamente no momento em que ela nao vale.
+#
+# Parado, o corpo e vertical de verdade e os pes estao juntos. Entao a
+# instrucao muda de "ande" para "PARE em varios lugares".
+PARADO_ABAIXO_DE = 0.10
 
 # Confianca minima do ponto para ele virar correspondencia.
 #
@@ -82,17 +130,16 @@ def _ponto(juntas, conf, indices, minimo=CONFIANCA_MINIMA):
 
 
 def _pixeis_da_vista(pose):
-    """{'pe':..., 'ombro':..., 'nariz':...} da pose crua de uma camera."""
+    """{nome_da_junta: (u, v)} da pose crua de uma camera."""
     if pose is None or pose.juntas_2d is None:
         return None
     j, c = pose.juntas_2d, pose.conf_2d
-    achados = {"pe": _ponto(j, c, TORNOZELO),
-               "ombro": _ponto(j, c, OMBRO),
-               "nariz": _ponto(j, c, NARIZ)}
+    achados = {nome: _ponto(j, c, indices)
+               for nome, (indices, _fracao) in PONTOS.items()}
     return achados if any(v is not None for v in achados.values()) else None
 
 
-FRACAO_DA_ESTATURA = {"pe": 0.0, "ombro": ALTURA_OMBRO, "nariz": ALTURA_NARIZ}
+FRACAO_DA_ESTATURA = {nome: fracao for nome, (_i, fracao) in PONTOS.items()}
 
 
 def _juntar(cruas, papel, pe_no_chao, pixeis):
@@ -210,6 +257,7 @@ def main():
 
     cruas = {}
     estaturas = []
+    andando = 0
     t0 = time.monotonic()
     try:
         while time.monotonic() - t0 < args.segundos:
@@ -227,6 +275,9 @@ def main():
             pessoa = pessoas[0]
             if pessoa.prevendo:
                 continue                 # posicao prevista nao e posicao vista
+            if pessoa.velocidade >= PARADO_ABAIXO_DE:
+                andando += 1
+                continue                 # em movimento o corpo nao e vertical
 
             estatura = app.espacial.escala.estatura(pessoa.id)
             if not estatura:
@@ -243,7 +294,9 @@ def main():
             if int(se) != int(se - 0.2):
                 quanto = "  ".join(f"{k}:{len(v['pontos'])}"
                                    for k, v in cruas.items())
-                print(f"\r  {se:5.1f}s   pares  {quanto}   ", end="", flush=True)
+                print(f"\r  {se:5.1f}s   PARE em varios lugares   "
+                      f"pares {quanto}   (descartados andando: {andando})   ",
+                      end="", flush=True)
     except KeyboardInterrupt:
         print("\n  interrompido")
     finally:

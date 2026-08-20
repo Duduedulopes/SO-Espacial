@@ -238,3 +238,75 @@ def test_pares_do_instante_sem_estatura_nao_inventa_a_cabeca():
     fora = pares_do_instante((1.0, 0.5), None,
                              {"lateral": {"pe": (10, 20), "cabeca": (10, 5)}})
     assert len(fora["lateral"]) == 1
+
+
+# ===== O AJUSTE ROBUSTO (20/08, medido sobre a caminhada real do Eduardo)
+#
+# `calibrateCamera` e minimos quadrados puro — nao tem RANSAC. Sobre os dados
+# reais, so 16% dos pares fechavam dentro de 5 cm e 51% dentro de 20. Nao ha
+# separacao limpa entre bom e ruim: e ruido continuo com cauda longa, e um
+# passo chegou a 74 cm.
+#
+#     Numa media, um ponto ruim dilui. Num ajuste, ele arrasta — e no
+#     quadrado do erro, ele arrasta pelo quadrado.
+
+
+def test_uma_cauda_longa_de_erros_nao_arrasta_o_ajuste():
+    """Um decimo dos pontos com erro grosseiro. Sem robustez, a focal foge."""
+    K, R, t = _camera(focal=600.0)
+    c = _caminhada(K, R, t, passos=250, ruido_px=1.0)
+    rng = np.random.default_rng(11)
+    sujo = Coleta(quadros=c.quadros)
+    for k, (m, p) in enumerate(zip(c.mundo, c.pixel)):
+        if k % 10 == 0:                        # 10% de disparate
+            p = (p[0] + rng.normal(0, 120), p[1] + rng.normal(0, 120))
+        sujo.juntar(m, p)
+
+    achado = resolver(sujo, (LARG, ALT))
+    assert achado is not None
+    assert achado[0][0, 0] == pytest.approx(600.0, rel=0.15), (
+        f"a focal fugiu para {achado[0][0, 0]:.0f}")
+
+
+def test_dados_limpos_nao_sao_prejudicados_pela_robustez():
+    """Expulsar quem nao ha nao pode custar precisao."""
+    K, R, t = _camera(focal=600.0)
+    achado = resolver(_caminhada(K, R, t), (LARG, ALT))
+    assert achado[0][0, 0] == pytest.approx(600.0, rel=0.03)
+    assert achado[4] < 0.5
+
+
+def test_cinco_alturas_valem_mais_que_duas_quase_juntas():
+    """ERRO MEU: ombro e nariz ficam a 17 cm um do outro.
+
+    Dois planos a 17 cm, com a camera a 1,5 m, sao praticamente um plano so —
+    e a focal fica indeterminada. Ela saiu 166 px numa corrida e 37 359 px
+    noutra.
+
+        Duas medidas quase no mesmo lugar nao sao duas medidas. Sao uma, com
+        um numero a mais para dar confianca.
+    """
+    from ferramentas.calibrar_andando import PONTOS
+    alturas = sorted(f for _i, f in PONTOS.values())
+    assert len(alturas) >= 5
+    assert alturas[-1] - alturas[0] > 0.85, "as alturas nao se espalham"
+
+    # e as duas que eu usava antes, sozinhas, sao quase o mesmo plano
+    assert PONTOS["nariz"][1] - PONTOS["ombro"][1] < 0.11
+
+
+def test_so_ombro_e_nariz_dao_uma_focal_sem_sentido():
+    """A prova de que o teste acima mede algo real."""
+    K, R, t = _camera(focal=600.0)
+    c = _caminhada(K, R, t, passos=250, ruido_px=2.0)
+    E = ESTATURA
+    quase_plano = Coleta(quadros=c.quadros)
+    for (x, y, z), p in zip(c.mundo, c.pixel):
+        # reposiciona os dois planos a 17 cm um do outro
+        novo = 0.82 * E if z == 0.0 else 0.925 * E
+        quase_plano.juntar((x, y, novo), p)
+    achado = resolver(quase_plano, (LARG, ALT))
+    if achado is not None:
+        fugiu = not (0.5 < achado[0][0, 0] / 600.0 < 2.0)
+        assert fugiu or achado[4] > ERRO_MAXIMO_PX, (
+            "dois planos a 17 cm nao deveriam determinar a focal")

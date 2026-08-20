@@ -188,13 +188,49 @@ def resolver(coleta, tamanho, fixar_centro=True):
     if fixar_centro:
         bandeiras |= cv2.CALIB_USE_INTRINSIC_GUESS
 
-    try:
-        erro, K, dist, rvecs, tvecs = cv2.calibrateCamera(
-            [obj], [img], (larg, alt), palpite, None, flags=bandeiras)
-    except cv2.error:
-        return None
-    if not rvecs:
-        return None
+    # AJUSTE ROBUSTO: RESOLVE, EXPULSA OS PIORES, RESOLVE DE NOVO.
+    #
+    # `calibrateCamera` e minimos quadrados puro — nao tem RANSAC. Medido em
+    # 20/08 sobre a caminhada real: so 16% dos pares fecham dentro de 5 cm, e
+    # 51% dentro de 20. Nao ha separacao limpa entre bom e ruim; e ruido
+    # continuo, com cauda longa (um passo chegou a 74 cm).
+    #
+    # Minimos quadrados sobre cauda longa e dominado pela cauda: o quadrado
+    # de um erro de 70 cm pesa quinhentas vezes o de um erro de 3.
+    #
+    #     Numa media, um ponto ruim dilui. Num ajuste, ele arrasta — e no
+    #     quadrado do erro, ele arrasta pelo quadrado.
+    #
+    # Duas rodadas bastam: a primeira solucao ja e boa o suficiente para
+    # ORDENAR os pontos por erro, mesmo estando puxada. E ordenar e tudo o
+    # que se precisa para expulsar.
+    idx = np.arange(len(obj))
+    achado = None
+    for rodada in range(3):
+        try:
+            erro, K, dist, rvecs, tvecs = cv2.calibrateCamera(
+                [obj[idx]], [img[idx]], (larg, alt), palpite, None,
+                flags=bandeiras)
+        except cv2.error:
+            return achado
+        if not rvecs:
+            return achado
+        achado = (erro, K, dist, rvecs, tvecs)
+        if rodada == 2:
+            break
+
+        prev, _ = cv2.projectPoints(obj[idx], rvecs[0], tvecs[0], K, dist)
+        resto = np.linalg.norm(prev.reshape(-1, 2) - img[idx].reshape(-1, 2),
+                               axis=1)
+        # Corte pela MEDIANA e nao pela media: com cauda longa, a media do
+        # erro ja esta do lado dos piores.
+        corte = float(np.median(resto)) * 2.5
+        fica = resto <= max(corte, 2.0)
+        if fica.sum() < MINIMO_DE_PARES or fica.all():
+            break
+        idx = idx[fica]
+
+    erro, K, dist, rvecs, tvecs = achado
 
     R, _ = cv2.Rodrigues(rvecs[0])
     t = np.asarray(tvecs[0], dtype=float).ravel()
