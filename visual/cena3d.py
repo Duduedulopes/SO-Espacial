@@ -357,6 +357,48 @@ class Cena3D:
         self.moveis.append((x, y, larg, prof, alt, rotulo, float(rumo),
                             tuple(float(a) for _, a in prateleiras)))
 
+    # Meia-volta seria olhar a face de frente e achatada. Trinta graus dao a
+    # vista de 3/4 que mostra largura E profundidade no mesmo quadro.
+    TRES_QUARTOS = np.deg2rad(30.0)
+
+    def olhar_pela_face(self, offset=None):
+        """Poe a camera virtual do lado do CLIENTE, nao do lado da parede.
+
+        MEDIDO em 20/08: com azimute -60 fixo, a camera nascia em
+        (+2,71, -3,32) e a face da estante apontava para (-0,52, +0,85). O
+        produto escalar dava -0,99 — dead behind. A pessoa, corretamente
+        posta na frente da estante pelo motor, saia atras dela na tela.
+
+            A estante aparecia na frente do gemeo digital e na verdade e ao
+            contrario, eu estou na frente e ela esta atras.   — Eduardo, 20/08
+
+        Nao era erro de geometria nem de ordem de desenho: o modelo estava
+        certo e o ponto de vista, errado. Ninguem monta uma loja para ser
+        vista pelo fundo da gondola.
+
+            Um angulo de camera escolhido antes de existir um movel e um
+            palpite; depois que o movel tem face, e uma conta.
+
+        O `rumo_da_face` ja diz para onde o movel olha. A camera passa a
+        nascer desse lado. As setas continuam mandando — isto e o inicio,
+        nao uma trava.
+
+        Devolve True se mexeu.
+        """
+        if not self.moveis:
+            return False
+        # O movel PRINCIPAL e o de maior face (largura x altura): e dele que
+        # se pega produto, e e ele que a camera precisa mostrar de frente.
+        _x, _y, _larg, _prof, _alt, _rot, rumo, _alturas = max(
+            self.moveis, key=lambda m: m[2] * m[4])
+        # a face olha para (-sen rumo, cos rumo); a camera fica desse lado
+        alvo = self.TRES_QUARTOS if offset is None else float(offset)
+        self.cam.azimute = float(np.arctan2(np.cos(rumo), -np.sin(rumo))
+                                 + alvo)
+        self.cam.dist = self._distancia_que_enquadra()
+        self.invalidar()
+        return True
+
     @staticmethod
     def pes_do_movel(m):
         """Os quatro cantos do movel no chao, em metros.

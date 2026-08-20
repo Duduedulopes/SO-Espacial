@@ -176,3 +176,90 @@ def test_bancada_migrada_cabe_no_chao():
     for m in planta.moveis:
         assert x0 <= m.x <= x1, f"{m.id} saiu do chao em x"
         assert y0 <= m.y <= y1, f"{m.id} saiu do chao em y"
+
+
+# ------------------------------------- a camera virtual olha a loja de frente
+#
+# "a estante aparecia na frente do gemeo digital e na verdade e ao contrario,
+#  eu estou na frente e ela esta atras"                     — Eduardo, 20/08
+#
+# O modelo estava certo: o motor punha a pessoa em (+0,29, +0,95), do lado da
+# face (cos +0,94). Errado estava o ponto de vista — azimute -60 fixo, escrito
+# antes de existir movel nenhum.
+def _olho(cena):
+    return np.asarray(cena.cam.posicao[:2], dtype=float)
+
+
+def _normal(rumo):
+    return np.array([-math.sin(rumo), math.cos(rumo)])
+
+
+@pytest.mark.parametrize("rumo", [0.0, 0.54, -0.56, 1.9, 3.0, -2.4])
+def test_a_camera_nasce_do_lado_da_face(rumo):
+    """Para qualquer rumo, a camera fica do lado de quem pega produto."""
+    cena = Cena3D(320, 240, chao=(-0.83, 3.24, -1.86, 2.11))
+    cena.add_movel(0.68, 0.65, 0.92, 0.30, 1.90, "estante", rumo=rumo)
+    assert cena.olhar_pela_face()
+    para_o_olho = _olho(cena) - np.array([0.68, 0.65])
+    para_o_olho /= np.linalg.norm(para_o_olho)
+    assert float(para_o_olho @ _normal(rumo)) > 0.5, "olhando o fundo"
+
+
+def test_o_caso_do_eduardo_a_pessoa_fica_na_frente_da_estante():
+    """A queixa dele, virada numa conta.
+
+    Ele em (+0,29, +0,95), a estante em (+0,68, +0,65) com a face em +31
+    graus. Ele TEM que estar mais perto da camera virtual do que ela.
+    """
+    cena = Cena3D(960, 620, chao=(-0.83, 3.24, -1.86, 2.11))
+    cena.add_movel(0.68, 0.65, 0.92, 0.30, 1.90, "estante",
+                   rumo=math.radians(31))
+    cena.olhar_pela_face()
+    olho = _olho(cena)
+    dele = float(np.linalg.norm(olho - np.array([0.29, 0.95])))
+    dela = float(np.linalg.norm(olho - np.array([0.68, 0.65])))
+    assert dele < dela, f"a pessoa a {dele:.2f} m, a estante a {dela:.2f} m"
+
+
+def test_com_o_azimute_de_antes_a_queixa_se_reproduz():
+    """A guarda: se alguem devolver o -60 fixo, este teste cai.
+
+    Sem ele, nada impede o numero de voltar — e o defeito nao levanta excecao,
+    so desenha errado.
+    """
+    cena = Cena3D(960, 620, chao=(-0.83, 3.24, -1.86, 2.11))
+    cena.add_movel(0.68, 0.65, 0.92, 0.30, 1.90, "estante",
+                   rumo=math.radians(31))
+    cena.cam.azimute = np.deg2rad(-60)          # como era ate 20/08
+    olho = _olho(cena)
+    assert (np.linalg.norm(olho - np.array([0.29, 0.95]))
+            > np.linalg.norm(olho - np.array([0.68, 0.65])))
+
+
+def test_a_maior_face_e_que_manda():
+    """Com dois moveis, quem escolhe o angulo e a estante, nao o balcao."""
+    cena = Cena3D(320, 240, chao=(0.0, 4.0, 0.0, 4.0))
+    cena.add_movel(3.0, 3.0, 1.60, 0.50, 0.90, "balcao", rumo=0.0)
+    cena.add_movel(1.0, 1.0, 0.92, 0.30, 1.90, "estante", rumo=math.pi / 2)
+    cena.olhar_pela_face()
+    para_o_olho = _olho(cena) - np.array([1.0, 1.0])
+    para_o_olho /= np.linalg.norm(para_o_olho)
+    assert float(para_o_olho @ _normal(math.pi / 2)) > 0.5
+
+
+def test_sem_movel_nao_inventa_angulo():
+    cena = Cena3D(320, 240, chao=(0.0, 2.0, 0.0, 2.0))
+    antes = cena.cam.azimute
+    assert cena.olhar_pela_face() is False
+    assert cena.cam.azimute == antes
+
+
+def test_a_planta_ja_aponta_a_camera(tmp_path):
+    """`aplicar_na_cena` faz as duas coisas: poe os moveis e vira a camera."""
+    p = _planta(tmp_path, x=0.68, y=0.65,
+                rumo_da_face=math.radians(31))
+    cena = Cena3D(320, 240, chao=p.chao)
+    p.aplicar_na_cena(cena)
+    para_o_olho = _olho(cena) - np.array([0.68, 0.65])
+    para_o_olho /= np.linalg.norm(para_o_olho)
+    assert float(para_o_olho @ _normal(math.radians(31))) > 0.5
