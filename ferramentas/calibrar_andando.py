@@ -92,18 +92,44 @@ def _pixeis_da_vista(pose):
     return achados if any(v is not None for v in achados.values()) else None
 
 
-def _juntar(coletas, papel, pe_no_chao, estatura, pixeis):
-    """Poe os pares deste instante na coleta do papel."""
-    alturas = {"pe": 0.0,
-               "ombro": ALTURA_OMBRO * estatura,
-               "nariz": ALTURA_NARIZ * estatura}
-    c = coletas.setdefault(papel, Coleta())
-    c.quadros += 1
+FRACAO_DA_ESTATURA = {"pe": 0.0, "ombro": ALTURA_OMBRO, "nariz": ALTURA_NARIZ}
+
+
+def _juntar(cruas, papel, pe_no_chao, pixeis):
+    """Guarda a FRACAO da estatura, e nao a altura em metros.
+
+    ERRO MEU, VISTO NA PRIMEIRA CORRIDA: `alturas 13`.
+
+    `escala.estatura(id)` e uma estimativa que CONVERGE — ela muda a cada
+    quadro enquanto junta amostras. Multiplicando por ela na hora, o mesmo
+    ombro fisico virava treze alturas diferentes no mundo, e a nuvem que
+    deveria ser tres planos limpos virava tres borroes.
+
+        Uma grandeza que ainda esta convergindo nao pode ser usada como
+        regua enquanto converge. Ou se espera, ou se guarda a razao e se
+        multiplica no fim.
+
+    Guardar a fracao e multiplicar uma vez, no fim, com a estatura final,
+    deixa os planos exatos e ainda permite recalcular sem andar de novo.
+    """
+    c = cruas.setdefault(papel, {"pontos": [], "quadros": 0})
+    c["quadros"] += 1
     x, y = pe_no_chao
     for nome, uv in pixeis.items():
-        if uv is None:
-            continue
-        c.juntar((x, y, alturas[nome]), uv)
+        if uv is not None:
+            c["pontos"].append((float(x), float(y),
+                                FRACAO_DA_ESTATURA[nome], uv, nome))
+
+
+def _fechar(cruas, estatura):
+    """As fracoes viram metros, de uma vez, com a estatura final."""
+    fora = {}
+    for papel, c in cruas.items():
+        coleta = Coleta(quadros=c["quadros"])
+        for x, y, fracao, uv, _nome in c["pontos"]:
+            coleta.juntar((x, y, fracao * estatura), uv)
+        fora[papel] = coleta
+    return fora
 
 
 def _gravar(papel, K, dist, R, t, tamanho, erro, quadros, pares):
@@ -142,6 +168,28 @@ def _gravar(papel, K, dist, R, t, tamanho, erro, quadros, pares):
     return calib / f"homografia-{papel}.json"
 
 
+def _despejar(cruas, estatura, destino):
+    """Grava os pares crus. Para eu poder analisar em vez de adivinhar.
+
+        Quando o resultado nao faz sentido, o proximo passo nao e outra
+        hipotese: e olhar o dado que a produziu.
+    """
+    if not cruas:
+        return
+    caminho = RAIZ / destino
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    corpo = {"estatura_m": estatura,
+             "fracoes": FRACAO_DA_ESTATURA,
+             "por_papel": {
+                 papel: {"quadros": c["quadros"],
+                         "pontos": [{"x": x, "y": y, "fracao": f,
+                                     "u": uv[0], "v": uv[1], "junta": nome}
+                                    for x, y, f, uv, nome in c["pontos"]]}
+                 for papel, c in cruas.items()}}
+    caminho.write_text(json.dumps(corpo, indent=1), encoding="utf-8")
+    print(f"  pares crus em {destino}")
+
+
 def main():
     p = argparse.ArgumentParser(
         description="calibra as outras cameras com voce andando")
@@ -149,6 +197,8 @@ def main():
     p.add_argument("--papeis", nargs="*", default=["frontal", "lateral"])
     p.add_argument("--captura", default="1280x720")
     p.add_argument("--gravar", action="store_true")
+    p.add_argument("--salvar-pares", default="dados/pares_calibracao.json",
+                   help="onde despejar os pares crus, para analise")
     args = p.parse_args()
 
     from src.app.orquestrador import Orquestrador
@@ -158,8 +208,8 @@ def main():
     app = Orquestrador(captura=(larg, alt), com_pose=True)
     app.montar_cameras_reais().montar_visao().iniciar()
 
-    coletas = {}
-    estatura_usada = None
+    cruas = {}
+    estaturas = []
     t0 = time.monotonic()
     try:
         while time.monotonic() - t0 < args.segundos:
@@ -181,25 +231,37 @@ def main():
             estatura = app.espacial.escala.estatura(pessoa.id)
             if not estatura:
                 continue
-            estatura_usada = estatura
+            estaturas.append(float(estatura))
 
             poses = app.espacial.poses_por_papel
             for papel in args.papeis:
                 pixeis = _pixeis_da_vista(poses.get(papel))
                 if pixeis:
-                    _juntar(coletas, papel, (pessoa.x, pessoa.y), estatura,
-                            pixeis)
+                    _juntar(cruas, papel, (pessoa.x, pessoa.y), pixeis)
 
             se = time.monotonic() - t0
             if int(se) != int(se - 0.2):
-                quanto = "  ".join(f"{k}:{len(v)}" for k, v in coletas.items())
+                quanto = "  ".join(f"{k}:{len(v['pontos'])}"
+                                   for k, v in cruas.items())
                 print(f"\r  {se:5.1f}s   pares  {quanto}   ", end="", flush=True)
     except KeyboardInterrupt:
         print("\n  interrompido")
     finally:
         app.parar()
 
-    print(f"\n\n  estatura usada: {estatura_usada or '—'} m\n")
+    # A ESTATURA FINAL, UMA SO, E PELA MEDIANA.
+    #
+    # Ela converge ao longo da caminhada; a mediana das amostras e o valor
+    # que a serie inteira sustenta, e nao o ultimo palpite.
+    estatura_final = float(np.median(estaturas)) if estaturas else 0.0
+    print(f"\n\n  estatura: mediana {estatura_final:.3f} m  de "
+          f"{len(estaturas)} amostras")
+    if estaturas:
+        print(f"            varia de {min(estaturas):.2f} a "
+              f"{max(estaturas):.2f} m")
+    print()
+    coletas = _fechar(cruas, estatura_final) if estatura_final else {}
+    _despejar(cruas, estatura_final, args.salvar_pares)
     if not coletas:
         raise SystemExit(
             "  nao juntei par nenhum.\n"
