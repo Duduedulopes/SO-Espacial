@@ -19,15 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-NOTA SOBRE DEPENDENCIAS DE TERCEIROS
-
-A licenca acima cobre o codigo deste repositorio. Ela nao se estende as
-bibliotecas que o projeto instala em tempo de execucao, cada uma com a
-propria licenca.
-
-Uma delas merece atencao especial: `ultralytics`, usada em
-`src/visao/detector.py`, e distribuida sob AGPL-3.0. Veja a secao "Licenca e
-dependencias" no README antes de usar este codigo em produto fechado.

@@ -307,7 +307,8 @@ O código deste repositório está sob **MIT** — veja [`LICENSE`](LICENSE). Us
 copie, modifique e venda; basta manter o aviso de copyright.
 
 Isso cobre o que está aqui dentro. As bibliotecas instaladas em tempo de
-execução têm licenças próprias, e uma delas exige atenção.
+execução têm licenças próprias — a lista completa está em
+[`NOTICE.md`](NOTICE.md). Uma delas exige atenção.
 
 ### O caso do Ultralytics
 
