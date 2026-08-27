@@ -158,56 +158,14 @@ class Publicador:
     def publicar_estado(self, estado, agora, forcar=False):
         """Grava um dicionario JA PRONTO — o instantaneo do gemeo.
 
-        E a porta preferida. O gemeo e o dono da verdade; o publicador so leva
-        essa verdade para fora. Montar o dicionario aqui, como faz `publicar()`
-        abaixo, significaria ter uma SEGUNDA versao do estado, escrita em outro
-        lugar, que pode divergir da primeira sem ninguem perceber.
+        O gemeo e o dono da verdade; o publicador so a leva para fora. Montar o
+        dicionario aqui dentro significaria ter uma SEGUNDA versao do estado,
+        escrita em outro lugar, que pode divergir da primeira sem ninguem
+        perceber.
         """
         if not forcar and (agora - self._ultimo) < self.a_cada:
             return False
         self._ultimo = agora
-        return self._gravar(json.dumps(estado, indent=2, ensure_ascii=False))
-
-    def publicar(self, planta, rastros, agora, forcar=False):
-        """Porta antiga, usada pelo `gemeo_multi.py`, que nao tem DigitalTwin.
-
-        Monta o estado a partir dos rastros crus. Sai de cena junto com o
-        programa antigo.
-        """
-        if not forcar and (agora - self._ultimo) < self.a_cada:
-            return False
-        self._ultimo = agora
-
-        estado = {
-            "loja": {"id": planta.id, "nome": planta.nome},
-            "t": round(agora, 3),
-            "pessoas": [
-                {
-                    "id": meu,
-                    "x": round(r.pos[0], 3),
-                    "y": round(r.pos[1], 3),
-                    "vx": round(r.kf.vel[0], 3),
-                    "vy": round(r.kf.vel[1], 3),
-                    "velocidade": round(r.kf.velocidade, 3),
-                    "incerteza": round(r.kf.incerteza, 3),
-                    "prevendo": bool(r.coasting),
-                    "quadros": r.quadros,
-                }
-                for meu, r in rastros.items()
-            ],
-            "zonas": [
-                {
-                    "id": getattr(z, "id", z.nome),
-                    "nome": z.nome,
-                    "ocupacao": z.ocupacao,
-                    "visitas": z.visitas,
-                    "tempo_total_s": round(z.tempo_total, 1),
-                    "tempo_medio_s": round(z.tempo_medio, 1),
-                }
-                for z in planta.zonas
-            ],
-        }
-
         return self._gravar(json.dumps(estado, indent=2, ensure_ascii=False))
 
     def _gravar(self, texto):

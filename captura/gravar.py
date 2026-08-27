@@ -211,7 +211,7 @@ def main() -> None:
         )
 
         print()
-        print(f"CLAQUETE DE FIM: passe a tag 3x agora, antes de sair da cena")
+        print("CLAQUETE DE FIM: passe a tag 3x agora, antes de sair da cena")
         print()
         print(f"sessao   : {sessao_id}")
         print(f"quadros  : {i}")

@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from src.acao.gabarito import (                                    # noqa: E402
-    CERTO, ERRADO, POBRE, SEM_LEITURA, Passo, Placar, roteiro_padrao,
+    ERRADO, POBRE, SEM_LEITURA, Passo, Placar, roteiro_padrao,
 )
 from src.acao.vocabulario import Acao, Braco, Locomocao, Postura   # noqa: E402
 from src.espacial.estado import EstadoDePessoa                     # noqa: E402

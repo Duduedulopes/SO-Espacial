@@ -65,7 +65,7 @@ esta camada que deixa o sistema lento, e tira-la nao o deixaria rapido.
 
 import sys
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -76,7 +76,7 @@ if str(RAIZ) not in sys.path:
 
 from percepcao.pose3d import desfazer_inclinacao        # noqa: E402
 from src.acao.angulos import (                          # noqa: E402
-    concentracao, diferenca_angular, media_circular, moda_circular,
+    concentracao, diferenca_angular, moda_circular,
 )
 from src.acao.vocabulario import Braco                  # noqa: E402
 

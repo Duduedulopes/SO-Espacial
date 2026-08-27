@@ -47,7 +47,7 @@ CONFIG = RAIZ / "config" / "cameras.json"
 def montar_fontes(g, largura, altura, exposicao):
     if not CONFIG.exists():
         raise SystemExit(f"nao achei {CONFIG}\n"
-                         "Rode antes: python captura/identificar.py")
+                         "Rode antes: python ferramentas/abrir_camera.py")
 
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     for papel, valor in cfg.items():

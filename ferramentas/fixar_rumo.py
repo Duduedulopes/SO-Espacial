@@ -41,7 +41,6 @@ alto ou refez a homografia.
 
 import argparse
 import json
-import math
 import sys
 import time
 from datetime import datetime

@@ -34,10 +34,12 @@ A ORDEM IMPORTA, E ESTA E A RAZAO DE CADA POSICAO
 
 NOTA DE MIGRACAO
 
-Os modulos importados ainda vivem em `percepcao/` e `estado/`. Sao os mesmos
-arquivos que os programas antigos usam. Movê-los agora quebraria o
-`gemeo_multi.py`, que continua sendo a unica versao que roda de ponta a ponta.
-A mudanca de lugar acontece quando o orquestrador novo substituir o antigo.
+Os modulos importados ainda vivem em `percepcao/` e `estado/`, fora de `src/`.
+E divida tecnica conhecida: a fronteira entre os dois lugares nao significa
+nada hoje, e existe so porque foi ali que o codigo nasceu.
+
+Mover exige acertar os imports de uma vez e revalidar a suite inteira. Fica
+registrado para ser feito de proposito, e nao no meio de outra coisa.
 """
 
 import sys

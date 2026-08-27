@@ -20,7 +20,7 @@ import math
 import numpy as np
 import pytest
 
-from estado.planta import Movel, Planta
+from estado.planta import Planta
 from visual.cena3d import Cena3D
 
 

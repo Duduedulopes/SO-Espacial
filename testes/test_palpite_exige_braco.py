@@ -18,7 +18,6 @@ alcancando, e o `_palpitar` acreditava.
 O que estes testes fixam e a fronteira: meia evidencia continua valendo, e
 nenhuma evidencia passa a nao votar.
 """
-import pytest
 
 from src.acao.corpo import LeituraDoCorpo
 from src.acao.prateleira import lado_que_alcanca

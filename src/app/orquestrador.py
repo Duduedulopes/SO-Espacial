@@ -135,7 +135,7 @@ class Orquestrador:
         if not CONFIG_CAMERAS.exists():
             raise SystemExit(
                 f"nao achei {CONFIG_CAMERAS}\n"
-                "Rode antes: python captura/identificar.py --alto ... ")
+                "Rode antes: python ferramentas/abrir_camera.py")
 
         cfg = json.loads(CONFIG_CAMERAS.read_text(encoding="utf-8"))
         for papel, valor in cfg.items():

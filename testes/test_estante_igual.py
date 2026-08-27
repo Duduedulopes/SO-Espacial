@@ -27,7 +27,6 @@ A DIVISAO DE TRABALHO, que estes testes travam:
     trena    largura, profundidade, altura, as 5 prateleiras
     cameras  x, y, rumo_da_face — e mais nada
 """
-import math
 
 import numpy as np
 import pytest

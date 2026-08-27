@@ -1,6 +1,5 @@
 """Os detectores medem em METROS antes de filtrar. Sem imagem real, com verdade
 conhecida: desenhamos a estante e conferimos que ela sai com o tamanho certo."""
-import math
 
 import cv2
 import numpy as np

@@ -1,9 +1,8 @@
 """O ambiente e reconhecido antes da pessoa, e o gabarito e o filtro."""
-import math
 
 import pytest
 
-from src.mundo.ambiente import (Ambiente, Gabarito, MemoriaDoAmbiente,
+from src.mundo.ambiente import (Gabarito, MemoriaDoAmbiente,
                                 VistaDeFrente, VistaDoAlto, reconhecer)
 
 GAB = Gabarito(id="estante-aco-teste", largura=0.92, profundidade=0.30,

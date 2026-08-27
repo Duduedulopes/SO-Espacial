@@ -43,7 +43,7 @@ from urllib.parse import urlparse
 import cv2
 
 from src.cameras.fonte import FonteDeVideo
-from src.nucleo.erros import ConexaoPerdida, TempoEsgotado
+from src.nucleo.erros import ConexaoPerdida
 
 
 class RemoteCameraSource(FonteDeVideo):

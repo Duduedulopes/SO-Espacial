@@ -44,21 +44,6 @@ from src.acao.vocabulario import Acao, Braco, Estavel, Locomocao, Postura
 _LEITURA_VAZIA = LeituraDoCorpo()
 
 
-def _sem_uso(a, b):
-    """Mantido so para leitura do historico; a implementacao vive em angulos.py.
-
-    A funcao original estava escrita aqui dentro. A camada de corpo precisa
-    exatamente da mesma aritmetica, e reimplementar seria o defeito de
-    `para_o_mundo` vs `ancorar_no_chao` outra vez.
-    """
-    d = a - b
-    while d > math.pi:
-        d -= 2 * math.pi
-    while d < -math.pi:
-        d += 2 * math.pi
-    return d
-
-
 class ClassificadorDeAcao:
     """Um por pessoa. Guarda historia, porque virar so existe no tempo.
 

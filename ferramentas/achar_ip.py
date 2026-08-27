@@ -191,7 +191,7 @@ def gravar(url, papel):
 
     CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n",
                       encoding="utf-8")
-    print(f"\nconfig/cameras.json atualizado")
+    print("\nconfig/cameras.json atualizado")
     print(f"  {papel}:  {antes}")
     print(f"        ->  {url}")
 
@@ -242,7 +242,7 @@ def main():
             return 1
         gravar(uteis[0]["url"], args.papel)
     elif uteis:
-        print(f"\npara gravar no config:")
+        print("\npara gravar no config:")
         print(f"  python ferramentas/achar_ip.py --papel {args.papel} --gravar")
     return 0
 

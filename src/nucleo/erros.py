@@ -41,7 +41,7 @@ class ErroDeCamera(ErroDoSistema):
 
 class CameraNaoEncontrada(ErroDeCamera):
     """O nome configurado nao esta entre os dispositivos presentes."""
-    sugestao = "rode: python ferramentas/identificar.py"
+    sugestao = "rode: python ferramentas/abrir_camera.py"
 
 
 class CameraNaoAbriu(ErroDeCamera):
@@ -99,7 +99,7 @@ class ErroDeCalibracao(ErroDoSistema):
 
 
 class HomografiaAusente(ErroDeCalibracao):
-    sugestao = "rode: python ferramentas/calibrar.py"
+    sugestao = "rode: python ferramentas/mapear.py"
 
 
 class ResolucaoIncompativel(ErroDeCalibracao):

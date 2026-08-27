@@ -29,7 +29,6 @@ preciso do sistema (2 a 5 cm) nao passa por aqui.
 simultaneidade esta assumindo.
 """
 
-import time
 
 from src.fluxo.quadro import Instante
 

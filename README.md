@@ -1,109 +1,123 @@
 # SO Espacial
 
-Sistema de percepção espacial para ambientes de varejo — o "gêmeo digital" de
-uma loja física, construído a partir de câmeras.
+**Percepção espacial multi-câmera — o gêmeo digital de uma loja, em tempo real**
 
-Projeto de pesquisa e estudo. Prazo aberto.
+Visão computacional × geometria projetiva × varejo autônomo
 
----
-
-## O que é, em uma frase
-
-Transformar imagens de câmeras em um **modelo vivo do espaço**: quem está na
-loja, onde, e o que está fazendo — mantido em coordenadas de planta baixa, não
-em pixels.
-
-## O que não é
-
-Não é um detector de objetos. Detecção é a primeira linha do problema, não o
-problema.
-
-O problema difícil é **manter identidade** ao longo do tempo e entre câmeras,
-sob oclusão e mudança de aparência. Toda a literatura da área gira em torno
-disso.
-
-## Nome técnico do campo
-
-Para buscar literatura, use os termos certos:
-
-- **MTMC** — Multi-Target Multi-Camera Tracking
-- **MOT** — Multiple Object Tracking
-- **Re-ID** — Person Re-Identification
-- **Spatial Intelligence / World Models** — o guarda-chuva de 2026
-
-"Digital twin de loja" traz marketing. "MTMC tracking" traz ciência.
+Eduardo Lopes, 2026 — MIT, ver [`LICENSE`](LICENSE)
 
 ---
 
-## A escada
+## O problema
 
-Cada degrau funciona e demonstra sozinho. Nada aqui depende de terminar tudo.
+Uma loja autônoma que identifica produtos por RFID sabe **o quê** saiu e
+**quantos**. Não sabe **quem** pegou, de **qual prateleira**, nem o que foi
+pego e devolvido antes de ir embora.
 
-| # | Degrau | Entrega |
-|---|---|---|
-| 0 | **Dataset e benchmark** | Aparato experimental: dados sincronizados e como medir |
-| 1 | Detecção | Pessoas e objetos em quadros isolados |
-| 2 | Rastreamento | Identidade que persiste entre quadros |
-| 3 | Zonas e permanência | Mapa de calor, tempo de permanência — já vendável sozinho |
-| 4 | **Homografia** | Vista de cima em tempo real — o gêmeo digital nasce aqui |
-| 5 | Multi-câmera | Mesma pessoa, várias câmeras, um só ID |
-| 6 | Interação mão-produto | O degrau mais alto |
-| 7 | Fusão com RFID | Encontro com o sistema da loja autônoma |
+Câmeras responderiam isso. Mas uma câmera comum entrega uma imagem plana:
+ao projetar o mundo em pixels, a profundidade se perde e não há como
+recuperá-la — dois pontos na mesma linha de visada caem no mesmo pixel.
 
-Estamos no **degrau 0**.
+O caminho usual é comprar o sensor de volta: câmera de profundidade, LiDAR,
+estéreo calibrado. Isso resolve a geometria e destrói o custo por loja.
 
----
+## A solução
 
-## Por que começar pelo dataset
+**Devolver a dimensão perdida com restrições, não com hardware.**
 
-O gargalo da área não é modelo nem GPU. É **dado anotado**. Anotar "esta mão
-pegou este produto neste quadro" é caro e lento.
+Uma projeção só é irreversível no caso geral. Com uma restrição conhecida,
+ela volta a ter inversa — e as duas restrições necessárias já existem de graça
+em qualquer loja:
 
-Este projeto tem um ativo raro: um sistema de loja autônoma com **RFID
-funcionando**, que sabe com precisão de milissegundos qual produto foi retirado
-e quando. Vídeo sincronizado com esses eventos vira **rotulagem automática**.
+| restrição | o que devolve |
+|---|---|
+| os pés estão **no chão** (um plano) | posição em metros, por homografia |
+| a razão altura/horizonte é **invariante à distância** | altura da mão, por metrologia de vista única |
 
-Isso se chama **supervisão fraca cross-modal** — um sinal de uma modalidade
-rotulando outra. É a pergunta de pesquisa central deste projeto:
+Nenhum sensor especial. Três webcams comuns e geometria.
 
-> Em que medida eventos RFID sincronizados podem substituir anotação humana no
-> treinamento de modelos de interação mão-produto em varejo?
+E uma terceira decisão, que é a que faz o sistema funcionar de verdade:
+
+> **A fusão não é média — é voto.**
+>
+> As câmeras não trocam coordenadas para tirar uma média. Cada uma publica um
+> valor de um **vocabulário fechado**, e a decisão é discreta.
+
+Isso importa porque a média herda o erro de todas as fontes, enquanto o voto
+sobrevive ao erro da pior delas. Medido em 12/08: entre prateleiras há 40 cm de
+vão e o erro de altura é de ±8 cm. Escolher **uma entre cinco** aguenta um ruído
+que **medir em centímetros** não aguenta.
+
+> Um bit sobrevive ao ruído que destrói um ângulo.
 
 ---
 
 ## Arquitetura
 
-Pipeline de estágios desacoplados:
+Estágios desacoplados. Cada um só conhece o anterior.
 
 ```
-Fonte     →   Percepção    →   Estado          →   Saída
-frames        detecções        gêmeo digital       grava / exibe / publica
+   3 CÂMERAS            PERCEPÇÃO              MUNDO               SAÍDA
+┌──────────────┐   ┌──────────────┐   ┌──────────────────┐   ┌─────────────┐
+│  alto        │   │  detector    │   │  motor espacial  │   │ estado.json │
+│  frontal     │──▶│  YOLO-pose   │──▶│  Kalman, zonas   │──▶│ eventos     │
+│  lateral     │   │  MediaPipe   │   │  ação, prateleira│   │ cena 3D     │
+└──────────────┘   └──────────────┘   └──────────────────┘   └─────────────┘
+   fonte.py          visao/            espacial/ + acao/       gemeo/
+   thread por        thread por        aritmética, sem I/O      serializável
+   câmera            câmera
 ```
 
-**Duas decisões que valem mais que todas as outras:**
+**Cada câmera tem um papel, e nenhuma faz tudo.** É o critério de projeto
+central: em vez de uma câmera perfeita, três câmeras que erram de formas
+diferentes.
 
-**1. A Fonte é uma interface, com duas implementações:** webcam ao vivo e
-arquivo gravado. O mesmo código roda nos dois casos. É o que torna os
-experimentos reproduzíveis — você grava uma vez e experimenta cem vezes sobre
-o mesmo material.
+| papel | responde | por que ela |
+|---|---|---|
+| **alto** (cenital) | posição no piso, rumo do corpo, estatura | é a única com homografia — vê o chão sem perspectiva enganosa |
+| **frontal** | qual braço se move, a que altura a mão chega | vê o corpo de frente, onde o gesto acontece |
+| **lateral** | o quanto o braço avança para a gôndola | separa *pegar* de *passar perto* |
 
-**2. Captura e processamento são programas separados.** A captura precisa ser
-burra, estável e nunca falhar; ela cria um ativo insubstituível. O
-processamento é experimental e vai quebrar toda semana. Juntar os dois faz um
-bug no detector derrubar a gravação — e dado perdido não volta.
+Quando uma delas não enxerga, o campo chega `None` e **simplesmente não vota**.
+Nada é inventado para preencher a lacuna — abster-se é um resultado de primeira
+classe em todo o sistema.
 
-### Onde entra o C#
+### Três decisões que valem mais que as outras
 
-Pesquisa e treino em Python. Produção pode ser em C#:
+**1. Vocabulário fechado em vez de coordenadas.**
+Até 10/08 o sistema transmitia 17 juntas 3D e mandava desenhar exatamente
+aquilo. O desenho herdava todo erro da reconstrução — e produziu um esqueleto
+deitado no chão enquanto a pessoa andava em pé. Não havia como consertar o
+desenho: ele mostrava fielmente dados ruins. Com vocabulário fechado, o
+renderizador **anima um corpo que já sabe ser corpo**. Se "deitado" não está no
+vocabulário, o boneco não consegue deitar. A classe inteira de defeito
+desaparece por construção.
 
-```
-Python (laboratório)   →  ONNX  →   C# (fábrica)
-treino, experimentos               EdgeDesktop roda a inferência
-```
+**2. Eventos são fatos, nunca ordens.**
+`PESSOA_ENTROU_NA_ZONA` é um fato consumado com carimbo de tempo. Nenhum evento
+manda ninguém fazer nada; quem quiser agir se inscreve. É isso que permite
+gravar uma sessão e reproduzi-la depois, e mandar tudo para um painel sem que o
+núcleo saiba que existe painel.
 
-O modelo treinado é exportado para ONNX e executado com `Microsoft.ML.OnnxRuntime`
-dentro do EdgeDesktop — na borda, no PC da loja. Nenhuma imagem sai do local,
-que é a promessa de privacidade do projeto.
+**3. Limiar temporal se declara em segundos, nunca em quadros.**
+Com 3 quadros de confirmação a 14 fps, o limiar vale 0,21 s; a 30 fps, 0,1 s.
+O mesmo código se comporta diferente conforme a máquina. Quadro não é unidade
+de tempo.
+
+---
+
+## Pilha tecnológica
+
+| Camada | Tecnologia |
+|---|---|
+| Linguagem | Python 3.11+ |
+| Visão | OpenCV, YOLO11-pose (Ultralytics), MediaPipe Pose Landmarker |
+| Geometria | homografia por DLT, metrologia de vista única, SVD para registro |
+| Rastreamento | filtro de Kalman 2D em metros, recostura de identidade |
+| Fusão | por eixo e por mérito — cada vista responde o que enxerga melhor |
+| Câmeras | USB (DirectShow/MJPG) e remotas por MJPEG sobre HTTP |
+| Saída | JSON atômico, JSONL de eventos, cena 3D em OpenCV |
+| Testes | pytest — 814 testes, todos sem hardware |
 
 ---
 
@@ -111,45 +125,106 @@ que é a promessa de privacidade do projeto.
 
 ```
 SO-Espacial/
-├─ captura/          fonte de vídeo e gravação — código estável
-│    fonte.py          câmera em thread, descarta quadros velhos
-│    gravar.py         grava sessões com carimbo de tempo
-│    diagnostico.py    mede fps, brilho, codec da câmera
-├─ calibracao/       imagem → metros no chão
-│    homografia.py     calibração interativa (bloco 1)
-├─ percepcao/        do pixel ao mundo
-│    chao.py           BIBLIOTECA: homografia, ponto do pé, filtros
-│    pose3d.py         BIBLIOTECA: pose 3D relativa, inclinação
-│    mapa.py           programa: vista 2D de cima
-│    gemeo3d.py        programa: o gêmeo completo
-├─ estado/           o mundo, sem desenho
-│    rastreio.py       Kalman 2D e recostura de identidade
-│    ocupacao.py       mapa de calor e zonas
-│    planta.py         loja lida de JSON, estado publicado
-├─ visual/           só desenho, não sabe de câmera
-│    cena2d.py         vista de cima
-│    cena3d.py         esqueletos numa cena 3D
+├─ src/
+│   ├─ nucleo/       erros, log estruturado, métricas, voz
+│   ├─ fluxo/        Quadro, buffer limitado, sincronizador
+│   ├─ cameras/      fontes USB e remota, gerenciador, diagnóstico
+│   ├─ visao/        detector YOLO, pose, trabalhador por câmera
+│   ├─ espacial/     motor: pixel → metro, fusão, rastreio
+│   ├─ acao/         O CORAÇÃO — vocabulário, classificador, prateleira
+│   ├─ gemeo/        o estado do mundo, serializável
+│   ├─ eventos/      fatos com carimbo de tempo
+│   ├─ mundo/        reconstrução do ambiente, mapeamento
+│   └─ app/          orquestrador
+├─ percepcao/        chão, fusão de vistas, pose 3D
+├─ estado/           Kalman, zonas, planta da loja, publicador
+├─ visual/           só desenho — não sabe de câmera
+├─ ferramentas/      13 utilitários de calibração e diagnóstico
+├─ testes/           814 testes, 33 arquivos
+├─ config/           câmeras, escala, rumo, assinaturas de prateleira
 ├─ loja/             plantas em JSON — loja nova, arquivo novo
-├─ experimentos/     programas superados, citados no caderno
-├─ dados/            sessões, registros, estado_atual.json
-└─ docs/             plano de estudo, esquema de dados, caderno
+└─ docs/caderno/     o diário de bordo: o que quebrou e por quê
 ```
 
-**Regra que organiza tudo isso:** um arquivo é biblioteca **ou** programa,
-nunca os dois. Biblioteca não tem `main()`; programa não é importado.
+**Duas regras organizam tudo isso.**
 
-Até 08/08 o `mapa.py` era os dois, e o `gemeo3d.py` importava classes de dentro
-dele — então rodar o gêmeo carregava o código de desenho do mapa, e mexer num
-quebrava o outro. O núcleo foi para `percepcao/chao.py`.
+Um arquivo é biblioteca **ou** programa, nunca os dois. Biblioteca não tem
+`main()`; programa não é importado. Até 08/08 o `mapa.py` era os dois, e mexer
+num quebrava o outro.
 
-**Regra do `dados/bruto`: somente escrita.** Nada é corrigido, limpo ou
-sobrescrito ali. Todo processamento gera arquivo novo em outro lugar. Parece
-exagero até o dia em que você descobre um erro no processamento e precisa
-refazer tudo sem regravar nada.
+E `dados/bruto` é **somente escrita**: nada é corrigido, limpo ou sobrescrito
+ali. Todo processamento gera arquivo novo. Parece exagero até o dia em que você
+acha um erro no processamento e precisa refazer tudo sem regravar nada.
 
 ---
 
-## Ambiente
+## Estado atual
+
+**MVP funcionando com três câmeras simultâneas em hardware real.**
+
+O caminho crítico opera de ponta a ponta: três câmeras capturam em paralelo,
+o detector roda por câmera em thread própria, a posição vira metros por
+homografia, o Kalman mantém identidade, o classificador emite ação em
+vocabulário fechado, e o estado sai como JSON a cada 200 ms.
+
+### O que foi medido, não estimado
+
+| | antes | depois | o que era |
+|---|---|---|---|
+| taxa do sistema | 3,4 fps | **14,4 fps** | a primeira inferência do YOLO custava 15,2 s e envenenava a média |
+| câmera do alto | 1,0 fps | **15,0 fps** | uma câmera lenta ditava o ritmo de todas |
+| detecções recusadas | 55% | **0,4%** | o filtro de plausibilidade não cabia nos dados e agora se abstém |
+| inclinação do esqueleto | 42° | **0,0°** | o motor chamava a projeção errada; o estimador existia e não era usado |
+| falhas de leitura | 300/s | **45/s** | laço de leitura girando sem pausa, queimando CPU |
+
+Outros números de bancada: posição no chão com **2 a 5 cm** de erro,
+**99,6%** de sobrevivência do rastro, κ = 5,19 calibrado com uma pessoa de
+estatura conhecida e **6% de dispersão em 254 amostras**.
+
+### O que ainda não funciona, dito com número
+
+Ser honesto aqui vale mais que parecer pronto:
+
+- **Identidade contínua falha em sessões longas.** Re-ID entre câmeras ainda
+  não existe; a recostura é geométrica.
+- **Duas das cinco prateleiras são confiáveis.** As outras três, não.
+- **A calibração de cada espaço novo é manual** — quatro pontos no chão e uma
+  pessoa de altura conhecida.
+- **A perda evitada nunca foi medida em operação real.** É o argumento
+  comercial mais forte do projeto e, justamente por isso, não entra em
+  projeção nenhuma enquanto não for medido.
+
+---
+
+## Roteiro
+
+Cada degrau funciona e demonstra sozinho. Nada depende de terminar tudo.
+
+- [x] **0 · Aparato experimental** — captura sincronizada, dataset, como medir
+- [x] **1 · Detecção** — pessoas em quadros isolados
+- [x] **2 · Rastreamento** — identidade que persiste entre quadros
+- [x] **3 · Zonas e permanência** — mapa de calor e tempo de permanência
+- [x] **4 · Homografia** — vista de cima em tempo real; o gêmeo nasce aqui
+- [x] **5 · Multi-câmera** — três vistas, fusão por eixo e por mérito
+- [x] **6 · Ação em vocabulário fechado** — locomoção, postura, braços
+- [~] **7 · Prateleira por evidência conjunta** — 2 de 5 confiáveis
+- [ ] **8 · Re-identificação** — mesma pessoa depois de sair e voltar
+- [ ] **9 · Fusão com RFID** — encontro com o sistema da loja autônoma
+
+### Sobre o degrau 9
+
+Os dois sistemas existem e **ainda não se falam**. O SO Espacial calcula de
+qual prateleira a mão veio e guarda o resultado só para a tela; a loja em C#
+tem um endpoint que espera duas fotos e um nome de produto.
+
+São perguntas diferentes sobre o mesmo gesto, e ligá-las é a próxima grande
+decisão de arquitetura — não um trabalho de encanamento.
+
+---
+
+## Como rodar
+
+**Requisitos:** Python 3.11+, uma webcam. Três câmeras para o sistema completo.
 
 ```powershell
 python -m venv .venv
@@ -157,11 +232,129 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-IDE: **VS Code**, com as extensões Python, Pylance e Jupyter.
+O `ultralytics` está comentado no `requirements.txt` porque puxa o PyTorch
+junto — cerca de 2,5 GB. Descomente quando for usar detecção de verdade.
+
+```powershell
+python rodar.py                 # o sistema completo, com a cena 3D
+python rodar.py --falsas        # sem hardware nenhum, com câmeras sintéticas
+python apresentar.py            # o modo de demonstração
+pytest                          # 814 testes, nenhum precisa de câmera
+```
+
+### Calibrar um espaço novo
+
+```powershell
+python ferramentas/abrir_camera.py        # descobrir índices e resoluções
+python ferramentas/mapear.py              # 4 pontos no chão -> homografia
+python ferramentas/calibrar_escala.py     # uma pessoa de altura conhecida
+python ferramentas/aprender_prateleiras.py  # a assinatura de cada prateleira
+```
+
+A configuração fica em `config/`. Nenhum caminho está cravado no código.
 
 ---
 
-## Documentos
+## Documentação
 
-- [`docs/DATASET.md`](docs/DATASET.md) — esquema de dados e protocolo de captura
-- [`docs/PLANO-DE-ESTUDO.md`](docs/PLANO-DE-ESTUDO.md) — o que estudar, em que ordem
+| Onde | O quê |
+|---|---|
+| [`docs/caderno/`](docs/caderno/) | **o diário de bordo** — um arquivo por dia, com o que quebrou, o que foi medido e por que a decisão mudou |
+| [`docs/ARQUITETURA-v3-ACAO.md`](docs/ARQUITETURA-v3-ACAO.md) | a proposta do vocabulário fechado, escrita **antes** de implementar |
+| [`docs/ARQUITETURA-v2.md`](docs/ARQUITETURA-v2.md) | a arquitetura anterior, mantida para comparação |
+| [`docs/AUDITORIA-2026-08-09.md`](docs/AUDITORIA-2026-08-09.md) | auditoria do próprio código, com os defeitos encontrados |
+| [`docs/DATASET.md`](docs/DATASET.md) | esquema de dados e protocolo de captura |
+| [`docs/PLANO-DE-ESTUDO.md`](docs/PLANO-DE-ESTUDO.md) | o que estudar, em que ordem |
+| [`docs/ONDE-PARAMOS.md`](docs/ONDE-PARAMOS.md) | estado da última sessão de trabalho |
+
+Os documentos de negócio — dossiês, CANVAS, deck e o site — vivem no
+repositório de apresentação, não aqui. Código e material de venda mudam por
+motivos diferentes e em ritmos diferentes; misturá-los faz o histórico de um
+poluir o do outro.
+
+O caderno é a parte mais útil do repositório para quem quiser entender **por
+que** o sistema é assim. Os comentários no código seguem a mesma regra: eles
+explicam a decisão e o que aconteceu quando ela era outra, não o que a linha faz.
+
+---
+
+## Nome técnico do campo
+
+Para achar literatura, os termos certos:
+
+- **MTMC** — Multi-Target Multi-Camera Tracking
+- **MOT** — Multiple Object Tracking
+- **Re-ID** — Person Re-Identification
+- **Single-view metrology** — a altura da mão sai daqui
+- **Spatial Intelligence / World Models** — o guarda-chuva de 2026
+
+"Digital twin de loja" traz marketing. "MTMC tracking" traz ciência.
+
+---
+
+## Privacidade
+
+O sistema opera sobre **posição, postura e altura da mão** — nunca sobre
+reconhecimento facial. A identidade é um número de rastro que morre quando a
+pessoa sai. Isso não é um detalhe de implementação: muda o enquadramento na
+LGPD, e foi decisão de projeto desde o primeiro dia.
+
+---
+
+## Licença e dependências
+
+O código deste repositório está sob **MIT** — veja [`LICENSE`](LICENSE). Use,
+copie, modifique e venda; basta manter o aviso de copyright.
+
+Isso cobre o que está aqui dentro. As bibliotecas instaladas em tempo de
+execução têm licenças próprias, e uma delas exige atenção.
+
+### O caso do Ultralytics
+
+`src/visao/detector.py` usa **YOLO11-pose**, da biblioteca `ultralytics`,
+distribuída sob **AGPL-3.0**. Ela não está versionada aqui: o `pip` a baixa a
+partir do `requirements.txt`.
+
+A AGPL é uma licença *copyleft de rede*. Simplificando o que ela exige:
+
+> quem **distribui** um software que incorpora código AGPL — ou o oferece como
+> serviço pela rede — precisa disponibilizar o código-fonte do conjunto,
+> também sob AGPL.
+
+Na prática, por cenário:
+
+| você quer | a AGPL atrapalha? |
+|---|---|
+| estudar, pesquisar, rodar na sua máquina | não |
+| publicar o fonte aberto, como aqui | não |
+| vender um produto fechado que embarque isto | **sim** |
+| oferecer como serviço em nuvem, sem abrir o fonte | **sim** |
+
+As duas últimas linhas são o caso comercial da Smart Store, e há três saídas
+conhecidas:
+
+1. **Licença comercial da Ultralytics.** Vendida justamente para quem não pode
+   abrir o fonte. É a saída direta, e custa dinheiro.
+2. **Trocar o detector.** O projeto já usa MediaPipe (Apache-2.0) para pose 3D;
+   usá-lo também para detecção eliminaria a dependência AGPL. Custaria precisão
+   e trabalho de medição — quanto, não foi medido.
+3. **Abrir o produto.** Compatível com a AGPL, incompatível com a maioria dos
+   modelos de assinatura.
+
+Nada disso impede publicar este repositório. Fica registrado para a decisão não
+ser tomada por esquecimento lá na frente.
+
+*Isto é a leitura de um desenvolvedor sobre um texto jurídico, não parecer de
+advogado. Antes de fechar contrato apoiado nesta seção, consulte alguém
+habilitado.*
+
+---
+
+## Projetos relacionados
+
+| Repositório | O quê |
+|---|---|
+| [LOJA-AUT-NOMA-PRO](https://github.com/Duduedulopes/LOJA-AUT-NOMA-PRO) | a loja autônoma em .NET 8 — API, apps Blazor, firmware ESP32 |
+| **este** | a percepção espacial em Python |
+
+Site do projeto: **[smart-store.contato-dudulopes.workers.dev](https://smart-store.contato-dudulopes.workers.dev)**
