@@ -353,9 +353,14 @@ habilitado.*
 
 ## Projetos relacionados
 
+Este repositório é **parte do ecossistema completo** de varejo autônomo. A percepção espacial por câmeras sabe **como** o gesto foi executado, mas não tem acesso ao **conteúdo** dos produtos nem ao sistema de vendas.
+
 | Repositório | O quê |
 |---|---|
 | [LOJA-AUT-NOMA-PRO](https://github.com/Duduedulopes/LOJA-AUT-NOMA-PRO) | a loja autônoma em .NET 8 — API, apps Blazor, firmware ESP32 |
+| [Rede-Neural](https://github.com/Duduedulopes/Rede-Neural) | o gerente virtual inteligente — classificação de intenção e sistema de permissões |
 | **este** | a percepção espacial em Python |
+
+As três leituras do mesmo gesto agora se integram através da Rede Neural, que coordena os sistemas e permite interação em linguagem natural.
 
 Site do projeto: **[smart-store.contato-dudulopes.workers.dev](https://smart-store.contato-dudulopes.workers.dev)**
